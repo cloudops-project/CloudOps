@@ -1,0 +1,13 @@
+﻿# Proposed CODEOWNERS entries. Replace team slugs with real GitHub users/teams
+# before enabling required-code-owner review in a remote private repository.
+* @cloudfix/project-leads
+/docs/architecture/ @cloudfix/architecture @cloudfix/security
+/docs/engineering/security-guidelines.md @cloudfix/security
+/docs/engineering/ai-usage-guidelines.md @cloudfix/security @cloudfix/architecture
+/docs/engineering/rule-authoring-guidelines.md @cloudfix/aws-security @cloudfix/security
+/apps/api/ @cloudfix/backend
+/apps/web/ @cloudfix/frontend
+/apps/worker/ @cloudfix/backend @cloudfix/aws-security
+/infrastructure/ @cloudfix/devops @cloudfix/aws-security
+/tests/security/ @cloudfix/security @cloudfix/quality
+/.github/ @cloudfix/devops @cloudfix/project-leads

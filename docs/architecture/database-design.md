@@ -1,0 +1,88 @@
+﻿# Conceptual Database Design
+
+## Purpose and audience
+
+Backend, database, security, and analytics engineers use this proposed PostgreSQL model as the starting point for later logical/physical design. No migrations exist in Stage 0.
+
+## Ownership and isolation
+
+`organizations` is the tenant root. Tenant records carry `organization_id` directly wherever practical; dependent records have an unambiguous foreign-key path to it. Services establish membership and permission before calling repositories. Repository methods require organization scope and include it in predicates, joins, uniqueness constraints, and cache keys. Workers re-resolve ownership rather than trusting queue data. PostgreSQL row-level security is under evaluation as defense-in-depth.
+
+```mermaid
+erDiagram
+  organizations ||--o{ organization_members : has
+  users ||--o{ organization_members : joins
+  roles ||--o{ organization_members : assigned
+  roles }o--o{ permissions : grants
+  organizations ||--o{ aws_accounts : owns
+  aws_accounts ||--o{ aws_account_connections : connects
+  organizations ||--o{ scan_jobs : requests
+  scan_jobs ||--o{ scan_runs : attempts
+  aws_accounts ||--o{ cloud_assets : contains
+  scan_runs ||--o{ cloud_assets : observes
+  security_rules ||--o{ rule_versions : versions
+  compliance_frameworks ||--o{ compliance_controls : contains
+  rule_versions ||--o{ rule_compliance_mappings : maps
+  compliance_controls ||--o{ rule_compliance_mappings : receives
+  cloud_assets ||--o{ findings : affects
+  rule_versions ||--o{ findings : detects
+  findings ||--o{ finding_evidence : supports
+  findings ||--o{ finding_status_history : changes
+  findings ||--o{ risk_acceptances : accepts
+  findings ||--o{ remediation_recommendations : advises
+  findings ||--o{ remediation_requests : requests
+  remediation_requests ||--o{ remediation_executions : attempts
+  findings ||--o{ jira_tickets : tracks
+  organizations ||--o{ notification_events : sends
+  organizations ||--o{ reports : generates
+  organizations ||--o{ audit_events : records
+  organizations ||--o{ ai_interactions : invokes
+```
+
+## Identity, tenancy, and AWS
+
+| Entity | Purpose, important fields, relationships | Retention, sensitivity, indexes, deletion |
+|---|---|---|
+| `organizations` | Tenant root: `id`, name, status, settings version, timestamps | Sensitive business identity; unique normalized name as policy allows; deactivate/soft-delete, retain governed audit references |
+| `users` | Identity subject: `id`, issuer, subject, display/email, status, last_login | PII; unique `(issuer, subject)`, email lookup if needed; soft-delete/anonymize under policy |
+| `organization_members` | User membership and role: organization/user/role, status, version | Tenant-sensitive; unique `(organization_id,user_id)`, indexes by user and active org; soft-delete/history |
+| `roles` / `permissions` | Named organization/system role and atomic permission codes; join table implied | Permission-sensitive; unique names/codes; version/deactivate rather than destructive delete |
+| `aws_accounts` | Customer account identity: organization, AWS account ID, alias, partition, status | Account IDs sensitive; unique `(organization_id,aws_account_id)`; soft-delete/revoke |
+| `aws_account_connections` | Role ARN, protected external ID/reference, state, validation/template version/time/error class | High sensitivity; never credentials; index active account/state; revoke/retain history, encrypt sensitive value |
+| `cloud_assets` | Normalized asset snapshot: organization, account, scan run, service/type, provider ID/ARN, region, config hash, sanitized metadata | Configuration-sensitive; indexes `(org,service,type)`, `(org,account,provider_id)`, run; retention/partitioning TBD; soft-delete current projection, retain snapshots per policy |
+
+## Scanning, rules, and findings
+
+| Entity | Purpose, important fields, relationships | Retention, sensitivity, indexes, deletion |
+|---|---|---|
+| `scan_jobs` | User/schedule request: organization, account scope, services, status, idempotency key, requester | Operational/sensitive; unique `(org,idempotency_key)`, status/created index; retain and cancel, no hard delete during audit term |
+| `scan_runs` | Execution attempt: job, attempt, lease, start/end, coverage, error class | Operational; unique `(job,attempt)`, status/lease indexes; retention aligned with evidence |
+| `security_rules` | Stable ID (`EC2-001`), service, title, lifecycle | Global curated content; unique rule ID; deactivate, never reuse ID |
+| `rule_versions` | Immutable version, detection spec/hash, severity, guidance, activation | Integrity-sensitive; unique `(rule_id,version)`, active index; never update semantics or delete referenced versions |
+| `findings` | Organization, asset, rule version, fingerprint, severity, status, first/last seen, version | Tenant security data; unique active fingerprint by org; indexes `(org,status,severity)`, asset/rule; soft-delete inappropriateâ€”close/suppress with history |
+| `finding_evidence` | Finding/run, schema version, minimized evidence JSON/hash, observed time | Highly sensitive; finding/run indexes; immutable, redact, retention policy; no secrets |
+| `finding_status_history` | From/to status, actor, reason, timestamp, version | Audit-relevant; index finding/time; append-only |
+| `risk_acceptances` | Finding, organization, owner/approver, justification, expiry, status | Sensitive governance record; expiry/status indexes; never erase during required retention |
+
+## Compliance, response, integrations, and audit
+
+| Entity | Purpose, important fields, relationships | Retention, sensitivity, indexes, deletion |
+|---|---|---|
+| `compliance_frameworks` / `compliance_controls` | Framework version/source and hierarchical control identifiers/text | Licensing-sensitive; unique `(framework,version)` and control code; retire/version, do not rewrite mappings historically |
+| `rule_compliance_mappings` | Rule version â†” control with rationale/coverage qualifier/reviewer | Governance-sensitive; composite unique pair, control/rule indexes; version/deactivate |
+| `remediation_recommendations` | Finding, source (deterministic/AI), playbook candidate, text/schema, review state | Tenant-sensitive; finding/source index; retain with finding, sanitize AI output |
+| `remediation_requests` | Finding, requested playbook/version, requester, scope, approval state, idempotency key, evidence version | High impact; unique `(org,idempotency_key)`, approval/status indexes; immutable intent plus state history |
+| `remediation_executions` | Request attempt, executor, target, preconditions, outcome, timestamps, verification run | Highly sensitive; unique request/attempt, outcome/time indexes; retain; never store credentials |
+| `jira_tickets` | Finding, external project/key/URL, sync state, last event | Integration/customer-sensitive; unique external identity per org; redact tokens; unlink/retain audit history |
+| `notification_events` | Organization, channel, template, destination reference, payload hash, state/attempts | Recipient-sensitive; status/schedule indexes; minimized retention, never raw webhook secrets |
+| `reports` | Organization, type, parameters, generated artifact reference/hash, status | May contain sensitive posture data; `(org,status,created)` index; expire artifact per policy, keep audit metadata |
+| `audit_events` | Organization, actor/service, action, target, outcome, time, correlation/idempotency IDs, previous/event hash | Security record; organization/time, target/time, correlation indexes; append-only, archived/tamper-evident, never soft-delete ordinarily |
+| `ai_interactions` | Organization, purpose, provider/model, prompt template/version, input hash, redaction status, output status, token/cost metadata, related finding/report, timestamp | Sensitive metadata; indexes org/time, purpose, related IDs; raw secrets prohibited; raw prompts/outputs avoided or tightly governed/expired |
+
+## Relational rules
+
+UUID primary keys and UTC timestamps are the default. Use foreign keys, check constraints for states, composite uniqueness with `organization_id`, and optimistic `version` columns where approvals/status can race. Multi-step lifecycle changes and their audit/outbox events share a transaction. JSON is schema-versioned and limited to variable evidence/metadata, not ownership or core relationships.
+
+## Retention and open questions
+
+Retention classes must be approved for identities, inventory snapshots, evidence, reports, AI content, operational logs, and audit archives. Legal holds and deletion propagation need design. Open decisions include RLS, partitioning thresholds, exact external-ID encryption/reference design, outbox tables, evidence normalization, and whether raw AI output is ever retained (default proposal: no).
