@@ -1,10 +1,21 @@
-* @THE7MIST @Aditi-Jori @Chaitanya-2004-code @utkarshapati @hkhamparia
+# Default owners
+* @THE7MIST @Chaitanya-2004-code @hkhamparia
 
+# Architecture and security-sensitive documentation
 /docs/architecture/ @THE7MIST
 /docs/engineering/security-guidelines.md @THE7MIST
-/apps/api/ @THE7MIST
-/apps/web/ @THE7MIST
-/apps/worker/ @THE7MIST
+/docs/engineering/ai-usage-guidelines.md @THE7MIST
+
+# Application areas
+/apps/api/ @THE7MIST @hkhamparia
+/apps/web/ @THE7MIST @Chaitanya-2004-code
+/apps/worker/ @THE7MIST @hkhamparia
+
+# Infrastructure and security
 /infrastructure/ @THE7MIST
 /tests/security/ @THE7MIST
+
+# Repository governance
 /.github/ @THE7MIST
+/SECURITY.md @THE7MIST
+/.env.example @THE7MIST
