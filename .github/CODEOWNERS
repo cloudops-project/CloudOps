@@ -1,12 +1,21 @@
-﻿# Proposed CODEOWNERS entries. Replace team slugs with real GitHub users/teams
-# before enabling required-code-owner review in a remote private repository.
-* @THE7MIST
+# Default owners for the repository
+* @THE7MIST @Aditi-Jori @Chaitanya-2004-code @utkarshapati @hkhamparia
 
+# Architecture and security-sensitive documentation
 /docs/architecture/ @THE7MIST
 /docs/engineering/security-guidelines.md @THE7MIST
-/apps/api/ @THE7MIST
-/apps/web/ @THE7MIST
-/apps/worker/ @THE7MIST
+/docs/engineering/ai-usage-guidelines.md @THE7MIST
+
+# Application areas
+/apps/api/ @THE7MIST @Aditi-Jori @hkhamparia
+/apps/web/ @THE7MIST @Chaitanya-2004-code
+/apps/worker/ @THE7MIST @utkarshapati @hkhamparia
+
+# Infrastructure and security tests
 /infrastructure/ @THE7MIST
 /tests/security/ @THE7MIST
+
+# Repository governance
 /.github/ @THE7MIST
+/SECURITY.md @THE7MIST
+/.env.example @THE7MIST
