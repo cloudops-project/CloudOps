@@ -4,9 +4,14 @@
 
 2026-07-24
 
-## Current branch and revision
+## Current repository and documentation release
 
-- Branch: `main` (documentation synchronization uses `docs/stage5-merge-sync`)
+- Integration branch: `main`
+- Documentation release branch: `docs/stage5-merge-sync`
+- Documentation PR: PR #5, open for review and not merged
+- Initial documentation synchronization commit: `65d95a6d717556c70ede25900e9daf01dcb90dd4`
+- The current documentation branch SHA is the result of `git rev-parse HEAD`; the final pushed
+  SHA is recorded in PR #5 and the release report.
 - Current main SHA: `68785b0138eaecf84850887a3d4005c40e9761c0`
 - Verified Stage 5 feature SHA: `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f`
 - Current Alembic head: `0007_stage5_compliance_engine`
@@ -129,7 +134,8 @@ was regression-tested:
 ## Repository state
 
 Stage 5 is integrated in `main` through PR #4 at
-`68785b0138eaecf84850887a3d4005c40e9761c0`. Generated output remains ignored.
+`68785b0138eaecf84850887a3d4005c40e9761c0`. Documentation synchronization is isolated on
+`docs/stage5-merge-sync` in PR #5. Generated output remains ignored.
 
 ## Governance record
 
@@ -145,8 +151,9 @@ CODEOWNER, automated CI, or repository-policy approval.
 
 ## Next immediate task
 
-1. Review and merge the Stage 5 documentation synchronization PR.
-2. Synchronize local `main`.
-3. Authorize Stage 6 — deterministic risk scoring.
-4. Create the Stage 6 feature branch only from the synchronized clean main baseline.
-5. Keep AI out of finding detection and deterministic risk scoring.
+1. Review and explicitly authorize PR #5 as required by repository governance.
+2. Merge PR #5 and synchronize local `main`.
+3. Reconfirm the Stage 1–5 regression baseline and a clean worktree.
+4. Authorize Stage 6 — deterministic risk scoring.
+5. Create the Stage 6 feature branch only from the synchronized clean main baseline.
+6. Keep AI out of finding detection and deterministic risk scoring.

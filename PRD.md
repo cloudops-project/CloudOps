@@ -158,6 +158,20 @@ content, or remediation controls.
 - Scheduled/background discovery
 - Raw CloudWatch log or CloudTrail event ingestion, EventBridge, or deployment infrastructure
 - MFA, SSO/OIDC, password reset, and production invitation email delivery
+- Stage 6 deterministic risk scoring; Stage 7 AI explanations; Stage 8 expanded
+  dashboards/reports; Stage 9 notifications; Stage 10 remediation; Stage 11 scheduling; and
+  Stage 12 extended tamper-evident audit timeline
+
+## Security and test boundaries
+
+- Every tenant-owned operation requires active membership, centralized RBAC, and organization
+  scope; cross-tenant detail probes use non-disclosing behavior.
+- AWS integration is read-only and uses STS temporary credentials only.
+- Automated tests use synthetic data and deterministic AWS mocks. Production and customer AWS
+  accounts or credentials must never be used.
+- Stage 4 rules are the only implemented detection boundary. Stage 5 interprets persisted
+  deterministic evidence and cannot infer `PASS` from missing evidence.
+- AI must not detect findings or determine risk scores.
 
 ## Acceptance criteria for the current baseline
 

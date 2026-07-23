@@ -11,6 +11,16 @@ Stage 5 feature SHA `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` was merged by PR 
 migration head is `0007_stage5_compliance_engine`. Stage 6 deterministic risk scoring, AI,
 notifications, remediation, and raw event ingestion remain deferred.
 
+- Repository: `D:\learn\cdac\cloudfix`
+- Remote: `https://github.com/cloudops-project/CloudOps.git`
+- Active integration branch: `main`
+- Documentation release branch: `docs/stage5-merge-sync`
+- Documentation release: PR #5 is open for review and must not be treated as merged.
+- Stage 5 release evidence: 162 backend tests passed with 0 failures and 0 skips at 95.88%
+  coverage; 56 frontend tests passed with 0 failures.
+- Current warnings: Starlette TestClient/httpx deprecation; use supported Node 20 LTS or Node
+  22 LTS. GitHub reported no automated check rollup for PR #4.
+
 ## Source-of-truth documents
 
 - `PRD.md`: current product scope and user journey
@@ -171,7 +181,9 @@ Never put values or secrets in this file.
 
 ## Commands
 
-See the root README and app READMEs for install, migration, lint, type-check, test, and build commands.
+See the root `README.md` for the complete teammate run guide, exact environment variables,
+PostgreSQL lifecycle, quality gates, troubleshooting, and safe cleanup commands. App READMEs
+provide subsystem detail.
 
 ## Completed capabilities
 
@@ -215,10 +227,11 @@ clean-room verification, the owner recorded an **Owner-authorized governance exc
 
 ## Current priorities
 
-1. Review and merge the Stage 5 documentation synchronization PR.
-2. Synchronize local `main`.
-3. Obtain explicit Stage 6 scope authorization.
-4. Create the Stage 6 branch from synchronized clean `main`; do not add Stage 6 code before then.
+1. Review and explicitly authorize PR #5 where governance requires it.
+2. Merge PR #5 and synchronize local `main`.
+3. Reconfirm the Stage 1–5 baseline and clean worktree.
+4. Obtain explicit Stage 6 scope authorization.
+5. Create the Stage 6 branch from synchronized clean `main`; do not add Stage 6 code before then.
 
 ## Stage 5 compliance boundary
 
@@ -235,14 +248,35 @@ risk scoring.
 
 ## HOW TO START A NEW AI SESSION
 
-Read all attached project documents first and treat them as the source of truth. Before changing
-code, summarize:
+Attach these seven root source-of-truth files to the new session:
 
-- the project goal;
-- the architecture;
-- the current implementation;
-- known issues and limitations; and
-- the next task.
+1. `NEW_CHAT_CONTEXT.md`
+2. `PRD.md`
+3. `architecture.md`
+4. `design.md`
+5. `rules.md`
+6. `phases.md`
+7. `memory.md`
 
-Identify and resolve contradictions or missing information before proceeding. Do not modify code
-until those contradictions are resolved.
+Then send this exact starter prompt:
+
+```text
+Read the attached project files and treat them as the source of truth.
+
+First, summarize your understanding of:
+
+- the project goal
+- the architecture
+- the current implementation state
+- known issues
+- the next task
+
+Do not modify code yet. Identify contradictions or missing information before proceeding.
+```
+
+The new session must resolve any conflict between these files and current repository evidence
+before changing code. Never use real customer AWS accounts or credentials for automated tests.
+Stages advance sequentially: Stage 6 cannot begin until PR #5 is reviewed/authorized, merged,
+`main` is synchronized, and the verified baseline remains clean. Stage 4 detects findings;
+Stage 5 interprets persisted deterministic evidence for compliance. AI must not perform finding
+detection or deterministic risk scoring.

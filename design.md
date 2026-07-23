@@ -20,8 +20,9 @@ Authenticated pages use a responsive application shell:
 - Header with the signed-in email and logout action
 - Constrained main content area for forms, tables, cards, and status views
 
-Primary navigation exposes Dashboard, AWS Accounts, Assets, Security, Members, and Profile.
-Discovery and evaluation jobs, the rule catalog, and finding details have dedicated routes.
+Primary navigation exposes Dashboard, AWS Accounts, Assets, Security, Compliance, Members, and
+Profile. Discovery and evaluation jobs, the rule catalog, finding details, compliance
+frameworks/controls, and assessment history have dedicated routes.
 
 ### Compliance
 

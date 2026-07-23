@@ -73,28 +73,47 @@ complete framework coverage nor certification.
 No Stage 6 executable code is authorized or present. AI must not perform deterministic risk
 scoring.
 
-## Later planned stages
+## Stage 7 — AI Explanation Assistant
 
-Stages 7–12 are **NOT STARTED**. The following roadmap items are plans only:
+**Status: NOT STARTED**
 
-The detailed roadmap under `docs/planning/` currently reserves later work for:
+Optional advisory explanations only. AI must not detect findings or determine risk scores.
 
-1. Compliance and risk
-2. Optional advisory AI
-3. Extended reporting
-4. Notifications and Jira
-5. Governed remediation
-6. Scheduling and background workers
-7. Audit/security hardening
-8. Infrastructure and deployment
-9. Integrated testing/UAT
-10. Final documentation and demonstration
+## Stage 8 — Dashboard and Reports
 
-These are plans, not completed functionality. Sequence and scope require approval before work.
+**Status: NOT STARTED**
+
+Expanded dashboards, reports, and export experiences remain planned.
+
+## Stage 9 — Notifications
+
+**Status: NOT STARTED**
+
+Notification and ticketing integrations remain planned.
+
+## Stage 10 — Remediation Workflow
+
+**Status: NOT STARTED**
+
+Governed remediation and customer-resource mutation are not implemented.
+
+## Stage 11 — Scheduler
+
+**Status: NOT STARTED**
+
+Scheduling, queues, and background-worker orchestration are not implemented.
+
+## Stage 12 — Extended Tamper-Evident Audit Timeline
+
+**Status: NOT STARTED**
+
+The extended audit timeline/archive is planned; current audit controls must not be described as
+absolutely immutable.
 
 ## Immediate gate
 
-1. Review and merge the documentation-only Stage 5 synchronization.
-2. Synchronize local `main` with the merged documentation.
-3. Authorize and create a separate Stage 6 branch from that clean baseline.
-4. Keep deterministic risk scoring separate from optional advisory AI.
+1. Review and explicitly authorize documentation PR #5 where required.
+2. Merge PR #5 and synchronize local `main`.
+3. Confirm a clean worktree and preserved Stage 5 regression baseline.
+4. Authorize and create a separate Stage 6 branch from updated `main`.
+5. Keep deterministic risk scoring separate from optional advisory AI.

@@ -2,13 +2,18 @@
 
 ## Last updated
 
-2026-07-24 — Stage 5 compliance merged and regression-verified on `main`.
+2026-07-24 — Stage 5 compliance merged and regression-verified on `main`; documentation
+synchronization is open as PR #5.
 
 ## Current implementation
 
 Stages 1–5 are independently verified, merged, and regression-tested. PR #4 merged verified
 feature SHA `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` at main commit
 `68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 has not started.
+
+The active integration branch is `main`. Documentation synchronization is isolated on
+`docs/stage5-merge-sync` and published as PR #5. Its initial synchronization commit is
+`65d95a6d717556c70ede25900e9daf01dcb90dd4`; the current PR head is authoritative until merge.
 
 Alembic revision `0007_stage5_compliance_engine` follows
 `0006_stage4_verification_repairs` and adds versioned frameworks and controls, rule mappings,
@@ -53,9 +58,10 @@ tests use deterministic AWS doubles; controlled live-AWS validation remains oper
 
 ## Next task
 
-Review and merge the Stage 5 documentation synchronization, synchronize `main`, then obtain
-separate authorization for Stage 6 — deterministic risk scoring. Do not create Stage 6 code
-before that gate; AI must not perform detection or risk scoring.
+Review and explicitly authorize PR #5 where required, merge it, synchronize `main`, reconfirm
+the Stage 1–5 baseline and clean worktree, then obtain separate authorization for Stage 6 —
+deterministic risk scoring. Do not create Stage 6 code before that gate; AI must not perform
+detection or risk scoring.
 
 ## Stage 3 implementation snapshot
 
@@ -85,3 +91,12 @@ The initial catalog contains four controls and twelve mappings. It is not comple
 coverage or certification, mappings require human compliance review, and compliance export is
 not implemented. The Starlette TestClient/httpx deprecation warning remains; Node 20 LTS or 22
 LTS is recommended.
+
+## Teammate and AI handoff
+
+The root `README.md` is the complete teammate run guide. A new AI session must be given the
+seven root source-of-truth files: `NEW_CHAT_CONTEXT.md`, `PRD.md`, `architecture.md`,
+`design.md`, `rules.md`, `phases.md`, and `memory.md`. It must summarize the project goal,
+architecture, implementation state, known issues, and next task before editing. Contradictions
+must be resolved against current repository evidence. Automated verification uses synthetic
+data and deterministic AWS doubles; never use real customer AWS credentials or resources.

@@ -42,6 +42,8 @@ partial indexes, composite foreign keys, or concurrency.
 
 ## Code boundaries
 
+- Python uses strict Mypy-compatible annotations; TypeScript must pass both application and Node
+  project type checks. Do not add broad type ignores to hide defects.
 - Route handlers remain thin.
 - Services own business workflows, transaction boundaries, and audit emission.
 - Repositories own database access and tenant predicates.
@@ -75,6 +77,19 @@ partial indexes, composite foreign keys, or concurrency.
 - Rule errors become compliance `ERROR`; missing or version-mismatched evidence becomes
   `NOT_ASSESSED`; suppression does not turn a failure into a pass.
 - Compliance assessment snapshots and finalized per-rule evaluation summaries are immutable.
+- Automated tests must use synthetic fixtures, deterministic AWS doubles, and disposable
+  PostgreSQL. Production/customer AWS accounts and credentials are forbidden.
+
+## Structured logging and audit rules
+
+- Operational logs use bounded structured fields and correlation IDs.
+- Durable audit events record accepted user-visible lifecycle transitions.
+- Never log JWTs, authorization/cookie headers, passwords, AWS credentials, full policies, raw
+  provider/database exceptions, or unbounded evidence.
+- Do not claim audit data is absolutely immutable; database controls and retention/archive
+  guarantees must be described precisely.
+- Owner governance exceptions must state the exact PR and must not be described as independent,
+  CODEOWNER, CI, or repository-policy approval.
 
 ## RBAC and governance
 
@@ -134,6 +149,10 @@ coverage. Required gates are:
 - Repository: secret/private-key/AWS-key/environment scans, conflict-marker scan, and
   `git diff --check`
 
+The maintained baseline expects at least 95% backend coverage. Run focused unit/integration tests
+first, then PostgreSQL integrity/concurrency and the complete regression suite. Verify the exact
+pushed SHA from a separate clean detached worktree before integration.
+
 Do not mark a check passed unless its command ran successfully. Mock AWS deterministically; live
 AWS validation belongs only in a controlled sandbox and must never use customer credentials.
 
@@ -150,13 +169,16 @@ AWS validation belongs only in a controlled sandbox and must never use customer 
 
 ## Branch strategy
 
-- `main`: protected release baseline
-- `develop`: protected integration target
+- `main`: active integration and release baseline
+- `develop`: legacy long-lived branch; do not base new work on it unless policy is explicitly
+  changed
 - `feature/*`: stage implementation branches
 - `fix/*`: narrowly scoped repair branches when needed
+- `docs/*`: documentation-only branches
 
-Use pull requests, required review, and CI. Do not push, merge, rewrite history, or start another
-stage without explicit authorization.
+Use pull requests and required review. Report absent CI checks as absent. Do not force push,
+rewrite history, push directly to `main`, merge, or start another stage without explicit
+authorization.
 
 ## Definition of Done
 
@@ -165,5 +187,6 @@ documentation, dependency audits, and independent verification pass; no later-st
 scope is present; and no secrets or generated artifacts are committed.
 
 No stage may begin until its predecessor is independently verified and merged. Stage 6 must
-branch from synchronized `main`; AI must not perform finding detection or deterministic risk
-scoring.
+remain blocked until documentation PR #5 is reviewed/authorized, merged, and `main` is
+synchronized and clean. It must branch from that baseline; AI must not perform finding
+detection or deterministic risk scoring.
