@@ -6,7 +6,7 @@ Product, design, and frontend teams use this proposed navigation model to keep o
 
 ```mermaid
 flowchart TD
-  ROOT["Organization-scoped CloudFix"] --> DASH[Dashboard]
+  ROOT["Organization-scoped CloudOps"] --> DASH[Dashboard]
   ROOT --> AWS[AWS accounts]
   ROOT --> ASSET[Assets]
   ROOT --> SCAN[Scans]

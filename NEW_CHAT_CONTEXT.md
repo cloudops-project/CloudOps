@@ -1,311 +1,227 @@
-﻿# CloudFix Portable Repository Context
+# CloudOps Portable Repository Context
 
-## Purpose and usage
+Use this file to resume work in a fresh AI chat. Detailed documents remain authoritative. Update this file after architectural changes and `docs/planning/project-memory.md` after each substantial coding session.
 
-This file gives a fresh AI chat enough context to reason about the CloudFix repository without previous conversation history. Treat linked project documents as the detailed source of truth. Update this file after major architecture or scope changes; update [`project-memory.md`](docs/planning/project-memory.md) after every substantial working session.
+## Purpose and current status
 
-**Generated from repository state:** 2026-07-20
-**Current stage:** Stage 0 - Planning and research, review pending
-**Implementation state:** No application code, database, AWS integration, rules, AI integration, CI/CD, or deployment exists.
+CloudOps is an AWS-focused multi-tenant SaaS foundation for secure AWS onboarding and normalized
+asset inventory. Stages 1, 2, and 3 are implemented and independently verified by the final
+repository review.
+Stage 3 is inventory only. Stage 4 rule evaluation and all findings, compliance, risk, AI,
+notification, and remediation capabilities remain deferred.
+Stage 4 has not started.
 
-## 1. Project purpose and current status
+## Source-of-truth documents
 
-CloudFix is a planned AWS-focused, multi-tenant Cloud Security Posture Management SaaS. Version 1 is limited to Amazon EC2, Amazon S3, and AWS IAM. It will connect to customer AWS accounts using cross-account IAM roles, an external ID, AWS STS, and short-lived credentials; discover normalized configuration metadata; evaluate deterministic security rules; and support auditable investigation, assignment, risk acceptance, remediation approval, remediation, and verification.
+- `PRD.md`: current product scope and user journey
+- `architecture.md`: current executable architecture and schema
+- `design.md`: current frontend and design-system behavior
+- `rules.md`: development, security, database, and testing rules
+- `phases.md`: stage status and future sequence
+- `memory.md`: current working state and next task
 
-AI is an optional advisory layer. It may explain deterministic findings, summarize impact, recommend reviewed remediation options, draft Jira content, and assist with reports. It must not determine findings, receive credentials or unredacted secrets, call AWS, approve or execute remediation, alter mappings without review, or close findings.
+Detailed documents under `docs/` provide supporting depth. Resolve any contradiction before
+changing code.
 
-The Stage 0 documentation foundation is complete as a draft and has passed structural checks. It still requires stakeholder and team approval. The repository is not initialized as Git. Stage 1 must not begin before approval.
-
-## 2. Repository structure
+## Repository map
 
 ```text
-cloudfix/
-|-- README.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md
-|-- .env.example, .editorconfig, .gitignore, LICENSE
-|-- NEW_CHAT_CONTEXT.md
-|-- docs/
-|   |-- product/        # PRD, scope, personas, stories, metrics, constraints, glossary
-|   |-- architecture/   # system, components, flow, AWS onboarding, tenancy, DB, API, threats
-|   |   `-- decisions/  # ADR-001 through ADR-006; all currently Proposed
-|   |-- design/         # design system, IA, wireframes, flows, accessibility, responsive rules
-|   |-- engineering/    # coding, API/DB/security/AI/rules/logging/testing/DoD standards
-|   |-- planning/       # phases, roadmap, ownership, backlog, risks, memory, templates
-|   `-- operations/     # deployment, environments, monitoring, audit, recovery, incidents, secrets
-|-- apps/
-|   |-- api/README.md   # documentation-only FastAPI placeholder
-|   |-- web/README.md   # documentation-only React placeholder
-|   `-- worker/README.md# documentation-only background-worker placeholder
-|-- infrastructure/
-|   |-- terraform/README.md
-|   `-- customer-onboarding/README.md
-|-- packages/shared-types/README.md
-|-- tests/{end-to-end,performance,security}/README.md
-`-- .github/            # CODEOWNERS proposal, PR/issue templates, workflow README only
+apps/api/        FastAPI application, migration, tests
+apps/web/        React administration application and tests
+apps/worker/     Later-stage placeholder
+docs/            Product, architecture, engineering, design, planning, operations, ADRs
+infrastructure/  Later-stage infrastructure placeholders
+packages/        Shared-package placeholders
+tests/           Cross-application test placeholders
 ```
 
-Excluded from analysis and handoff: `.env` files, credentials, API keys, `node_modules`, build output, generated files, binaries, logs, and lock-file contents.
-
-## 3. System mind map
+## System mind map
 
 ```mermaid
 mindmap
-  root((CloudFix))
-    Product
-      Multi-tenant CSPM
-      AWS EC2
-      AWS S3
-      AWS IAM
-    Frontend planned
+  root((CloudOps))
+    Web
       React and TypeScript
-      Material UI
-      TanStack Query
-      React Router
-      Accessible dashboards
-    Backend planned
+      Tailwind design system
+      In-memory access token
+      Protected admin routes
+    API
       FastAPI
-      Pydantic validation
-      Application services
-      Tenant-scoped repositories
-      SQLAlchemy and Alembic
-    Background processing planned
-      Celery and Redis proposed
-      Python worker
-      Scan orchestration
-      Deterministic rule engine
-      SQS migration boundary
-    Database planned
-      PostgreSQL
-      Organizations and RBAC
-      AWS inventory and scans
-      Findings and evidence
-      Remediation and audit
-    AWS integration planned
-      Cross-account IAM
-      External ID
-      STS temporary credentials
-      Boto3 collectors
-      Scoped Lambda remediation
-    External integrations planned
-      Advisory AI provider
-      Jira
-      Email or Teams
-    Infrastructure planned
-      Terraform
-      GitHub Actions
-      CloudWatch
-      S3 audit archive
-      Secrets Manager
+      Authentication services
+      Organization services
+      Invitation services
+      AWS onboarding service
+      Discovery orchestrator
+      Central RBAC
+    Database
+      Users
+      Organizations
+      Memberships
+      Invitations
+      Refresh sessions
+      Audit events
+      AWS accounts
+      External ID reservations
+      Assets
+      Discovery jobs
+    AWS
+      STS AssumeRole
+      EC2 discovery
+      S3 discovery
+      IAM discovery
+      RDS discovery
+    Security
+      Argon2
+      Signed access JWT
+      Opaque rotating refresh cookie
+      Tenant isolation
+      Last-owner protection
+      Permanent external IDs
+    Future
+      Deterministic rules
+      Findings and risk
+      Compliance and findings
+      Advisory AI
+      Approved remediation
 ```
 
-## 4. Main modules and responsibilities
-
-| Planned module | Responsibility | Critical boundary |
-|---|---|---|
-| Web application | Accessible organization-scoped UI, navigation, query state, reports | UI never decides authorization or calls APIs from visual components |
-| Identity and tenancy | OIDC identity, memberships, RBAC, organization context | Deny by default; never trust a client-supplied organization ID alone |
-| AWS accounts | Role registration, external ID, STS validation, revocation/rotation | Never request or persist customer AWS access keys or STS credentials |
-| Scanning and worker | Manual/scheduled jobs, leases, retries, collectors, coverage | Queue carries opaque IDs; scanning remains read-only |
-| Inventory | Normalized EC2/S3/IAM configuration snapshots | Do not collect customer application data or unnecessary sensitive metadata |
-| Rules and findings | Versioned deterministic evaluation, evidence, deduplication, lifecycle | AI is not a detection engine; historical rule versions are immutable |
-| Compliance | Reviewed rule-to-control mappings and reporting | Mapping does not constitute certification |
-| Remediation | Requests, approvals, playbooks, executions, verification | Separate action-specific permissions, idempotency, and prior authorization |
-| Integrations | Provider-neutral AI, Jira, email/Teams adapters | Minimize data, store secrets securely, validate callbacks and AI output |
-| Audit and reporting | Append-oriented events, reports, tamper-evident archive | No silent history rewrite; never log secrets |
-
-## 5. Planned application and data flow
+## Application flow
 
 ```mermaid
-flowchart TD
-  U[User] --> WEB[React web application]
-  WEB --> API[FastAPI API under /api/v1]
-  API --> AUTH[OIDC authentication and organization RBAC]
-  AUTH --> DB[(PostgreSQL system of record)]
-  AUTH --> JOB[Create tenant-scoped scan job with idempotency key]
-  JOB --> Q[Celery and Redis proposed]
-  Q --> W[Python worker re-authorizes job ownership]
-  W --> STS[AWS STS AssumeRole with external ID]
-  STS --> C[Boto3 EC2 S3 IAM collectors]
-  C --> INV[Normalized asset inventory]
-  INV --> RULE[Versioned deterministic rule engine]
-  RULE --> FIND[Findings and evidence in PostgreSQL]
-  FIND --> OUT[Dashboard reports Jira notifications]
-  FIND --> AI[Optional redacted advisory AI explanation]
-  FIND --> APP[Authorized remediation approval]
-  APP --> REM[Manual or scoped playbook execution]
-  REM --> VER[Verification scan]
-  VER --> AUD[Finding history and audit event/archive]
+flowchart LR
+  B[React browser] -->|Bearer access JWT| R[FastAPI routes]
+  B -->|HttpOnly refresh cookie| A[Auth service]
+  R --> D[Dependencies]
+  D --> S[Application services]
+  S --> P[Central RBAC policy]
+  S --> Q[Tenant-scoped repository]
+  A --> Q
+  Q --> DB[(PostgreSQL)]
+  S --> E[Audit events]
+  A --> E
+  S --> STS[AWS STS AssumeRole]
+  STS --> C[EC2, S3, IAM, and RDS collectors]
+  C --> Q
 ```
 
-The API validates input, authenticates the subject, resolves active organization membership and permission, and calls application services. Services enforce lifecycle rules and invoke tenant-scoped repositories. Repositories include organization ownership in predicates and transactions. A background message contains identifiers rather than credentials or asset payloads. The worker re-fetches tenant state before assuming a role and discards temporary credentials after use.
+Routes contain validation and HTTP mapping only. Services own transactions and invariants. Repositories own persistence and always include organization scope for tenant data.
 
-## 6. Important files
+## Main files
 
-| File | Why it matters |
-|---|---|
-| [`README.md`](README.md) | Repository entry point, principles, documentation index, and Stage 0 checklist |
-| [`prd.md`](docs/product/prd.md) | Product vision, users, Version 1 capabilities, exclusions, and success criteria |
-| [`scope.md`](docs/product/scope.md) | Explicit EC2/S3/IAM scope and exclusions |
-| [`system-overview.md`](docs/architecture/system-overview.md) | Planned logical architecture and technology baseline |
-| [`data-flow.md`](docs/architecture/data-flow.md) | End-to-end scan, finding, response, verification, and audit flow |
-| [`aws-account-onboarding.md`](docs/architecture/aws-account-onboarding.md) | Secure cross-account role and STS onboarding model |
-| [`multi-tenant-design.md`](docs/architecture/multi-tenant-design.md) | Organization isolation across service, repository, worker, cache, and integrations |
-| [`database-design.md`](docs/architecture/database-design.md) | Conceptual schema, ER diagram, sensitivity, retention, and index guidance |
-| [`threat-model.md`](docs/architecture/threat-model.md) | Threat/control register and residual security questions |
-| [`rule-authoring-guidelines.md`](docs/engineering/rule-authoring-guidelines.md) | Proposed 39-rule EC2/S3/IAM catalogue and rule lifecycle |
-| [`ai-usage-guidelines.md`](docs/engineering/ai-usage-guidelines.md) | Mandatory AI advisory boundary, redaction, validation, and fallback |
-| [`development-rules.md`](docs/engineering/development-rules.md) | Future implementation standards and module boundaries |
-| [`phases.md`](docs/planning/phases.md) | Seventeen stages with deliverables, acceptance, risks, owners, and demos |
-| [`project-memory.md`](docs/planning/project-memory.md) | Current work state, decisions, blockers, and next task |
+- `apps/api/app/main.py`: middleware, errors, CORS, trusted hosts, routes.
+- `apps/api/app/services/`: authentication, organization, invitation, onboarding, and discovery
+  workflows.
+- `apps/api/app/security/`: Argon2, JWT/opaque-token helpers, RBAC and rate-limit abstraction.
+- `apps/api/app/models/`: identity, AWS onboarding/reservations, assets, and discovery jobs.
+- `apps/api/alembic/versions/0004_verification_repairs.py`: current migration head; reservation
+  backfill, tenant foreign keys, lifecycle constraints, and AWS-account validation-operation
+  columns.
+- `apps/web/src/auth/AuthProvider.tsx`: session restoration and memory-only access token.
+- `apps/web/src/api/client.ts`: credentialed API client and single-flight refresh.
+- `apps/web/src/pages/`: Stage 1 administration, Stage 2 AWS onboarding, and Stage 3 inventory views.
+- `docs/architecture/decisions/ADR-007...ADR-011`: active Stage 1/Stage 2 decisions.
 
-## 7. Planned database schema and relationships
+## Data and relationships
 
-PostgreSQL is the intended production database. SQLite is allowed only for isolated experiments or lightweight tests. Use plural snake_case tables, UUID primary keys by default, UTC timestamps, foreign keys, constraints, explicit indexes, transactions, and optimistic locking where concurrent decisions matter.
+Users have globally unique normalized email addresses. Organizations have unique slugs.
+Memberships, invitations, refresh families, and audit events retain the Stage 1 design. Every
+issued AWS external ID is permanently retained in `aws_external_id_reservations`. Composite
+foreign keys ensure every asset and discovery job has the same organization as its AWS account.
+Database checks protect asset seen-time ordering and discovery-job counters and timestamps.
 
-Tenant root and identity:
+## API
 
-- `organizations` owns tenant data.
-- `users` join organizations through `organization_members`.
-- `organization_members` reference `roles`; roles grant `permissions`.
+- Auth: register, login, refresh, logout, me, change-password.
+- Organizations: create, list, get, update.
+- Members: list, change role/status, remove.
+- Invitations: create, list, cancel, accept.
+- Audit: organization-scoped recent events.
+- AWS onboarding: create, list, get, update, validate, disconnect, and delete accounts.
+- Discovery: start connected-account inventory; list/detail jobs; list/filter/detail/summarize
+  normalized assets.
+- Process: `/health` and database-backed `/ready`.
 
-AWS and scanning:
+All application APIs are under `/api/v1`; health probes are root paths.
 
-- An organization owns `aws_accounts` and their versioned/revocable `aws_account_connections`.
-- `scan_jobs` have one or more execution attempts in `scan_runs`.
-- Scan runs observe normalized `cloud_assets` for EC2, S3, and IAM.
+## Authentication and authorization
 
-Rules, compliance, and findings:
+The API returns a short-lived signed access JWT. The web app stores it only in memory. The opaque refresh token is stored in an HttpOnly cookie scoped to `/api/v1/auth`; only SHA-256 hashes are persisted. Rotation locks the old session through replacement and commit, then revokes it and links its replacement. Reuse revokes the family. Password changes revoke all sessions. Failed browser refresh clears both the memory token and authenticated-user state.
 
-- `security_rules` have immutable `rule_versions`.
-- Frameworks contain `compliance_controls`; `rule_compliance_mappings` connect reviewed rule versions to controls.
-- Assets and rule versions produce tenant-owned `findings` with `finding_evidence` and `finding_status_history`.
+Organization operations validate active membership and a centralized capability map. Admins cannot assign owner or govern an existing owner. The final active owner cannot be demoted, suspended, or removed; PostgreSQL row locks preserve this invariant under concurrency. Platform-admin status never implicitly bypasses tenant checks.
 
-Response and audit:
+## Environment variable names
 
-- Findings can have `risk_acceptances`, `remediation_recommendations`, `remediation_requests`, `remediation_executions`, and `jira_tickets`.
-- Organizations own `notification_events`, `reports`, `audit_events`, and `ai_interactions`.
-- `ai_interactions` stores metadata such as purpose, provider/model, prompt-template version, input hash, redaction/output status, token/cost metadata, related record, and timestampâ€”not secrets.
+`APP_ENV`, `APP_NAME`, `API_V1_PREFIX`, `DATABASE_URL`, `POSTGRES_TEST_DATABASE_URL`,
+`JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`,
+`REFRESH_TOKEN_EXPIRE_DAYS`, `INVITATION_TOKEN_EXPIRE_HOURS`, `CORS_ALLOWED_ORIGINS`,
+`TRUSTED_HOSTS`, `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN`, `LOG_LEVEL`,
+`FRONTEND_URL`, `AUTH_RATE_LIMIT_PER_MINUTE`, `AWS_TRUSTED_PRINCIPAL_ARN`,
+`AWS_ROLE_SESSION_NAME`, `AWS_DISCOVERY_REGIONS`, `AWS_CONNECT_TIMEOUT_SECONDS`,
+`AWS_READ_TIMEOUT_SECONDS`, `AWS_MAX_RETRY_ATTEMPTS`, `AWS_RETRY_MODE`,
+`VITE_API_BASE_URL`.
 
-Every tenant-owned record must carry `organization_id` directly or have one unambiguous mandatory ownership path. Service and repository layers both enforce organization scope. PostgreSQL row-level security remains an open defense-in-depth decision.
+Never put values or secrets in this file.
 
-## 8. Planned APIs, routes, services, and external integrations
+## Commands
 
-The API prefix is `/api/v1`. Proposed resource routes include:
+See the root README and app READMEs for install, migration, lint, type-check, test, and build commands.
 
-- `/api/v1/organizations`
-- `/api/v1/aws-accounts`
-- `/api/v1/assets`
-- `/api/v1/scans`
-- `/api/v1/findings`
-- `/api/v1/remediations`
-- `/api/v1/audit-events`
-- `POST /findings/{id}/risk-acceptances`
-- `POST /remediation-requests/{id}/approvals`
-- `POST /findings/{id}/verification-scans`
+## Completed capabilities
 
-Routes will call application services rather than Boto3, AI providers, or repositories directly. APIs require Pydantic schemas, correct HTTP semantics, safe structured errors, correlation IDs, bounded cursor pagination, allowlisted filtering/sorting, and idempotency keys for scans, remediation, notifications, and webhooks.
+Registration; login/logout; access JWT; rotating/revocable refresh sessions; password change; organizations; membership; invitation create/list/cancel/accept; permitted role assignment; suspension/reactivation/removal; final-owner protection; tenant isolation; audit events; health/readiness; Stage 1 administration UI; migration; backend/frontend tests.
 
-External integrations are AWS STS and EC2/S3/IAM APIs through Boto3; Jira; email or Microsoft Teams; a provider-neutral external AI API; S3 audit archive; CloudWatch; and Secrets Manager or an equivalent store. Terraform will manage CloudFix-owned infrastructure later and is not the scanning engine.
+Stage 2 adds account lifecycle APIs, permanently reserved external IDs, trust and SecurityAudit
+guidance, temporary-credential-only STS validation, serialized lifecycle transitions, audit
+events, and owner/admin frontend flows. Stage 3 adds paginated EC2/S3/IAM/RDS collectors,
+normalized historical inventory, partial-failure isolation, bounded APIs, PostgreSQL-safe
+concurrency, and inventory/job UI.
 
-## 9. Planned authentication and authorization flow
+## Known limitations and deferred work
 
-1. The user authenticates through an OIDC-compatible identity provider.
-2. The backend validates issuer, audience, signature, expiry, and session state.
-3. The backend resolves the user and active organization membership from PostgreSQL.
-4. RBAC checks an atomic permission for the requested operation.
-5. Services confirm the target resource belongs to that organization and is in a valid lifecycle state.
-6. Repositories repeat organization scoping in queries; another tenant's identifier must not disclose existence.
-7. Sensitive operations require confirmation, fresh authorization where appropriate, separation of duties, and an audit event.
-8. Workers and integration callbacks re-establish tenant ownership; they do not trust queue, URL, or webhook tenant claims.
+Email delivery, password reset, email-verification delivery, MFA, OIDC/SSO, distributed rate
+limiting, PostgreSQL RLS, production deployment, and live-AWS validation remain deferred.
+Discovery is synchronous and automated tests use deterministic AWS doubles. Rules, findings,
+compliance, risk, scheduler, AI, notifications, and remediation are Stage 4+. Development/testing
+returns invitation tokens temporarily; production does not.
 
-Short-lived sessions, secure cookies where applicable, CSRF protection for cookie-authenticated writes, MFA readiness, rate limits, replay protection, and redacted audit logs are mandatory design requirements. The OIDC provider and exact MFA enforcement remain open.
+## Architecture decisions
 
-## 10. Environment variable names
+- ADR-007 consolidates the historical authentication phase into authorized Stage 1.
+- ADR-008 supersedes Stage 0's undecided OIDC provider for Stage 1 with local JWT plus opaque refresh sessions; OIDC remains future work.
+- ADR-009 supersedes Material UI as the active frontend choice with Tailwind CSS.
+- ADR-010 establishes CloudOps as the current product name while retaining CloudFix in historical records.
+- ADR-011 establishes AWS Account Onboarding as Stage 2 and supersedes only ADR-007's reserved numbering.
 
-Only variable names are documented. Never add values to this file or commit secret-bearing `.env` files.
+## Current migration and worktree
 
-| Variable | Intended purpose |
-|---|---|
-| `APP_ENV` | Environment identifier |
-| `DATABASE_URL` | PostgreSQL connection reference; secret-bearing in real environments |
-| `OIDC_ISSUER_URL` | Approved identity-provider issuer |
-| `OIDC_CLIENT_ID` | OIDC client identifier |
-| `AWS_REGION` | CloudFix AWS operating region |
-| `CLOUDFIX_AWS_PRINCIPAL_ARN` | Principal trusted by customer onboarding roles |
-| `AUDIT_ARCHIVE_BUCKET` | CloudFix-owned audit archive bucket name/reference |
-| `SECRETS_PROVIDER` | Selected secure secret store |
-| `AI_PROVIDER` | Optional AI provider identifier |
-| `AI_MODEL` | Approved model identifier |
-| `JIRA_BASE_URL` | Jira tenant base URL |
-| `TEAMS_WEBHOOK_SECRET_REFERENCE` | Secret-store reference, never the webhook secret itself |
+The linear migration chain is `0001_stage1 -> 0002_stage2 -> 0003_stage3 ->
+0004_verification_repairs`. The current branch is `feature/3-asset-discovery`. At the start of
+this synchronization, the Stage 1–3 implementation candidate was staged for controlled review
+but not committed or pushed; documentation synchronization remained unstaged.
 
-## 11. Installation, development, testing, and deployment commands
+The final independent review reproduced 55 passing backend tests at 95% coverage and 34 passing
+frontend tests, with PostgreSQL migration/concurrency checks and all documented quality gates
+passing.
 
-There are currently **no valid commands** for installation, development, testing, database migration, or deployment. No framework, dependency manager, Dockerfile, Terraform configuration, GitHub Actions YAML, or executable application has been initialized. Do not invent commands from the planned stack.
+## Current priorities
 
-Stage 1 is expected to define setup and basic CI commands after Stage 0 approval. Stage 14 is expected to define deployment commands and operational runbooks. Until then, repository review consists of reading Markdown and performing non-mutating documentation checks.
+1. Commit and push the verified Stage 1–3 baseline.
+2. Submit it to `main` through the required pull-request review.
+3. Merge only after independent human approval.
+4. Keep `develop` unchanged unless repository owners explicitly designate it for synchronization.
 
-## 12. Completed work
+Do not begin Stage 4.
 
-- All 82 originally required Stage 0 repository files were created; this context file is an additional handoff artifact.
-- Product, architecture, database, threat, design, engineering, planning, operations, and GitHub-governance drafts exist.
-- Six ADRs document proposed foundational choices.
-- The rule catalogue specifies 39 proposed checks: 12 EC2, 13 S3, and 14 IAM.
-- The roadmap specifies Stages 0 through 16 and a five-member ownership/review model.
-- Documentation validation found substantive Markdown, working local links, Mermaid diagrams, and no executable Stage 1 artifacts.
+## HOW TO START A NEW AI SESSION
 
-â€œCompletedâ€ here means drafted and structurally validated, not stakeholder-approved or implemented.
+Read all attached project documents first and treat them as the source of truth. Before changing
+code, summarize:
 
-## 13. Incomplete work, known issues, and technical debt
+- the project goal;
+- the architecture;
+- the current implementation;
+- known issues and limitations; and
+- the next task.
 
-- Stage 0 review and approval are incomplete; every ADR remains Proposed.
-- Git is not initialized and no remote/private GitHub repository exists.
-- Application, database, AWS integration, rule engine, AI integration, tests, CI/CD, environments, and deployment are not started.
-- Actual GitHub handles must replace proposed CODEOWNERS team slugs.
-- The current private-rights license placeholder requires owner/legal selection before public distribution.
-- OIDC provider, MFA policy, worker choice, PostgreSQL RLS, AWS principal topology, external-ID protection/rotation, retention/residency/RPO/RTO, rule thresholds, compliance licensing, notification priority, initial remediation playbook, and AI provider policy remain open.
-- No bugs exist in executable code because no executable code exists. Primary risks are cross-tenant access, IAM/remediation blast radius, incomplete discovery, contextual false signals, AI disclosure, audit gaps, supply chain, cost, and knowledge silos.
-
-## 14. Important architectural decisions
-
-All are currently **Proposed**, not Accepted:
-
-1. Feature-based modular monorepo with minimal shared code and no cross-feature repository access.
-2. Python 3.12, FastAPI, Pydantic, SQLAlchemy, and Alembic for the backend.
-3. PostgreSQL as the intended production database.
-4. Customer AWS access through cross-account read-only IAM roles, per-connection external IDs, and temporary STS credentials.
-5. Immutable, versioned, deterministic security rules as the source of findings.
-6. Provider-neutral AI as an optional, redacted, validated, untrusted advisory layer.
-7. Celery with Redis as the proposed affordable/understandable MVP queue, with an interface-based migration path to Amazon SQS.
-8. Remediation uses a separate restricted role or action-specific permission model, approved playbooks, explicit authorization, idempotency, and verification scanning.
-9. Terraform manages CloudFix-owned infrastructure; Boto3 performs runtime discovery and approved AWS operations.
-
-## 15. Current task and recommended next steps
-
-**Current task:** Review and approve the Stage 0 foundation; resolve proposals and contradictions before implementation.
-
-Recommended sequence:
-
-1. Stakeholders review the PRD, scope, personas, and success criteria.
-2. Architecture/security reviewers examine system design, AWS onboarding, tenancy, database, trust boundaries, and threat model.
-3. The engineering team approves development rules, API/database conventions, rule catalogue, test strategy, Git workflow, ownership, risks, and phases.
-4. Resolve open questions and update affected documents and ADR statuses.
-5. Update `docs/planning/project-memory.md` with decisions and owners.
-6. Explicitly authorize Stage 1 before initializing frameworks, package managers, dependencies, Docker, Terraform, CI workflows, or application code.
-
-## Suggested fresh-chat handoff bundle
-
-Upload this file together with the following existing source-of-truth documents:
-
-- [`docs/product/prd.md`](docs/product/prd.md)
-- [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md)
-- [`docs/architecture/database-design.md`](docs/architecture/database-design.md)
-- [`docs/architecture/threat-model.md`](docs/architecture/threat-model.md)
-- [`docs/design/design-system.md`](docs/design/design-system.md)
-- [`docs/engineering/development-rules.md`](docs/engineering/development-rules.md)
-- [`docs/engineering/rule-authoring-guidelines.md`](docs/engineering/rule-authoring-guidelines.md)
-- [`docs/planning/phases.md`](docs/planning/phases.md)
-- [`docs/planning/project-memory.md`](docs/planning/project-memory.md)
-
-Suggested opening instruction:
-
-> Read the attached project files and treat them as the source of truth. First summarize the project goal, architecture, current implementation state, known issues, and next task. Do not modify code yet. Identify contradictions or missing information before proceeding.
+Identify and resolve contradictions or missing information before proceeding. Do not modify code
+until those contradictions are resolved.

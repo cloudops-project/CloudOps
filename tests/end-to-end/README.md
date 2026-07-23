@@ -1,4 +1,4 @@
-﻿# End-to-End Tests â€” Stage 0 Placeholder
+﻿# End-to-End Tests — Stage 0 Placeholder
 
 ## Purpose and audience
 

@@ -6,11 +6,11 @@ Stakeholders use this outcome-oriented view alongside the detailed [phases](phas
 
 ```mermaid
 flowchart LR
-  P["Plan: Stage 0"] --> F["Foundation: 1â€“3"]
-  F --> D["Detect: 4â€“7"]
-  D --> E["Explain & experience: 8â€“10"]
-  E --> R["Respond reliably: 11â€“13"]
-  R --> O["Operate & validate: 14â€“16"]
+  P["Plan: Stage 0"] --> F["Foundation: 1–3"]
+  F --> D["Detect: 4–7"]
+  D --> E["Explain & experience: 8–10"]
+  E --> R["Respond reliably: 11–13"]
+  R --> O["Operate & validate: 14–16"]
 ```
 
 Planning produces approved boundaries and governance. Foundation establishes the app, identity/tenancy, and secure AWS connection. Detect produces normalized EC2/S3/IAM evidence and deterministic findings/compliance context. Explain and experience adds advisory AI, usable dashboards/reports, and external coordination. Respond reliably introduces controlled remediation, scheduling, audit, and hardening. Operate and validate creates infrastructure, UAT evidence, and durable guidance.

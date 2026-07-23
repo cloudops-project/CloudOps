@@ -1,0 +1,113 @@
+export type Role =
+  | "owner"
+  | "admin"
+  | "security_analyst"
+  | "cloud_engineer"
+  | "auditor"
+  | "viewer";
+export type MembershipStatus = "active" | "suspended" | "removed";
+export interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  status: string;
+}
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  current_user_role: Role;
+}
+export interface Me {
+  user: User;
+  organizations: Organization[];
+}
+export interface Member {
+  id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  status: MembershipStatus;
+}
+export interface Invitation {
+  id: string;
+  email: string;
+  role: Role;
+  status: string;
+  development_token?: string;
+}
+export interface AuditEvent {
+  id: string;
+  event_type: string;
+  result: string;
+  created_at: string;
+}
+export type AWSAccountStatus =
+  "pending" | "connected" | "failed" | "disconnected";
+export interface AWSAccount {
+  id: string;
+  organization_id: string;
+  name: string;
+  account_id: string;
+  role_arn: string | null;
+  external_id: string;
+  status: AWSAccountStatus;
+  connection_status: AWSAccountStatus;
+  failure_reason: string | null;
+  last_validated_at: string | null;
+}
+export interface AWSAccountDetail {
+  account: AWSAccount;
+  trust_policy: Record<string, unknown>;
+  permission_policy: {
+    policy_name: string;
+    managed_policy_arn: string;
+    description: string;
+  };
+  onboarding_instructions: string[];
+}
+export type AssetType =
+  | "ec2_instance"
+  | "s3_bucket"
+  | "iam_user"
+  | "iam_role"
+  | "iam_group"
+  | "iam_policy"
+  | "rds_instance";
+export interface Asset {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  asset_type: AssetType;
+  resource_id: string;
+  arn: string | null;
+  name: string;
+  region: string;
+  status: string | null;
+  tags: Record<string, string>;
+  metadata: Record<string, unknown>;
+  first_seen_at: string;
+  last_seen_at: string;
+  is_active: boolean;
+}
+export interface Page<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+export type DiscoveryStatus =
+  "pending" | "running" | "completed" | "partially_completed" | "failed";
+export interface DiscoveryJob {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  status: DiscoveryStatus;
+  started_at: string | null;
+  finished_at: string | null;
+  assets_discovered: number;
+  assets_created: number;
+  assets_updated: number;
+  assets_deactivated: number;
+  error_summary: string | null;
+}

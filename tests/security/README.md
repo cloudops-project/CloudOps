@@ -1,4 +1,4 @@
-﻿# Security Tests â€” Stage 0 Placeholder
+﻿# Security Tests — Stage 0 Placeholder
 
 ## Purpose and audience
 

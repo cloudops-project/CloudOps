@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+from app.exceptions.errors import ForbiddenError
+from app.models.enums import OrganizationRole
+
+
+class Capability(StrEnum):
+    ORGANIZATION_READ = "organization.read"
+    ORGANIZATION_UPDATE = "organization.update"
+    MEMBERS_READ = "members.read"
+    MEMBERS_MANAGE = "members.manage"
+    INVITATIONS_MANAGE = "invitations.manage"
+    AUDIT_READ = "audit.read"
+    AWS_ACCOUNTS_MANAGE = "aws_accounts.manage"
+    AWS_ACCOUNTS_READ = "aws_accounts.read"
+    DISCOVERY_START = "discovery.start"
+    ASSETS_READ = "assets.read"
+
+
+ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
+    OrganizationRole.OWNER: frozenset(Capability),
+    OrganizationRole.ADMIN: frozenset(
+        {
+            Capability.ORGANIZATION_READ,
+            Capability.ORGANIZATION_UPDATE,
+            Capability.MEMBERS_READ,
+            Capability.MEMBERS_MANAGE,
+            Capability.INVITATIONS_MANAGE,
+            Capability.AUDIT_READ,
+            Capability.AWS_ACCOUNTS_MANAGE,
+            Capability.AWS_ACCOUNTS_READ,
+            Capability.DISCOVERY_START,
+            Capability.ASSETS_READ,
+            Capability.AWS_ACCOUNTS_READ,
+        }
+    ),
+    OrganizationRole.SECURITY_ANALYST: frozenset(
+        {
+            Capability.ORGANIZATION_READ,
+            Capability.MEMBERS_READ,
+            Capability.DISCOVERY_START,
+            Capability.ASSETS_READ,
+            Capability.AWS_ACCOUNTS_READ,
+        }
+    ),
+    OrganizationRole.CLOUD_ENGINEER: frozenset(
+        {
+            Capability.ORGANIZATION_READ,
+            Capability.MEMBERS_READ,
+            Capability.DISCOVERY_START,
+            Capability.ASSETS_READ,
+            Capability.AWS_ACCOUNTS_READ,
+        }
+    ),
+    OrganizationRole.AUDITOR: frozenset(
+        {
+            Capability.ORGANIZATION_READ,
+            Capability.MEMBERS_READ,
+            Capability.AUDIT_READ,
+            Capability.ASSETS_READ,
+        }
+    ),
+    OrganizationRole.VIEWER: frozenset(
+        {
+            Capability.ORGANIZATION_READ,
+            Capability.ASSETS_READ,
+            Capability.AWS_ACCOUNTS_READ,
+        }
+    ),
+}
+
+
+def role_has_capability(role: OrganizationRole, capability: Capability) -> bool:
+    return capability in ROLE_CAPABILITIES[role]
+
+
+def can_assign_role(actor: OrganizationRole, target: OrganizationRole) -> bool:
+    if actor == OrganizationRole.OWNER:
+        return True
+    return actor == OrganizationRole.ADMIN and target != OrganizationRole.OWNER
+
+
+def ensure_actor_can_manage_membership(
+    *,
+    actor_role: OrganizationRole,
+    target_role: OrganizationRole,
+    requested_role: OrganizationRole | None = None,
+) -> None:
+    """Enforce governance boundaries independently from last-owner invariants."""
+    if actor_role not in {OrganizationRole.OWNER, OrganizationRole.ADMIN}:
+        raise ForbiddenError()
+    if target_role == OrganizationRole.OWNER and actor_role != OrganizationRole.OWNER:
+        raise ForbiddenError(
+            "owner_management_forbidden", "Only an owner can manage another owner."
+        )
+    if requested_role == OrganizationRole.OWNER and actor_role != OrganizationRole.OWNER:
+        raise ForbiddenError(
+            "owner_assignment_forbidden", "Only an owner can assign the owner role."
+        )

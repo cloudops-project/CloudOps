@@ -2,7 +2,8 @@
 
 ## Purpose and audience
 
-Architects, engineers, security reviewers, and operators use this logical design to guide later implementation. Components shown are planned, not deployed.
+Architects, engineers, security reviewers, and operators use this logical design to distinguish
+the implemented and independently verified Stage 1–3 foundation from later planned components.
 
 ## Context
 
@@ -30,7 +31,7 @@ The web client presents organization-scoped resources but is never an authorizat
 
 ## Primary decisions
 
-The baseline stack is React/TypeScript/Vite, Material UI, TanStack Query and React Router; Python 3.12, FastAPI, Pydantic, SQLAlchemy and Alembic; PostgreSQL; Boto3/STS; and Terraform for later CloudFix-owned infrastructure. Celery with Redis is the proposed MVP queue because it is approachable and locally operable; job/queue interfaces and portable payloads preserve a migration path to Amazon SQS. Team approval remains open.
+The implemented Stage 1–3 stack is React/TypeScript/Vite, Tailwind CSS, Lucide React, TanStack Query and React Router; Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic and Boto3/STS; and PostgreSQL. Terraform for later CloudOps-owned infrastructure remains deferred. Celery with Redis is the proposed later worker queue; portable interfaces preserve a possible Amazon SQS migration.
 
 ## Security and availability posture
 
@@ -38,4 +39,4 @@ Organization scope is required in service and repository calls. AWS credentials 
 
 ## Future work
 
-Physical topology, sizing, regions, recovery targets, OIDC vendor, managed Redis versus SQS, and production service choices require Stage 0 approval and later benchmarking.
+Physical topology, sizing, regions, recovery targets, a future OIDC vendor, managed Redis versus SQS, and production service choices require later approval and benchmarking.

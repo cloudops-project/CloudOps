@@ -2,7 +2,7 @@
 
 ## Purpose and audience
 
-This policy tells researchers, contributors, and operators how to report suspected CloudFix vulnerabilities without exposing customers or credentials.
+This policy tells researchers, contributors, and operators how to report suspected CloudOps vulnerabilities without exposing customers or credentials.
 
 ## Reporting
 

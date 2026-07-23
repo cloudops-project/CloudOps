@@ -1,6 +1,6 @@
 ﻿---
 name: Bug report
-about: Report reproducible incorrect CloudFix behavior without secrets
+about: Report reproducible incorrect CloudOps behavior without secrets
 title: "bug: "
 labels: "type:bug"
 ---

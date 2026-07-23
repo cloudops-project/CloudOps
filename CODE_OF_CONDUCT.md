@@ -1,4 +1,4 @@
-﻿# CloudFix Code of Conduct
+﻿# CloudOps Code of Conduct
 
 ## Purpose and audience
 

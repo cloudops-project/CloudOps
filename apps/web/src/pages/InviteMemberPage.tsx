@@ -1,0 +1,82 @@
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
+import { api } from "../api/client";
+import { useAuth } from "../auth/AuthProvider";
+import { Field } from "../components/AuthCard";
+import type { Invitation, Role } from "../types";
+
+export function InviteMemberPage() {
+  const { me } = useAuth();
+  const org = me?.organizations[0];
+  const navigate = useNavigate();
+  const [error, setError] = useState("");
+  const [token, setToken] = useState("");
+  const {
+    register,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = useForm<{ email: string; role: Role }>({
+    defaultValues: { role: "viewer" },
+  });
+  if (!org || !["owner", "admin"].includes(org.current_user_role))
+    return <p role="alert">You do not have permission to invite members.</p>;
+  return (
+    <section className="card max-w-xl">
+      <h1 className="text-3xl font-bold">Invite member</h1>
+      <p className="mt-2 text-slate-400">
+        Production email delivery is deferred. Development returns a one-time
+        token.
+      </p>
+      <form
+        className="mt-6 grid gap-4"
+        onSubmit={handleSubmit(async (values) => {
+          try {
+            const invite = await api<Invitation>(
+              `/api/v1/organizations/${org.id}/invitations`,
+              { method: "POST", body: JSON.stringify(values) },
+            );
+            if (invite.development_token) setToken(invite.development_token);
+            else navigate("/members");
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Invitation failed.");
+          }
+        })}
+      >
+        <Field label="Email" type="email" required {...register("email")} />
+        <label>
+          <span className="label">Role</span>
+          <select className="input" {...register("role")}>
+            {(
+              [
+                "admin",
+                "security_analyst",
+                "cloud_engineer",
+                "auditor",
+                "viewer",
+              ] as Role[]
+            ).map((role) => (
+              <option key={role} value={role}>
+                {role.replace("_", " ")}
+              </option>
+            ))}
+          </select>
+        </label>
+        {error && (
+          <p role="alert" className="text-red-400">
+            {error}
+          </p>
+        )}
+        <button className="button" disabled={isSubmitting}>
+          Send invitation
+        </button>
+      </form>
+      {token && (
+        <div className="mt-5 rounded-button border border-warning bg-amber-500/10 p-4">
+          <p className="font-semibold">Development invitation token</p>
+          <code className="mt-2 block break-all text-sm">{token}</code>
+        </div>
+      )}
+    </section>
+  );
+}

@@ -2,7 +2,7 @@
 
 ## Purpose and audience
 
-Product, engineering, security, and reviewers use this policy for every CloudFix AI feature. AI is optional, advisory, and never the deterministic source of a finding.
+Product, engineering, security, and reviewers use this policy for every CloudOps AI feature. AI is optional, advisory, and never the deterministic source of a finding.
 
 ## Permitted assistance
 

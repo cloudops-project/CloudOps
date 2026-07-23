@@ -6,10 +6,16 @@ Engineering leads use this planned decomposition to preserve feature ownership, 
 
 ## Planned modules
 
+### Stage 2 AWS onboarding implementation
+
+The `/api/v1/aws` router remains thin and delegates to `AWSOnboardingService`. The service owns validation, external-ID generation, RBAC, state transitions, STS orchestration, and audit writes; `Repository` owns organization-scoped persistence. Boto3 is injected at the service boundary for deterministic tests. Temporary credentials remain local variables passed only to an assumed-role STS client and never cross into models, schemas, logs, or responses.
+
+The web onboarding pages use the existing credentialed API client and TanStack Query. Reusable account cards, status badges, policy viewers, IAM instructions, and validation results use centralized design tokens. Stage 2 contains no worker, collector, scanner, or background job.
+
 | Component | Owns | Must not do |
 |---|---|---|
 | Web features | Accessible views, route guards, query adapters | Decide authorization or call APIs from visual components |
-| Identity/tenancy | OIDC claims, memberships, roles, permissions | Trust organization IDs supplied without membership checks |
+| Identity/tenancy | Local JWT claims, refresh sessions, memberships, roles, permissions; future OIDC adapter | Trust organization IDs supplied without membership checks |
 | AWS accounts | Onboarding state, connection validation, revocation | Persist temporary credentials |
 | Scanning | Jobs, runs, schedules, cancellation, collectors | Mutate customer resources |
 | Inventory | Normalized EC2/S3/IAM asset snapshots | Collect application payloads |

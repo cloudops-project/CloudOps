@@ -2,12 +2,12 @@
 
 ## Purpose and audience
 
-Security, auditors, backend, and operations teams use this design to make sensitive CloudFix actions attributable and tamper-evident.
+Security, auditors, backend, and operations teams use this design to make sensitive CloudOps actions attributable and tamper-evident.
 
 Audit authentication/security changes, organization/membership/role operations, AWS connection validation/revocation, scan request/cancel/result, finding transitions, risk acceptance, AI requests/status, reports/exports, Jira/notification actions, approvals, remediation attempts, verification, secrets/config administration, and privileged support access.
 
 Events include UTC time, organization, actor type/ID, action, target type/ID, result, reason/code, correlation and idempotency IDs, source/service, relevant version, and previous/event hash. Do not include credentials, tokens, external IDs, raw AI content, full policies, or customer application data. Events append in the business transaction via a reliable outbox pattern proposal.
 
-Export signed/hash-chained batches to encrypted, versioned S3 with Object Lock capability considered for the required retention mode; access and deletion are separated and monitored. â€œImmutableâ€ must not be claimed until configuration and reconciliation tests prove it. Authorized tenant users receive filtered read/export access; platform access is audited.
+Export signed/hash-chained batches to encrypted, versioned S3 with Object Lock capability considered for the required retention mode; access and deletion are separated and monitored. “Immutable” must not be claimed until configuration and reconciliation tests prove it. Authorized tenant users receive filtered read/export access; platform access is audited.
 
 Open questions: retention/legal holds, Object Lock mode, key ownership, event schema/signing, clock source, export frequency, and privacy deletion interactions.

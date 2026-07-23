@@ -1,4 +1,4 @@
-﻿# Sprint Review â€” `<sprint>`
+﻿# Sprint Review — `<sprint>`
 
 ## Purpose and audience
 
