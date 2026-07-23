@@ -17,13 +17,25 @@ from app.models.invitation import OrganizationInvitation
 from app.models.membership import OrganizationMembership
 from app.models.organization import Organization
 from app.models.refresh_session import RefreshTokenSession
+from app.models.risk import (
+    AccountRiskSnapshot,
+    AssetRiskContext,
+    CompensatingControl,
+    FindingRiskSnapshot,
+    OrganizationRiskSnapshot,
+    RiskAssessment,
+    RiskScoringPolicy,
+)
 from app.models.user import User
 
 __all__ = [
     "AWSAccount",
     "AWSExternalIDReservation",
+    "AccountRiskSnapshot",
     "Asset",
+    "AssetRiskContext",
     "AuditEvent",
+    "CompensatingControl",
     "ComplianceAssessment",
     "ComplianceAssessmentControl",
     "ComplianceControl",
@@ -32,10 +44,14 @@ __all__ = [
     "EvaluationJob",
     "EvaluationRuleResult",
     "Finding",
+    "FindingRiskSnapshot",
     "Organization",
     "OrganizationInvitation",
     "OrganizationMembership",
+    "OrganizationRiskSnapshot",
     "RefreshTokenSession",
+    "RiskAssessment",
+    "RiskScoringPolicy",
     "RuleControlMapping",
     "User",
 ]

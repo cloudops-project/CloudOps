@@ -119,6 +119,52 @@ class ComplianceControlStatus(StrEnum):
     ERROR = "error"
 
 
+class RiskPriority(StrEnum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class RiskAssessmentStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class RiskCriticality(StrEnum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    UNKNOWN = "unknown"
+
+
+class RiskEnvironment(StrEnum):
+    PRODUCTION = "production"
+    STAGING = "staging"
+    DEVELOPMENT = "development"
+    SANDBOX = "sandbox"
+    UNKNOWN = "unknown"
+
+
+class BusinessImpact(StrEnum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    UNKNOWN = "unknown"
+
+
+class DataSensitivity(StrEnum):
+    RESTRICTED = "restricted"
+    CONFIDENTIAL = "confidential"
+    INTERNAL = "internal"
+    PUBLIC = "public"
+    UNKNOWN = "unknown"
+
+
 class RuleService(StrEnum):
     EC2 = "ec2"
     S3 = "s3"

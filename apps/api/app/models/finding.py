@@ -14,6 +14,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    UniqueConstraint,
     Uuid,
     text,
 )
@@ -26,6 +27,12 @@ from app.models.enums import FindingSeverity, FindingStatus, enum_values
 class Finding(TimestampMixin, Base):
     __tablename__ = "findings"
     __table_args__ = (
+        UniqueConstraint(
+            "id",
+            "aws_account_id",
+            "organization_id",
+            name="uq_finding_id_account_organization",
+        ),
         ForeignKeyConstraint(
             ["aws_account_id", "organization_id"],
             ["aws_accounts.id", "aws_accounts.organization_id"],

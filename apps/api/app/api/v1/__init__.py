@@ -7,6 +7,7 @@ from app.api.v1 import (
     discovery,
     invitations,
     organizations,
+    risk,
     security_findings,
 )
 
@@ -18,3 +19,4 @@ router.include_router(aws_accounts.router, prefix="/aws", tags=["aws-onboarding"
 router.include_router(discovery.router, tags=["asset-discovery"])
 router.include_router(security_findings.router, tags=["security-findings"])
 router.include_router(compliance.router, tags=["compliance"])
+router.include_router(risk.router, tags=["risk"])
