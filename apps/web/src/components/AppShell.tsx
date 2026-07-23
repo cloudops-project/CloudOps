@@ -4,6 +4,7 @@ import {
   Database,
   LayoutDashboard,
   LogOut,
+  ShieldAlert,
   Users,
   UserRound,
 } from "lucide-react";
@@ -39,6 +40,13 @@ export function AppShell() {
           >
             <Database />
             Assets
+          </Link>
+          <Link
+            className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+            to="/security"
+          >
+            <ShieldAlert />
+            Security
           </Link>
           <Link
             className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
