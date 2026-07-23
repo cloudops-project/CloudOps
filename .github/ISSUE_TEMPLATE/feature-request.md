@@ -1,13 +1,13 @@
 ﻿---
 name: Feature request
-about: Propose an in-scope CloudFix capability
+about: Propose an in-scope CloudOps capability
 title: "feat: "
 labels: "type:feature"
 ---
 
 ## Purpose and audience
 
-Product stakeholders and delivery teams use this template to evaluate an outcome before adding it to CloudFix scope.
+Product stakeholders and delivery teams use this template to evaluate an outcome before adding it to CloudOps scope.
 
 ## User and problem
 

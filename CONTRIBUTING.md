@@ -1,4 +1,4 @@
-﻿# Contributing to CloudFix
+﻿# Contributing to CloudOps
 
 ## Purpose and audience
 

@@ -1,6 +1,6 @@
 ﻿---
 name: Documentation task
-about: Create or improve substantive CloudFix documentation
+about: Create or improve substantive CloudOps documentation
 title: "docs: "
 labels: "area:documentation"
 ---
@@ -15,4 +15,4 @@ List documents/links, required diagrams/examples, confirmed versus proposed deci
 
 ## Validation
 
-Check internal links, CloudFix terminology, EC2/S3/IAM scope, tenant isolation, credential and AI/remediation guardrails, accessibility, and project-memory impact.
+Check internal links, CloudOps terminology, EC2/S3/IAM scope, tenant isolation, credential and AI/remediation guardrails, accessibility, and project-memory impact.

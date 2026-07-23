@@ -1,46 +1,117 @@
-﻿# CloudFix
+# CloudOps
 
-## Purpose and audience
+CloudOps is an AWS-focused, multi-tenant SaaS platform. Stages 1–3 are implemented: Stage 1
+provides identity and organization tenancy, Stage 2 provides AWS account onboarding, and Stage 3
+provides inventory-only asset discovery. Stages 2 and 3 passed final independent verification.
+Stage 4 security analysis, findings, compliance, risk, AI, notifications, and remediation have
+not started.
 
-This repository is the planning and future delivery home for CloudFix; stakeholders, contributors, security reviewers, and evaluators use this index to understand scope, status, and governance.
+## Stage 1 stack
 
-CloudFix is a planned AWS-focused Cloud Security Posture Management (CSPM) SaaS. Version 1 will inventory Amazon EC2, Amazon S3, and AWS IAM configuration, evaluate deterministic security rules, and support controlled investigation, assignment, approval, remediation, and verification. AI is advisory only: it may explain rule-produced findings but cannot create authoritative findings or take security-sensitive action.
+- API: Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL, Pydantic 2, Argon2, PyJWT
+- Web: React, TypeScript, Vite, Tailwind CSS, React Router, TanStack Query, React Hook Form, Zod, Lucide
+- Tests: Pytest/coverage and Vitest/Testing Library
 
-> Status: Stage 0 â€” planning and research. No application, AWS integration, or deployment has been implemented.
+## Local setup
 
-## Product principles
+1. Copy `.env.example` to an untracked `.env` and provide development values. Never commit it.
+2. Create PostgreSQL database `cloudops` and set `DATABASE_URL`.
+3. Install and migrate the API:
 
-- Customer accounts connect through cross-account IAM roles, AWS STS, an external ID, and short-lived credentials. CloudFix never requests or stores long-lived customer AWS access keys.
-- Every tenant-owned operation is authorized against an organization; tenant isolation is enforced server-side and in repositories.
-- Scanning is read-only. Remediation requires an approved playbook, explicit authorization, a separate narrowly scoped permission path, and a verification scan.
-- Deterministic rules decide whether evidence matches a check. AI output is redacted, validated, untrusted advice with a deterministic fallback.
-- Scans, findings, approvals, exceptions, remediation attempts, verification, and administration produce auditable events.
+   ```powershell
+   cd apps/api
+   python -m venv .venv
+   .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+   .\.venv\Scripts\alembic.exe upgrade head
+   .\.venv\Scripts\uvicorn.exe app.main:app --reload
+   ```
 
-## Documentation index
+4. Install and run the web app in another terminal:
 
-- [Portable fresh-chat repository context](NEW_CHAT_CONTEXT.md)
-- [Product requirements](docs/product/prd.md), [scope](docs/product/scope.md), [personas](docs/product/personas.md), [user stories](docs/product/user-stories.md), and [success metrics](docs/product/success-metrics.md)
-- [System overview](docs/architecture/system-overview.md), [components](docs/architecture/component-design.md), [data flow](docs/architecture/data-flow.md), [AWS onboarding](docs/architecture/aws-account-onboarding.md), [multi-tenancy](docs/architecture/multi-tenant-design.md), and [database design](docs/architecture/database-design.md)
-- [API design](docs/architecture/api-design.md), [threat model](docs/architecture/threat-model.md), [trust boundaries](docs/architecture/trust-boundaries.md), [failure scenarios](docs/architecture/failure-scenarios.md), and [ADRs](docs/architecture/decisions/README.md)
-- [Design system](docs/design/design-system.md), [information architecture](docs/design/information-architecture.md), [wireframes](docs/design/dashboard-wireframes.md), and [user flows](docs/design/user-flows.md)
-- [Development rules](docs/engineering/development-rules.md), [security guidelines](docs/engineering/security-guidelines.md), [AI guidelines](docs/engineering/ai-usage-guidelines.md), [rule catalogue](docs/engineering/rule-authoring-guidelines.md), and [definition of done](docs/engineering/definition-of-done.md)
-- [Phases](docs/planning/phases.md), [roadmap](docs/planning/roadmap.md), [team responsibilities](docs/planning/team-responsibilities.md), [task breakdown](docs/planning/task-breakdown.md), [risk register](docs/planning/risk-register.md), and [project memory](docs/planning/project-memory.md)
-- [Operations](docs/operations/deployment-strategy.md), [environments](docs/operations/environments.md), [monitoring](docs/operations/monitoring-strategy.md), [audit logging](docs/operations/audit-log-strategy.md), [recovery](docs/operations/backup-and-recovery.md), [incident response](docs/operations/incident-response.md), and [secrets](docs/operations/secrets-management.md)
+   ```powershell
+   cd apps/web
+   npm install
+   npm run dev
+   ```
 
-## Stage 0 review checklist
+## Quality commands
 
-- [ ] Stakeholders approve the PRD, Version 1 scope, assumptions, and success measures.
-- [ ] Architecture and security reviewers approve trust boundaries, tenancy, database model, AWS onboarding, and threat model.
-- [ ] Engineering team approves development rules, Git workflow, API/database conventions, test strategy, and phased plan.
-- [ ] Product/design review the information architecture, accessible design system, flows, and wireframes.
-- [ ] Team confirms ownership, backup owners, initial backlog, risk treatments, and open questions.
-- [ ] Approved ADR statuses are recorded and project memory is updated.
-- [ ] Stage 1 is explicitly authorized; until then, application code and executable infrastructure remain prohibited.
+```powershell
+cd apps/api
+.\.venv\Scripts\ruff.exe format --check app
+.\.venv\Scripts\ruff.exe check --no-cache app
+.\.venv\Scripts\mypy.exe --cache-dir "$env:TEMP\cloudops_mypy_cache" app
+$env:COVERAGE_FILE="$env:TEMP\cloudops_stage1_coverage"
+.\.venv\Scripts\pytest.exe --cov=app --cov-report=term-missing
 
-## Repository map
+cd ..\web
+npm run format:check
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
 
-`apps/`, `packages/`, `infrastructure/`, `tests/`, and `.github/workflows/` contain documentation-only Stage 0 placeholders. See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
+## Security model
 
-## Disclaimer
+The browser keeps the short-lived access JWT in memory. The opaque refresh token is a scoped HttpOnly cookie; only its SHA-256 hash is stored. Every use rotates the session, and replay revokes the whole token family. Password changes revoke all refresh sessions. Organization access always requires an active server-side membership. Owner/admin governance follows the [RBAC policy](docs/architecture/api-design.md), including final-owner protection.
 
-CloudFix is intended to help identify configuration risks; it does not guarantee security or compliance certification. Findings require contextual review, and some controls depend on organizational policy.
+PostgreSQL row locks serialize refresh rotation, invitation acceptance, and final-owner changes. Admins manage non-owner memberships only; only an owner may govern an existing owner.
+
+Development/testing may return a raw invitation token because email delivery is deferred. Production never returns it. CloudOps never logs passwords, raw tokens, cookie values, or authorization headers.
+
+## Stage 2 AWS onboarding
+
+Set `AWS_TRUSTED_PRINCIPAL_ARN` to the CloudOps AWS principal. Organization owners/admins can register a 12-digit AWS account ID, receive a unique external ID plus trust and `SecurityAudit` policy guidance, add a matching role ARN, and validate with STS AssumeRole followed by GetCallerIdentity. CloudOps never accepts or persists access keys or temporary credentials. See [AWS account onboarding](docs/architecture/aws-account-onboarding.md).
+
+Issued external IDs are copied into an immutable reservation table and remain unavailable after
+account deletion. PostgreSQL row locks plus a validation operation token serialize account
+updates, disconnects, deletion, and STS validation without holding a database lock during the
+network call.
+
+## Stage 3 asset discovery
+
+Connected accounts can inventory EC2 instances, S3 buckets, IAM users, roles, groups and
+customer-managed policies, plus RDS instances. Regional collectors use
+`AWS_DISCOVERY_REGIONS`; IAM and S3 are global. Assets are normalized and upserted, and a
+successful collector marks missing resources inactive instead of deleting history.
+
+Owner, admin, security analyst, and cloud engineer roles may start discovery; every active
+member may view bounded, filterable asset and job lists. Per-account locking and a PostgreSQL
+partial unique index prevent overlapping jobs. Failed collectors cannot stale their previous
+assets. Temporary STS credentials remain in memory only. Stage 4 security analysis is absent.
+
+Composite PostgreSQL foreign keys ensure an asset or discovery job cannot reference an AWS
+account owned by another organization. Check constraints enforce seen-time ordering, nonnegative
+job counts, and valid job status/timestamp combinations. Boto3 clients use environment-driven,
+bounded connect/read timeouts and standard/adaptive bounded retries.
+
+## Documentation
+
+Start with [NEW_CHAT_CONTEXT.md](NEW_CHAT_CONTEXT.md), the [API design](docs/architecture/api-design.md), [database design](docs/architecture/database-design.md), [design system](docs/design/design-system.md), [phase plan](docs/planning/phases.md), and [project memory](docs/planning/project-memory.md). ADR-007 through ADR-010 record the authorized Stage 1 changes from the Stage 0 baseline.
+
+## Disposable PostgreSQL verification
+
+```powershell
+docker compose -f compose.verify.yml up -d --wait
+cd apps/api
+$env:DATABASE_URL="postgresql+psycopg://cloudops:cloudops_test_password@localhost:5433/cloudops_test"
+$env:POSTGRES_TEST_DATABASE_URL=$env:DATABASE_URL
+$env:JWT_SECRET_KEY="replace-with-a-long-test-secret-for-verification"
+$env:APP_ENV="testing"
+.\.venv\Scripts\alembic.exe upgrade head
+.\.venv\Scripts\alembic.exe check
+.\.venv\Scripts\pytest.exe app\tests\test_postgres_concurrency.py -v
+cd ..\..
+docker compose -f compose.verify.yml down
+```
+
+The Compose database uses tmpfs and is verification-only. Never point these tests at shared, staging, UAT, or production databases.
+
+## Known Stage 1 limitations
+
+- No password reset, email verification delivery, MFA, social login, or SSO.
+- Invitation email delivery and distributed rate limiting are deferred.
+- PostgreSQL is the production database; SQLite is used only for isolated tests.
+- Cloud infrastructure, deployment automation, security analysis, findings, compliance, risk,
+  and remediation remain later stages.

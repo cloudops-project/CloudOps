@@ -6,7 +6,7 @@ Security reviewers and implementers use this document to understand intended dat
 
 ```mermaid
 flowchart TD
-  U[User] --> WEB[CloudFix web application]
+  U[User] --> WEB[CloudOps web application]
   WEB --> API[FastAPI backend]
   API --> AUTH[Authentication and authorization]
   AUTH --> JOB[Scan job creation]

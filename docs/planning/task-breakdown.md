@@ -14,7 +14,7 @@ The project lead and team use this template to turn approved phases into linked,
 
 ## Board and issue format
 
-Use Backlog â†’ Ready â†’ In Progress â†’ In Review â†’ Testing â†’ Blocked â†’ Done. An issue includes problem/outcome, scope/exclusions, acceptance criteria, dependencies, security/tenant impact, owner/reviewer, test/documentation needs, demo evidence, and open questions. Ready means dependencies and acceptance criteria are clear; Blocked records cause, owner, and next check.
+Use Backlog → Ready → In Progress → In Review → Testing → Blocked → Done. An issue includes problem/outcome, scope/exclusions, acceptance criteria, dependencies, security/tenant impact, owner/reviewer, test/documentation needs, demo evidence, and open questions. Ready means dependencies and acceptance criteria are clear; Blocked records cause, owner, and next check.
 
 ## Suggested labels
 

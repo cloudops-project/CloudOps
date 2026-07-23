@@ -1,4 +1,4 @@
-﻿# Worker Application Area â€” Stage 0 Placeholder
+﻿# Worker Application Area — Stage 0 Placeholder
 
 ## Purpose and audience
 

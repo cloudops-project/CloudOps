@@ -1,60 +1,61 @@
-﻿# CloudFix Project Memory
+# CloudOps Project Memory
 
-## Purpose and audience
+## Last updated
 
-All team members use this living handoff record to understand the current state, decisions, active work, risks, and safest next task.
+2026-07-23 — documentation synchronization on `feature/3-asset-discovery`.
 
-**Last updated:** 2026-07-20
-**Current stage:** Stage 0 â€” Planning and research (in progress)
-**Current sprint:** Stage 0 documentation initialization (planning label; cadence not approved)
-**Current objective:** Obtain stakeholder and team review of the completed Stage 0 documentation draft and resolve proposed decisions.
+## Current implementation
 
-## Status
+Stage 1 is implemented and regression-tested. Stage 2 AWS onboarding and Stage 3 asset discovery
+are implemented and independently verified. Stage 4 has not started.
 
-| Area | State |
-|---|---|
-| Stage 0 documentation | Draft created; review/approval pending |
-| Application code | Not started |
-| AWS integration | Not started |
-| Rule engine | Not started |
-| AI integration | Not started |
-| Deployment | Not started |
-| Testing | Strategy documented; no tests executed |
+Alembic revision `0004_verification_repairs` follows `0003_stage3`. It adds immutable
+external-ID reservation history, AWS-account lifecycle coordination fields, database-enforced
+account/organization consistency for assets and jobs, asset timestamp checks, nonnegative job
+counts, and job status/timestamp invariants. Existing account IDs and external IDs are
+backfilled without change.
 
-## Completed work
+## Verification repairs
 
-Initial product, architecture, database, threat, design, engineering, planning, operations, governance, ADR, rule-catalogue, and template drafts; documentation-only repository areas; root index and Stage 0 checklist. Structural validation confirmed all 82 required files, substantive Markdown content, local link integrity, 39 proposed rule specifications, 17 phase rows, eight Mermaid documents, and no executable Stage 1 artifacts. Added root `NEW_CHAT_CONTEXT.md` as the portable fresh-chat handoff artifact.
+- External IDs remain globally reserved after account deletion and collision handling relies on
+  a PostgreSQL unique constraint.
+- Account lifecycle mutations use tenant-scoped locks. Validation uses an operation token so an
+  older STS result cannot overwrite a newer mutation.
+- Discovery uses composite tenant foreign keys, lifecycle checks, deterministic lock ordering,
+  and terminal-state guards.
+- Every boto3 client receives explicit environment-driven timeouts and bounded retry policy.
+- Backend tests now cover all IAM pagination, invalid account states, authenticated discovery
+  APIs, filters, stable pagination, details, RBAC, tenant isolation, and PostgreSQL races.
+- Frontend discovery requires an accessible confirmation and covers filters, pagination,
+  states, RBAC, focus behavior, and escaped metadata.
 
-## Work in progress and next work
+Exact final test totals and quality-gate results belong in the repair report after all commands
+have been rerun; older completion-report counts are not current evidence.
 
-No implementation work is in progress. Planned next work is stakeholder/team review of PRD, scope, architecture, database design, threat model, development rules, team responsibilities, and phases; then resolve open decisions and update ADR statuses. Do not start Stage 1 before explicit approval.
+## Decisions
 
-## Active files
+- ADR-007 through ADR-010 remain the Stage 1 decisions.
+- ADR-011 supersedes only the reserved Stage 2 numbering and establishes AWS account onboarding as Stage 2.
+- `AWS_TRUSTED_PRINCIPAL_ARN` is deployment configuration. Customers manually create `CloudOpsReadOnlyRole` and attach AWS managed `SecurityAudit` during this stage.
 
-Primary review set: `NEW_CHAT_CONTEXT.md`, `docs/product/prd.md`, `docs/product/scope.md`, `docs/architecture/system-overview.md`, `docs/architecture/database-design.md`, `docs/architecture/threat-model.md`, `docs/engineering/development-rules.md`, `docs/planning/team-responsibilities.md`, and `docs/planning/phases.md`.
+## Known limitations
 
-## Important decisions
+Stage 2 validation remains synchronous and does not deliver CloudFormation/Terraform onboarding
+templates, external-ID rotation, background validation, or IAM resource creation. Stage 3
+discovery remains synchronous and uses an explicit configured region list. Automated provider
+tests use deterministic AWS doubles; controlled live-AWS validation remains operational work.
 
-Proposed baseline: feature-based monorepo; React/TypeScript/Vite frontend; Python 3.12/FastAPI backend; PostgreSQL; Celery/Redis MVP queue with SQS migration boundary; STS cross-account read-only scan roles; deterministic rules; separate approved remediation permissions; advisory provider-neutral AI. ADRs remain Proposed until reviewed.
+## Next task
 
-## Open architectural questions
+Commit and push the verified Stage 1–3 baseline, then open a pull request to `main` and obtain the
+required independent human approval. Do not begin Stage 4 rule evaluation, findings, posture,
+compliance, risk, notifications, AI, remediation, or deployment infrastructure.
 
-OIDC/provider and MFA enforcement; Celery/Redis approval versus SQS; PostgreSQL RLS; CloudFix AWS principal topology; external-ID storage/rotation; retention, residency, RPO/RTO; initial rule subset/thresholds; compliance licensing/mappings; notification priority; first remediation playbook; AI provider/data policy/budget.
+## Stage 3 implementation snapshot
 
-## Known issues, risks, blockers, debt
-
-No implementation exists. The repository is not initialized as Git. Stage 0 approval is the current gate, not a technical blocker. Major risks are tenant isolation, IAM/remediation blast radius, evidence quality, AI disclosure, audit integrity, cost, and knowledge silos. Technical debt: none in code; documentation decisions must not remain indefinitely provisional.
-
-## Environment and ownership
-
-No local runtime, database, cloud, CI, staging, or production environment exists. Ownership follows [team responsibilities](team-responsibilities.md); actual names/handles are unassigned.
-
-## Update protocol
-
-Update this document at the end of each working session, after a major decision, after a feature, when a blocker is found, and before handoff. Preserve prior facts in change history and link decisions/issues.
-
-## Change history
-
-- 2026-07-20 â€” Initialized Stage 0 memory; all implementation areas marked not started; set stakeholder/team review as next recommended task.
-- 2026-07-20 â€” Completed the initial documentation draft and structural/consistency validation; Stage 0 remains in progress pending review and approval.
-- 2026-07-20 â€” Added `NEW_CHAT_CONTEXT.md` for portable AI-chat handoff; no architecture or implementation status changed.
+Alembic `0003_stage3` adds `assets` and `discovery_jobs`; `0004_verification_repairs` adds the
+external-ID history and database integrity/concurrency controls. EC2, S3, IAM, and RDS
+collectors normalize paginated inventory. Repeated runs preserve
+first-seen history, update current values, and safely deactivate missing assets only after that
+collector succeeds. The UI provides asset filters/details and discovery job status/results.
+Temporary AWS credentials are not persisted, and no Stage 4 security analysis exists.

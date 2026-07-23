@@ -1,4 +1,4 @@
-﻿# CloudFix Threat Model
+﻿# CloudOps Threat Model
 
 ## Purpose and audience
 
@@ -12,13 +12,13 @@ Protect tenant configuration/evidence, identities and sessions, role/external-ID
 
 | Threats | Planned controls and validation |
 |---|---|
-| Multi-tenant leakage, IDOR, broken access, mass assignment | OIDC identity; organization membership/RBAC; deny-by-default services and scoped repositories; response allowlists; negative cross-tenant tests; optional PostgreSQL RLS |
+| Multi-tenant leakage, IDOR, broken access, mass assignment | Stage 1 local JWT identity; organization membership/RBAC; deny-by-default services and scoped repositories; response allowlists; negative cross-tenant tests; optional PostgreSQL RLS; future OIDC adapter |
 | Compromised org admin / platform admin / insider | MFA readiness, least privilege, separation of duties, time-bound support access, sensitive-action confirmation, independent review, behavioral alerts, immutable audit |
-| Stolen session, brute force, CSRF | short-lived sessions, secure HttpOnly/SameSite cookies where applicable, rotation/revocation, OIDC protections, rate limits, CSRF tokens/origin checks for cookie writes |
+| Stolen session, brute force, CSRF | short-lived access JWTs, secure HttpOnly/SameSite refresh cookies, row-locked rotation/revocation, rate limits, and origin checks for cookie writes |
 | XSS, SQL injection, SSRF, malicious uploads | output encoding/CSP, parameterized ORM, Pydantic allowlists, outbound destination allowlists and no arbitrary fetches, strict file type/size scanning or omit uploads in MVP |
 | API abuse, rate-limit bypass, DDoS | per-subject/tenant/IP quotas, request-size/concurrency bounds, backpressure, caching, provider protections, monitoring/runbooks; WAF is only one layer and budget/platform limits remain |
 | Queue flooding, job replay, duplicate remediation | quotas, authenticated private queue, opaque payloads, idempotency keys, nonces/leases, optimistic locks, reauthorization, deduplication and dead-letter monitoring |
-| Confused deputy / permissive IAM / credential exposure | exact CloudFix principal, per-connection external ID, STS temporary credentials, minimal session duration, read-only scan role, separate action-specific remediation role, policy review and CloudTrail |
+| Confused deputy / permissive IAM / credential exposure | exact CloudOps principal, per-connection external ID, STS temporary credentials, minimal session duration, read-only scan role, separate action-specific remediation role, policy review and CloudTrail |
 | Compromised worker | isolated runtime identity/network, no credential persistence, minimal job data, egress controls, patched images, workload limits, secrets manager, rapid revocation |
 | Leaked AI key, prompt injection in metadata, AI disclosure | secret store/rotation, treat metadata and output as untrusted, delimit/minimize/redact inputs, never send credentials/full policies, schema validate/sanitize, provider retention review, cost/time limits |
 | Jira webhook forgery / email or Teams abuse | signature and timestamp verification, replay cache, scoped integration identity, destination allowlist, content minimization, throttling, delivery audit |

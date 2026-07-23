@@ -1,8 +1,8 @@
-﻿# Meeting Notes â€” `<topic>`
+﻿# Meeting Notes — `<topic>`
 
 ## Purpose and audience
 
-Use this template for CloudFix decision, planning, risk, and design meetings so absent members can understand outcomes without relying on chat history.
+Use this template for CloudOps decision, planning, risk, and design meetings so absent members can understand outcomes without relying on chat history.
 
 **Date/time/timezone:**
 **Facilitator / note taker:**

@@ -1,4 +1,4 @@
-﻿# GitHub Actions â€” Stage 0 Placeholder
+﻿# GitHub Actions — Stage 0 Placeholder
 
 ## Purpose and audience
 

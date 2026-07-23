@@ -15,4 +15,4 @@ Authors, reviewers, QA, and product owners use this checklist before moving an i
 - At least one independent approval exists; designated owner approves security-sensitive changes; conversations are resolved.
 - Demo or verification evidence is attached and no unresolved critical/high issue remains without approved exception.
 
-Stage 0 documents are Done only after substantive review, internal-link/scope validation, open questions recorded, and stakeholder approval. Completion of this initial draft means â€œready for review,â€ not Stage 0 approval.
+Stage 0 documents are Done only after substantive review, internal-link/scope validation, open questions recorded, and stakeholder approval. Completion of this initial draft means “ready for review,” not Stage 0 approval.

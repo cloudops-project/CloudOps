@@ -1,4 +1,4 @@
-﻿# CloudFix Glossary
+﻿# CloudOps Glossary
 
 ## Purpose and audience
 
@@ -12,7 +12,7 @@ All contributors use these definitions to keep product, UI, API, and audit termi
 - **Risk acceptance:** time-bound, justified decision by an authorized risk owner; it does not erase a finding.
 - **Remediation request / execution:** proposed and approved change, and an individual attempt through a manual or scoped automated path.
 - **Verification scan:** post-change deterministic re-evaluation; only this can support verified closure.
-- **Organization / tenant:** primary CloudFix customer isolation boundary.
+- **Organization / tenant:** primary CloudOps customer isolation boundary.
 - **AWS account connection:** role ARN, external ID reference/secure value, validation state, and metadata used to obtain temporary credentials.
 - **Compliance mapping:** reviewed relationship between a rule and a control; it is not certification.
 - **AI interaction:** optional advisory request/response metadata with redaction and validation status.
@@ -21,4 +21,4 @@ All contributors use these definitions to keep product, UI, API, and audit termi
 
 ## Usage notes
 
-Do not call policy deviations universal â€œvulnerabilitiesâ€ without context. Do not call a finding â€œresolvedâ€ until verification criteria are met.
+Do not call policy deviations universal “vulnerabilities” without context. Do not call a finding “resolved” until verification criteria are met.

@@ -2,7 +2,7 @@
 
 ## Purpose and audience
 
-Designers and frontend engineers use this proposal to keep CloudFix usable across desktop, tablet, and constrained mobile contexts.
+Designers and frontend engineers use this proposal to keep CloudOps usable across desktop, tablet, and constrained mobile contexts.
 
 ## Principles
 

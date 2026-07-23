@@ -8,7 +8,7 @@ AWS/security engineers, analysts, compliance reviewers, and QA use this specific
 
 Every immutable version defines ID, title, AWS service/resource type, description, deterministic detection logic, minimal evidence fields, default severity, security impact, reviewed compliance mappings, false-positive/context considerations, manual guidance, automation eligibility, verification procedure, and version. Tests require positive, negative, missing-data, boundary, and permission-denied fixtures. Collectors normalize data; rules do not call AWS. Findings cite rule version and scan run.
 
-Severities below are proposals. â€œConditionalâ€ means organization policy must enable the check or supply context; absence is not automatically a universal vulnerability. Compliance references are **candidate mapping families** (CIS AWS Foundations, NIST CSF/800-53) requiring licensed-source and control-level reviewer validation; CloudFix does not certify compliance.
+Severities below are proposals. “Conditional” means organization policy must enable the check or supply context; absence is not automatically a universal vulnerability. Compliance references are **candidate mapping families** (CIS AWS Foundations, NIST CSF/800-53) requiring licensed-source and control-level reviewer validation; CloudOps does not certify compliance.
 
 ## Amazon EC2 catalogue
 
@@ -49,7 +49,7 @@ Severities below are proposals. â€œConditionalâ€ means organization pol
 
 | ID / v1 | Title; resource | Detection and evidence | Severity / impact | Context and manual remediation | Automation / verification / candidate mapping |
 |---|---|---|---|---|---|
-| IAM-001 | Root MFA not enabled; account summary | `AccountMFAEnabled != 1`; account ID and summary flag | Critical; root takeover | No routine exception; enable hardware/passkey-capable MFA and secure recovery | No CloudFix auto; reread summary; CIS/NIST authentication |
+| IAM-001 | Root MFA not enabled; account summary | `AccountMFAEnabled != 1`; account ID and summary flag | Critical; root takeover | No routine exception; enable hardware/passkey-capable MFA and secure recovery | No CloudOps auto; reread summary; CIS/NIST authentication |
 | IAM-002 | User MFA missing where required; IAM user | Console-enabled/in-scope user lacks MFA device; user, login-profile state, MFA count, baseline | High; account takeover | Service-only users should migrate from users/keys; enable MFA | No auto; list devices/profile; CIS/NIST authentication |
 | IAM-003 | Active unused access key; IAM key | Active key last-used older than configured threshold or never used beyond grace; user, key ID suffix/hash, create/last-use/service/region | High; latent credential risk | Automation ownership and delayed telemetry matter; rotate then disable/delete | Only staged disable playbook considered; verify status; CIS/NIST credential management |
 | IAM-004 | Old access key; IAM key | Age exceeds policy threshold; user, key ID suffix, create time, baseline | High; long exposure window | Rotation capability required; rotate consumers, disable old key | Staged only; list keys; CIS/NIST credential management |
@@ -66,6 +66,6 @@ Severities below are proposals. â€œConditionalâ€ means organization pol
 
 ## Lifecycle, review, and open questions
 
-Rule changes create new versions; activation is explicit and historical findings keep their original version. A two-person security review validates detection, permissions, evidence minimization, severity, context, remediation, and candidate control mapping. Deprecation never reuses IDs. Automated remediation defaults to unsupported; â€œcandidateâ€ means a later threat-modeled playbook could be approved, never that it is safe universally.
+Rule changes create new versions; activation is explicit and historical findings keep their original version. A two-person security review validates detection, permissions, evidence minimization, severity, context, remediation, and candidate control mapping. Deprecation never reuses IDs. Automated remediation defaults to unsupported; “candidate” means a later threat-modeled playbook could be approved, never that it is safe universally.
 
 Approve configurable policy baselines, exact sensitive-port list, unused/old thresholds, effective S3 public-access algorithm, IAM escalation pattern source, compliance content/licensing, initial enabled subset, and rule acceptance fixtures before Stage 5.

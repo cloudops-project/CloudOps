@@ -11,13 +11,13 @@ Stakeholders and QA use these measures to judge MVP readiness without inventing 
 | Deterministic evaluation | A reviewed, versioned initial catalogue executes with reproducible fixture results; final rule count approved after research |
 | Actionable findings | Each sample contains rule/version, resource, evidence, severity, timestamps, status, and guidance |
 | Tenant isolation | Automated negative tests and review show cross-organization IDs cannot disclose or mutate records |
-| Workflow completion | Finding â†’ Jira/manual/approved sandbox playbook â†’ verification â†’ audit history is demonstrable |
+| Workflow completion | Finding → Jira/manual/approved sandbox playbook → verification → audit history is demonstrable |
 | Resilience | Defined AI/Jira/notification outages preserve core scanning and expose retryable status without data loss |
 | Usability/accessibility | Target personas complete agreed UAT scenarios; priority accessibility defects are resolved |
 
 ## Provisional targets
 
-Scan duration, asset throughput, concurrent tenants, availability, retention, recovery objectives, and AI cost budgets require representative workloads and stakeholder approval. Baselines will be measured in Stages 12â€“15, then converted into service objectives; â€œall scans within five minutesâ€ is not assumed.
+Scan duration, asset throughput, concurrent tenants, availability, retention, recovery objectives, and AI cost budgets require representative workloads and stakeholder approval. Baselines will be measured in Stages 12–15, then converted into service objectives; “all scans within five minutes” is not assumed.
 
 ## Reporting risks
 

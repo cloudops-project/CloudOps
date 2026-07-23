@@ -10,7 +10,7 @@ Architecture, product, and delivery teams use this register to distinguish confi
 - Customer access uses STS temporary credentials; no long-lived customer keys are requested or stored.
 - Rules are deterministic; AI is optional, advisory, redacted, schema-validated, and unable to execute actions.
 - Scans are read-only; automation requires approval and separate least-privilege remediation permissions.
-- Terraform will manage CloudFix-owned infrastructure later; Boto3 performs runtime discovery and approved operations.
+- Terraform will manage CloudOps-owned infrastructure later; Boto3 performs runtime discovery and approved operations.
 - The project currently has five members and a student-project affordability constraint.
 
 ## Working assumptions

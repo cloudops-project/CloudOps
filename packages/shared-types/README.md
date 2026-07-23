@@ -1,4 +1,4 @@
-﻿# Shared Types â€” Stage 0 Placeholder
+﻿# Shared Types — Stage 0 Placeholder
 
 ## Purpose and audience
 

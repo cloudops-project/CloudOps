@@ -1,8 +1,35 @@
 ﻿# Conceptual Database Design
 
+## Stage 1 implemented schema
+
+Alembic revision `0001_stage1` creates `users`, `organizations`, `organization_members`, `organization_invitations`, `refresh_token_sessions`, and `audit_events`. PostgreSQL is production; SQLite is limited to isolated tests.
+
+- Normalized user email and organization slug are unique and indexed.
+- Membership is unique by organization/user and indexed for organization/status and user/status lookup.
+- A partial unique index prevents duplicate pending invitations for an organization/normalized email.
+- Invitation and refresh tokens are stored only as unique indexed SHA-256 hashes.
+- Refresh families use `family_id` and replacement links; audit events are indexed by timestamp, organization/timestamp, and actor/timestamp.
+- Foreign keys cascade tenant data where appropriate and use nullable `SET NULL` audit references to preserve history.
+- Constrained string enums use explicit check constraints and 32-character storage consistently in models and migrations.
+- Important statuses, platform-admin state, audit JSON, and creation/update timestamps have database defaults where applicable. `updated_at` changes are application-managed through SQLAlchemy, not a PostgreSQL trigger.
+- PostgreSQL row locks serialize refresh rotation, invitation acceptance, and final-owner changes.
+
+Services own critical transactions; repositories include `organization_id` in tenant queries. PostgreSQL RLS remains deferred defense-in-depth and is not a claimed Stage 1 control.
+
 ## Purpose and audience
 
-Backend, database, security, and analytics engineers use this proposed PostgreSQL model as the starting point for later logical/physical design. No migrations exist in Stage 0.
+Backend, database, security, and analytics engineers use this document for the implemented
+Stage 1–3 schemas plus the proposed later cloud-security schema. Revisions `0001_stage1`
+through `0004_verification_repairs` are executable.
+
+## Stage 2 implemented schema
+
+`aws_accounts` belongs to one organization and records name, 12-digit account ID, nullable role
+ARN, external ID, connection state, validation operation token/timestamp, lifecycle version,
+creator, and timestamps. `aws_external_id_reservations` is immutable, globally unique,
+backfilled for existing accounts, and retained after account deletion. Lifecycle mutations lock
+the tenant-authorized account row; STS executes outside the lock and its result applies only when
+its operation token remains current. No AWS credentials are stored.
 
 ## Ownership and isolation
 
@@ -15,7 +42,6 @@ erDiagram
   roles ||--o{ organization_members : assigned
   roles }o--o{ permissions : grants
   organizations ||--o{ aws_accounts : owns
-  aws_accounts ||--o{ aws_account_connections : connects
   organizations ||--o{ scan_jobs : requests
   scan_jobs ||--o{ scan_runs : attempts
   aws_accounts ||--o{ cloud_assets : contains
@@ -47,8 +73,7 @@ erDiagram
 | `users` | Identity subject: `id`, issuer, subject, display/email, status, last_login | PII; unique `(issuer, subject)`, email lookup if needed; soft-delete/anonymize under policy |
 | `organization_members` | User membership and role: organization/user/role, status, version | Tenant-sensitive; unique `(organization_id,user_id)`, indexes by user and active org; soft-delete/history |
 | `roles` / `permissions` | Named organization/system role and atomic permission codes; join table implied | Permission-sensitive; unique names/codes; version/deactivate rather than destructive delete |
-| `aws_accounts` | Customer account identity: organization, AWS account ID, alias, partition, status | Account IDs sensitive; unique `(organization_id,aws_account_id)`; soft-delete/revoke |
-| `aws_account_connections` | Role ARN, protected external ID/reference, state, validation/template version/time/error class | High sensitivity; never credentials; index active account/state; revoke/retain history, encrypt sensitive value |
+| `aws_accounts` | Implemented Stage 2 account and connection: organization, name, 12-digit account ID, role ARN, unique external ID, status/connection status, safe failure reason, validation/creator timestamps | Account metadata sensitive; unique `(organization_id,account_id)`, `(organization_id,role_arn)`, and `external_id`; organization/status indexes; never credentials |
 | `cloud_assets` | Normalized asset snapshot: organization, account, scan run, service/type, provider ID/ARN, region, config hash, sanitized metadata | Configuration-sensitive; indexes `(org,service,type)`, `(org,account,provider_id)`, run; retention/partitioning TBD; soft-delete current projection, retain snapshots per policy |
 
 ## Scanning, rules, and findings
@@ -59,7 +84,7 @@ erDiagram
 | `scan_runs` | Execution attempt: job, attempt, lease, start/end, coverage, error class | Operational; unique `(job,attempt)`, status/lease indexes; retention aligned with evidence |
 | `security_rules` | Stable ID (`EC2-001`), service, title, lifecycle | Global curated content; unique rule ID; deactivate, never reuse ID |
 | `rule_versions` | Immutable version, detection spec/hash, severity, guidance, activation | Integrity-sensitive; unique `(rule_id,version)`, active index; never update semantics or delete referenced versions |
-| `findings` | Organization, asset, rule version, fingerprint, severity, status, first/last seen, version | Tenant security data; unique active fingerprint by org; indexes `(org,status,severity)`, asset/rule; soft-delete inappropriateâ€”close/suppress with history |
+| `findings` | Organization, asset, rule version, fingerprint, severity, status, first/last seen, version | Tenant security data; unique active fingerprint by org; indexes `(org,status,severity)`, asset/rule; soft-delete inappropriate—close/suppress with history |
 | `finding_evidence` | Finding/run, schema version, minimized evidence JSON/hash, observed time | Highly sensitive; finding/run indexes; immutable, redact, retention policy; no secrets |
 | `finding_status_history` | From/to status, actor, reason, timestamp, version | Audit-relevant; index finding/time; append-only |
 | `risk_acceptances` | Finding, organization, owner/approver, justification, expiry, status | Sensitive governance record; expiry/status indexes; never erase during required retention |
@@ -69,7 +94,7 @@ erDiagram
 | Entity | Purpose, important fields, relationships | Retention, sensitivity, indexes, deletion |
 |---|---|---|
 | `compliance_frameworks` / `compliance_controls` | Framework version/source and hierarchical control identifiers/text | Licensing-sensitive; unique `(framework,version)` and control code; retire/version, do not rewrite mappings historically |
-| `rule_compliance_mappings` | Rule version â†” control with rationale/coverage qualifier/reviewer | Governance-sensitive; composite unique pair, control/rule indexes; version/deactivate |
+| `rule_compliance_mappings` | Rule version ↔ control with rationale/coverage qualifier/reviewer | Governance-sensitive; composite unique pair, control/rule indexes; version/deactivate |
 | `remediation_recommendations` | Finding, source (deterministic/AI), playbook candidate, text/schema, review state | Tenant-sensitive; finding/source index; retain with finding, sanitize AI output |
 | `remediation_requests` | Finding, requested playbook/version, requester, scope, approval state, idempotency key, evidence version | High impact; unique `(org,idempotency_key)`, approval/status indexes; immutable intent plus state history |
 | `remediation_executions` | Request attempt, executor, target, preconditions, outcome, timestamps, verification run | Highly sensitive; unique request/attempt, outcome/time indexes; retain; never store credentials |
@@ -84,5 +109,23 @@ erDiagram
 UUID primary keys and UTC timestamps are the default. Use foreign keys, check constraints for states, composite uniqueness with `organization_id`, and optimistic `version` columns where approvals/status can race. Multi-step lifecycle changes and their audit/outbox events share a transaction. JSON is schema-versioned and limited to variable evidence/metadata, not ownership or core relationships.
 
 ## Retention and open questions
+
+## Stage 3 inventory tables
+
+`assets` stores organization/account ownership, normalized type and provider identity,
+ARN/name/region/status, tags, sanitized service metadata, first/last-seen timestamps, and an
+active flag. `(aws_account_id, asset_type, resource_id)` is unique; organization, account,
+type, region, status, active, and last-seen columns are indexed. Discovery never hard-deletes
+missing inventory.
+
+`discovery_jobs` stores account scope, actor, lifecycle timestamps, result counts, and a
+sanitized error summary. A PostgreSQL partial unique index on account ID for `pending` and
+`running` rows prevents overlapping jobs. Organization, account, and status are indexed.
+
+`aws_accounts` exposes a composite unique `(id, organization_id)` key. Both `assets` and
+`discovery_jobs` use composite foreign keys to it, so PostgreSQL rejects an organization that
+does not own the referenced account. Asset timestamps require `last_seen_at >= first_seen_at`.
+Job counters are nonnegative, and status checks enforce valid started/finished timestamp
+combinations.
 
 Retention classes must be approved for identities, inventory snapshots, evidence, reports, AI content, operational logs, and audit archives. Legal holds and deletion propagation need design. Open decisions include RLS, partitioning thresholds, exact external-ID encryption/reference design, outbox tables, evidence normalization, and whether raw AI output is ever retained (default proposal: no).

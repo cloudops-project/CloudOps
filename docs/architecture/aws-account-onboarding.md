@@ -1,44 +1,55 @@
-﻿# AWS Account Onboarding
+# AWS Account Onboarding
 
-## Purpose and audience
+## Purpose and scope
 
-Customer administrators, AWS engineers, and security reviewers use this proposed flow to connect accounts without long-lived customer access keys.
+Stage 2 lets organization owners and admins connect AWS accounts without long-lived customer access keys. It validates the connection only; resource discovery and scanning begin no earlier than Stage 3.
 
-## Planned flow
+## Implemented flow
 
-1. An Organization Administrator signs in and chooses **Connect AWS account**.
-2. CloudFix generates a cryptographically strong per-connection external ID and offers a reviewed CloudFormation or Terraform onboarding template.
-3. The customer deploys the template in their AWS account. It creates a read-only cross-account IAM role covering only EC2, S3, IAM configuration APIs required by approved collectors.
-4. Its trust policy permits only the designated CloudFix AWS principal to call `sts:AssumeRole`, conditioned on the exact external ID; organization/account identifiers are not substitutes for that secret value.
-5. The customer enters the role ARN and non-sensitive account metadata. CloudFix validates ARN/account consistency and calls STS from the worker/security integration boundary.
-6. STS returns short-lived credentials in memory. Boto3 uses them for a minimal identity check and permitted metadata retrieval; CloudFix never requests or stores long-lived customer AWS access keys.
-7. CloudFix records validation time, status, safe error class, template version, principal identity, and an audit eventâ€”not credentials.
+1. An owner or admin registers an account name and 12-digit AWS account ID.
+2. CloudOps generates a cryptographically strong external ID, reserves it permanently in immutable database history, and renders a trust policy plus setup instructions.
+3. The customer manually creates `CloudOpsReadOnlyRole`, attaches AWS managed `SecurityAudit`, and applies the trust policy.
+4. The trust permits only `AWS_TRUSTED_PRINCIPAL_ARN` to call `sts:AssumeRole` when the exact external ID is supplied.
+5. The customer enters the role ARN. CloudOps verifies its partition, account component, and organization-local uniqueness.
+6. CloudOps calls `AssumeRole`, keeps the returned temporary credentials in local memory only, and immediately calls `GetCallerIdentity` through an assumed-role STS client.
+7. The connection becomes `connected` only when the returned account matches the expected account ID. Otherwise it becomes `failed` with a sanitized reason.
 
 ```mermaid
 sequenceDiagram
-  actor A as Customer admin
-  participant C as CloudFix API
-  participant W as CloudFix worker
+  actor A as Organization admin
+  participant C as CloudOps API
   participant S as AWS STS
-  participant R as Customer read-only role
-  A->>C: Request template / external ID
-  A->>R: Deploy reviewed template
-  A->>C: Register role ARN and metadata
-  C->>W: Validate connection ID
-  W->>S: AssumeRole(role ARN, external ID)
-  S-->>W: Short-lived credentials
-  W->>R: Read-only identity/metadata check
-  W-->>C: Sanitized validation result
+  participant R as Customer role
+  A->>C: Register account
+  C-->>A: External ID and IAM guidance
+  A->>R: Create role, trust, and SecurityAudit attachment
+  A->>C: Save role ARN and validate
+  C->>S: AssumeRole(role ARN, external ID)
+  S-->>C: Temporary credentials
+  C->>S: GetCallerIdentity
+  S-->>C: AWS account identity
+  C-->>A: Connected or sanitized failure
 ```
 
-## Failure, revocation, and rotation
+## Persistence and tenant isolation
 
-States include pending, validating, connected, degraded, invalid, and revoked. Handle access denied, external-ID mismatch, deleted role, permission gaps, throttling, partition/region mismatch, and account-ID mismatch with actionable but non-secret errors. Retries are bounded. Customers revoke by deleting/disabling trust or the role; CloudFix disables schedules and rejects new scans. Rotation creates/validates a replacement connection before retiring the old role/external ID, with all transitions audited.
+CloudOps stores only the account ID, role ARN, external ID, connection status, safe failure reason, validation timestamp, organization/creator references, and audit history. Access keys, secret keys, session tokens, and temporary credentials are never stored. Every issued external ID has a globally unique reservation that survives account deletion; creation reserves it in the same transaction and retries a database uniqueness collision. Every record lookup joins an active organization membership and requires the centralized owner/admin AWS-account-management capability.
 
-## Remediation separation
+Persisted states are `pending`, `connected`, `failed`, and `disconnected`. Disconnect changes CloudOps state and does not modify customer IAM. Customers can independently revoke access by deleting the role or trust.
 
-Never expand or reuse a broad scanning role. Automated remediation requires a separate role or action-specific permission model, a versioned allowlisted playbook, explicit approval, constrained resources/conditions, idempotency, and verification. Customer-managed CloudFormation/Terraform template design remains a Stage 3 deliverable, not an artifact in Stage 0.
+Lifecycle update, disconnect, and delete operations lock the tenant-scoped account row. Validation uses a short locked transaction to install an operation token, performs STS outside the database lock, then locks again and applies the result only if that token is still current. This prevents a stale validation result from overwriting a newer role update, disconnect, or delete, while idempotent disconnect avoids duplicate terminal audit transitions.
 
-## Open questions
+## IAM and deferred work
 
-Approve CloudFix principal topology, external-ID storage mechanism and rotation period, AWS partitions, delegated onboarding, exact collector permissions, and whether customers choose CloudFormation, Terraform, or both.
+The generated permission guidance recommends AWS managed `SecurityAudit`. CloudOps does not automatically create IAM resources or deploy Terraform. Automatic retries, background validation, external-ID rotation, onboarding templates, discovery, scanning, findings, compliance, remediation, CloudWatch, and EventBridge are deferred.
+
+Production deployment must select and configure the CloudOps trusted principal. External-ID rotation, automated IAM templates, and delegated onboarding remain open decisions.
+
+## Stage 3 discovery reuse
+
+Stage 3 uses the verified role only for read-only EC2, S3, IAM, and RDS inventory calls.
+Temporary AssumeRole values are passed directly to boto3 clients in memory and never assigned
+to database models, responses, audit metadata, or logs. AWS account identity/status is readable
+by all active members for inventory navigation; onboarding mutation remains owner/admin-only.
+STS and discovery clients share environment-driven bounded connect/read timeouts and bounded
+standard or adaptive botocore retries.
