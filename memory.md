@@ -6,17 +6,18 @@
 
 ## Current branch and revision
 
-- Branch: `feature/3-asset-discovery`
-- HEAD before documentation synchronization: `a9d23ca8b329ffc266564d429d6faf58408b94e7`
-- Current Alembic head: `0004_verification_repairs`
-- No commit or push was performed during the current preparation/documentation work.
+- Branch: `feature/4-rule-engine`
+- Base SHA: `0849e75d36cac65a4b801dcd9005c079941ad7fa`
+- Current Alembic head: `0005_stage4_rule_engine`
+- Stage 4 changes remain unmerged pending independent verification.
 
 ## Current implementation status
 
 - Stage 1 Foundation and Authentication: complete and regression-tested
 - Stage 2 AWS Account Onboarding: complete and independently verified
 - Stage 3 Asset Discovery: complete and independently verified
-- Stage 4 Security Analysis: not started
+- Stage 4 Deterministic Rule Engine and Findings: implemented, verification pending
+- Stage 5: not started
 
 ## Completed work
 
@@ -37,6 +38,14 @@ concurrency coordination, audit events, and onboarding UI.
 EC2, S3, IAM, and RDS collectors; normalized assets; discovery jobs; pagination; configured
 regional/global handling; historical upsert/stale lifecycle; partial failures; bounded APIs;
 PostgreSQL tenant/lifecycle constraints; concurrency guards; asset and discovery UI.
+
+### Stage 4
+
+Typed deterministic rules for EC2, S3, IAM, RDS, CloudWatch, CloudWatch Logs, and CloudTrail;
+configuration-only discovery expansion; evaluation jobs; finding create/update/resolve/reopen
+and suppression lifecycles; tenant-safe APIs; structured logs and audit events; PostgreSQL
+active-job and finding uniqueness; and frontend dashboards, filters, detail views, dialogs, and
+role-aware actions.
 
 ## Architecture decisions
 
@@ -62,14 +71,15 @@ PostgreSQL tenant/lifecycle constraints; concurrency guards; asset and discovery
 
 ## Database decisions
 
-The current ten application tables are users, organizations, organization members,
+The current twelve application tables are users, organizations, organization members,
 organization invitations, refresh sessions, audit events, AWS accounts, external-ID
-reservations, assets, and discovery jobs.
+reservations, assets, discovery jobs, evaluation jobs, and findings.
 
 Migration chain:
 
 ```text
-0001_stage1 -> 0002_stage2 -> 0003_stage3 -> 0004_verification_repairs
+0001_stage1 -> 0002_stage2 -> 0003_stage3 -> 0004_verification_repairs ->
+0005_stage4_rule_engine
 ```
 
 The repair migration backfills reservations without changing existing external IDs, adds
@@ -80,8 +90,8 @@ lifecycle checks.
 
 The final independent repository review reproduced:
 
-- Backend: 55 tests passed, 95% line coverage
-- Frontend: 34 tests passed
+- Stage 1–3 baseline: 55 backend tests and 34 frontend tests passed at 95% coverage
+- Current Stage 4 candidate: 79 backend tests and 44 frontend tests passed at 95% coverage
 - Ruff format/lint, Mypy, startup/import, Prettier, ESLint, TypeScript, and Vite build passed
 - PostgreSQL migration lifecycle, model drift check, and concurrency suites passed
 - `pip check`, `pip-audit`, and `npm audit` passed
@@ -92,31 +102,31 @@ approval remains separate and required by repository policy.
 
 ## Known issues and limitations
 
-- The feature branch has not been committed, pushed, reviewed, or merged in the current worktree.
+- The Stage 4 feature branch is not yet committed, pushed, independently verified, or merged.
 - Live AWS validation/discovery is intentionally not part of deterministic automated tests.
 - Discovery is synchronous and uses a configured explicit region list.
 - Production email delivery, MFA, OIDC/SSO, password reset, distributed rate limiting,
   background scheduling, and deployment infrastructure are deferred.
 - A Starlette multipart parsing deprecation warning may appear in backend tests.
 - Python uses `pyproject.toml` without a committed Python lockfile.
-- Stage 4 and later security functionality is absent by design.
+- Compliance, risk scoring, AI, raw event ingestion, remediation, and Stage 5 functionality are
+  absent by design.
 
 ## Repository state
 
-At the start of this documentation synchronization, the Stage 1–3 application, migrations,
-tests, manifests, and verification support were staged for controlled review; active
-documentation changes remained unstaged. Existing staged application content must be preserved.
+The Stage 4 application, migration, tests, and documentation are local changes on
+`feature/4-rule-engine`. Generated output remains ignored. Publish only after every gate passes.
 
-## Current blockers
+## Governance record
 
-- The verified work is not yet committed or pushed.
-- Repository policy requires a pull request and independent human approval before merge.
-- No GitHub Actions workflow currently executes these gates remotely.
+PR #2 was merged to `main` at `0849e75d...` with no recorded GitHub approval. The repository
+owner explicitly accepted that fact as a governance exception after technical gates passed and
+authorized Stage 4. This record does not claim that an independent GitHub approval occurred.
 
 ## Next immediate task
 
-1. Commit and push the verified Stage 1–3 baseline.
-2. Open a pull request to `main`.
-3. Obtain independent human review and merge through repository policy.
-
-Do not start Stage 4 as current work.
+1. Complete Stage 4 gates.
+2. Commit and push `feature/4-rule-engine`.
+3. Open a draft pull request to `main`.
+4. Run independent Stage 4 verification.
+5. Do not merge Stage 4 or start Stage 5 yet.

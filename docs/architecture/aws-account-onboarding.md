@@ -41,7 +41,10 @@ Lifecycle update, disconnect, and delete operations lock the tenant-scoped accou
 
 ## IAM and deferred work
 
-The generated permission guidance recommends AWS managed `SecurityAudit`. CloudOps does not automatically create IAM resources or deploy Terraform. Automatic retries, background validation, external-ID rotation, onboarding templates, discovery, scanning, findings, compliance, remediation, CloudWatch, and EventBridge are deferred.
+The generated permission guidance recommends AWS managed `SecurityAudit`. CloudOps does not
+automatically create IAM resources or deploy Terraform. Asset discovery and deterministic
+configuration findings are implemented in Stages 3 and 4. Compliance, risk, remediation, raw
+CloudWatch/CloudTrail event ingestion, and EventBridge automation remain deferred.
 
 Production deployment must select and configure the CloudOps trusted principal. External-ID rotation, automated IAM templates, and delegated onboarding remain open decisions.
 

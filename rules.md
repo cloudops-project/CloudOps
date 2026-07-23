@@ -6,8 +6,8 @@ These rules govern current CloudOps development. More detailed policies remain u
 `docs/engineering/`. When documents conflict, stop and resolve the contradiction before changing
 code.
 
-The governed baseline contains implemented Stage 1, Stage 2, and Stage 3 functionality. Stage 4
-has not started.
+The governed baseline contains merged Stages 1–3 and Stage 4 implementation pending independent
+verification. Stage 5 has not started.
 
 ## Technology stack
 
@@ -45,8 +45,9 @@ partial indexes, composite foreign keys, or concurrency.
 - Repositories own database access and tenant predicates.
 - Pydantic schemas explicitly control request and response fields.
 - Frontend visibility is usability only; backend authorization is authoritative.
-- Do not introduce Stage 4 findings, rules, compliance, risk, recommendations, or remediation
-  while working on the Stage 1–3 baseline.
+- Rules evaluate persisted normalized data only; boto3 stays in discovery.
+- Do not introduce compliance, risk, AI, remediation, raw event ingestion, customer AWS mutation,
+  or Stage 5 functionality.
 
 ## Security rules
 
@@ -77,6 +78,8 @@ partial indexes, composite foreign keys, or concurrency.
 - Discovery start is allowed for owner, admin, security analyst, and cloud engineer.
 - Auditor and viewer cannot start discovery.
 - Active members may view organization-scoped inventory according to the capability map.
+- Owner/admin/security analyst/cloud engineer may run evaluations; auditor/viewer may not.
+- All active roles may view rules/findings. Owner/admin/security analyst may suppress findings.
 
 ## Database and tenant rules
 
@@ -89,6 +92,8 @@ partial indexes, composite foreign keys, or concurrency.
 - Job status and timestamps must remain a valid state-machine combination.
 - Historical assets are deactivated, not deleted, when absent from a successful collector.
 - A failed collector must not deactivate its prior assets.
+- Evaluation/finding tenant consistency, positive versions, nonnegative counters,
+  status/timestamp lifecycles, and active-job/finding uniqueness are database enforced.
 
 ## Concurrency expectations
 
@@ -152,4 +157,4 @@ A stage is done only when its scoped behavior, migrations, tests, security contr
 documentation, dependency audits, and independent verification pass; no later-stage executable
 scope is present; and no secrets or generated artifacts are committed.
 
-Stage 4 code must never be implemented until Stage 3 is independently verified.
+Stage 5 code must never be implemented until Stage 4 is independently verified and merged.

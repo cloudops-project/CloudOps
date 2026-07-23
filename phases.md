@@ -2,8 +2,8 @@
 
 ## Current status
 
-Stages 1, 2, and 3 are complete and independently verified on
-`feature/3-asset-discovery`. Stage 4 has not started.
+Stages 1, 2, and 3 are merged into `main`. Stage 4 is implemented on
+`feature/4-rule-engine` and awaits independent verification. Stage 5 has not started.
 
 ## Stage 0 — Planning and architecture
 
@@ -43,39 +43,45 @@ Discovery is inventory only.
 
 Final independent Stage 3 verification passed.
 
-## Stage 4 — Security Analysis
+## Stage 4 — Deterministic Rule Engine and Findings
+
+**Status: IMPLEMENTED — AWAITING INDEPENDENT VERIFICATION**
+
+Delivered typed deterministic rules, a static registry, evaluation jobs, finding lifecycle and
+suppression, PostgreSQL concurrency/tenant constraints, expanded configuration discovery,
+findings/rules/evaluation APIs, structured operational logs, audit events, and frontend
+findings/rule/evaluation workflows. Rules evaluate persisted data and never call AWS.
+
+Compliance frameworks, risk scoring, AI, raw provider-event ingestion, remediation, and customer
+AWS mutation are excluded.
+
+## Stage 5
 
 **Status: NOT STARTED**
 
-Planned scope may include a deterministic security-rule engine, versioned rules, findings,
-misconfiguration detection, compliance mappings, risk scoring, and recommendations. No
-executable Stage 4 model, service, API, worker, or frontend functionality exists.
-
-Stage 4 must not begin until Stage 3 is independently verified and the Stage 1–3 baseline is
-reviewed and merged.
+Stage 5 scope is not authorized in this branch.
 
 ## Later planned stages
 
 The detailed roadmap under `docs/planning/` currently reserves later work for:
 
-1. Findings and risk workflow
-2. Compliance
-3. Optional advisory AI
-4. Security dashboard and reporting
-5. Notifications and Jira
-6. Governed remediation
-7. Scheduling and background workers
-8. Audit/security hardening
-9. Infrastructure and deployment
-10. Integrated testing/UAT
-11. Final documentation and demonstration
+1. Compliance and risk
+2. Optional advisory AI
+3. Extended reporting
+4. Notifications and Jira
+5. Governed remediation
+6. Scheduling and background workers
+7. Audit/security hardening
+8. Infrastructure and deployment
+9. Integrated testing/UAT
+10. Final documentation and demonstration
 
 These are plans, not completed functionality. Sequence and scope require approval before work.
 
 ## Immediate gate
 
-1. Commit and push the verified Stage 1–3 baseline.
-2. Open a pull request to the repository default branch.
-3. Obtain independent human approval and complete required review.
-4. Merge through repository policy.
-5. Start Stage 4 only from an updated, approved integration baseline.
+1. Finish Stage 4 quality gates and publish a draft pull request.
+2. Run independent Stage 4 verification.
+3. Correct verified findings, if any.
+4. Merge only through repository policy.
+5. Do not start Stage 5.

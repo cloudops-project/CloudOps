@@ -1,12 +1,12 @@
 # CloudOps
 
-CloudOps is an AWS-focused, multi-tenant SaaS platform. Stages 1–3 are implemented: Stage 1
-provides identity and organization tenancy, Stage 2 provides AWS account onboarding, and Stage 3
-provides inventory-only asset discovery. Stages 2 and 3 passed final independent verification.
-Stage 4 security analysis, findings, compliance, risk, AI, notifications, and remediation have
-not started.
+CloudOps is an AWS-focused, multi-tenant SaaS platform. Stages 1–3 provide identity and
+organization tenancy, secure AWS account onboarding, and normalized asset discovery. Stage 4 is
+implemented on `feature/4-rule-engine` for independent verification: deterministic typed rules
+evaluate persisted inventory and maintain security findings. Compliance, risk scoring, AI,
+notifications, remediation, raw event ingestion, and customer AWS mutation are not implemented.
 
-## Stage 1 stack
+## Technology stack
 
 - API: Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL, Pydantic 2, Argon2, PyJWT
 - Web: React, TypeScript, Vite, Tailwind CSS, React Router, TanStack Query, React Hook Form, Zod, Lucide
@@ -79,12 +79,25 @@ successful collector marks missing resources inactive instead of deleting histor
 Owner, admin, security analyst, and cloud engineer roles may start discovery; every active
 member may view bounded, filterable asset and job lists. Per-account locking and a PostgreSQL
 partial unique index prevent overlapping jobs. Failed collectors cannot stale their previous
-assets. Temporary STS credentials remain in memory only. Stage 4 security analysis is absent.
+assets. Temporary STS credentials remain in memory only.
 
 Composite PostgreSQL foreign keys ensure an asset or discovery job cannot reference an AWS
 account owned by another organization. Check constraints enforce seen-time ordering, nonnegative
 job counts, and valid job status/timestamp combinations. Boto3 clients use environment-driven,
 bounded connect/read timeouts and standard/adaptive bounded retries.
+
+## Stage 4 deterministic findings
+
+Stage 4 extends inventory with EC2 security groups and volumes, S3 configuration signals, IAM
+security metadata, RDS configuration, CloudWatch alarms and log groups, and CloudTrail
+configuration. Boto3 remains confined to discovery. Rules evaluate persisted normalized data
+without network or filesystem access.
+
+The typed rule pack covers high-confidence EC2, S3, IAM, RDS, CloudWatch, CloudWatch Logs, and
+CloudTrail checks. Results are `passed`, `failed`, `not_applicable`, or `error`; insufficient
+evidence never passes and never resolves an existing finding. Findings support open, resolved,
+and suppressed states with stable identity, lifecycle versions, bounded evidence, audit events,
+and stale-evaluation rejection.
 
 ## Documentation
 

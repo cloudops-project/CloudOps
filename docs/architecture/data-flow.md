@@ -1,4 +1,4 @@
-﻿# End-to-End Data Flow
+# End-to-End Data Flow
 
 ## Purpose and audience
 
@@ -28,6 +28,14 @@ flowchart TD
   LAM --> VERIFY
   VERIFY --> AUDIT[Audit record]
 ```
+
+## Current Stage 4 execution boundary
+
+Discovery obtains temporary STS credentials and stores only normalized configuration metadata.
+Credentials never cross into rule inputs. Rules read persisted assets and make no provider
+calls. Failed rules create or refresh findings, passing rules resolve them, and errors preserve
+previous state. Evidence is bounded and redacted. Raw CloudWatch logs and CloudTrail events are
+not ingested.
 
 ## Processing rules
 

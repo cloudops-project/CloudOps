@@ -5,8 +5,8 @@
 This is the implementation-aligned frontend design summary. The detailed visual standard remains
 in `docs/design/`.
 
-The current UI implements Stage 1 administration, Stage 2 AWS onboarding, and Stage 3 inventory.
-Stage 4 has not started.
+The current UI implements Stage 1 administration, Stage 2 AWS onboarding, Stage 3 inventory, and
+Stage 4 deterministic findings. Stage 4 awaits independent verification.
 
 ## Application layout
 
@@ -17,9 +17,8 @@ Authenticated pages use a responsive application shell:
 - Header with the signed-in email and logout action
 - Constrained main content area for forms, tables, cards, and status views
 
-Primary navigation currently exposes Dashboard, AWS Accounts when an organization role exists,
-Assets, Members, and Profile. Discovery Jobs are reachable through Stage 3 flows and a dedicated
-route.
+Primary navigation exposes Dashboard, AWS Accounts, Assets, Security, Members, and Profile.
+Discovery and evaluation jobs, the rule catalog, and finding details have dedicated routes.
 
 ## Current screens
 
@@ -61,7 +60,15 @@ route.
 - Account discovery action with confirmation before execution
 - Pending, running, completed, partially completed, and failed states
 
-No findings, risk, compliance, recommendation, or remediation screens are implemented.
+### Findings and evaluations
+
+- Security dashboard with severity and status counts
+- Finding filters, search, pagination, details, escaped evidence, and remediation text
+- Rule catalog and evaluation jobs
+- Accessible evaluation confirmation and suppression dialogs
+- Role-aware actions
+
+Risk, compliance, AI, and remediation screens are not implemented.
 
 ## Design tokens
 
@@ -151,8 +158,7 @@ hover. Desktop layouts use a 240px sidebar and a bounded content region.
 - Status and error meaning conveyed with text, not color alone
 - Untrusted metadata rendered as escaped text; no unsafe HTML
 
-## Stage 4 reservation
+## Stage 5 reservation
 
-The design system reserves space and colors for later security findings, severity, compliance,
-risk, and recommendations. Those views are future design intent only and must not be presented
-as implemented until Stage 4 or later work is approved and delivered.
+The design system reserves future space for compliance, risk, AI, notifications, and
+remediation. Those views must not be presented as implemented.

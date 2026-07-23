@@ -4,12 +4,11 @@ Use this file to resume work in a fresh AI chat. Detailed documents remain autho
 
 ## Purpose and current status
 
-CloudOps is an AWS-focused multi-tenant SaaS foundation for secure AWS onboarding and normalized
-asset inventory. Stages 1, 2, and 3 are implemented and independently verified by the final
-repository review.
-Stage 3 is inventory only. Stage 4 rule evaluation and all findings, compliance, risk, AI,
-notification, and remediation capabilities remain deferred.
-Stage 4 has not started.
+CloudOps is an AWS-focused multi-tenant SaaS for secure AWS onboarding, normalized inventory,
+and deterministic security findings. Stages 1–3 are merged in `main` at PR #2 merge SHA
+`0849e75d36cac65a4b801dcd9005c079941ad7fa`. Stage 4 is implemented on
+`feature/4-rule-engine` and awaits independent verification. Compliance, risk scoring, AI,
+notifications, remediation, and raw CloudWatch/CloudTrail event ingestion remain deferred.
 
 ## Source-of-truth documents
 
@@ -77,10 +76,10 @@ mindmap
       Tenant isolation
       Last-owner protection
       Permanent external IDs
-    Future
       Deterministic rules
-      Findings and risk
-      Compliance and findings
+      Finding lifecycle
+    Future
+      Compliance and risk
       Advisory AI
       Approved remediation
 ```
@@ -100,8 +99,10 @@ flowchart LR
   S --> E[Audit events]
   A --> E
   S --> STS[AWS STS AssumeRole]
-  STS --> C[EC2, S3, IAM, and RDS collectors]
+  STS --> C[EC2, S3, IAM, RDS, CloudWatch, and CloudTrail collectors]
   C --> Q
+  Q --> RE[Deterministic rules]
+  RE --> F[Evaluation jobs and findings]
 ```
 
 Routes contain validation and HTTP mapping only. Services own transactions and invariants. Repositories own persistence and always include organization scope for tenant data.
@@ -109,16 +110,16 @@ Routes contain validation and HTTP mapping only. Services own transactions and i
 ## Main files
 
 - `apps/api/app/main.py`: middleware, errors, CORS, trusted hosts, routes.
-- `apps/api/app/services/`: authentication, organization, invitation, onboarding, and discovery
-  workflows.
+- `apps/api/app/services/`: authentication, tenant, onboarding, discovery, evaluation, and
+  finding-lifecycle workflows.
+- `apps/api/app/security_rules/`: trusted typed rules and the static registry; no boto3 calls.
 - `apps/api/app/security/`: Argon2, JWT/opaque-token helpers, RBAC and rate-limit abstraction.
 - `apps/api/app/models/`: identity, AWS onboarding/reservations, assets, and discovery jobs.
-- `apps/api/alembic/versions/0004_verification_repairs.py`: current migration head; reservation
-  backfill, tenant foreign keys, lifecycle constraints, and AWS-account validation-operation
-  columns.
+- `apps/api/alembic/versions/0005_stage4_rule_engine.py`: current migration head; evaluation jobs,
+  findings, lifecycle constraints, tenant foreign keys, and active-job/finding uniqueness.
 - `apps/web/src/auth/AuthProvider.tsx`: session restoration and memory-only access token.
 - `apps/web/src/api/client.ts`: credentialed API client and single-flight refresh.
-- `apps/web/src/pages/`: Stage 1 administration, Stage 2 AWS onboarding, and Stage 3 inventory views.
+- `apps/web/src/pages/`: administration, onboarding, inventory, findings, rules, and evaluations.
 - `docs/architecture/decisions/ADR-007...ADR-011`: active Stage 1/Stage 2 decisions.
 
 ## Data and relationships
@@ -139,6 +140,8 @@ Database checks protect asset seen-time ordering and discovery-job counters and 
 - AWS onboarding: create, list, get, update, validate, disconnect, and delete accounts.
 - Discovery: start connected-account inventory; list/detail jobs; list/filter/detail/summarize
   normalized assets.
+- Security: list rules; start/list/detail evaluations; list/filter/summarize/detail findings;
+  suppress and unsuppress findings.
 - Process: `/health` and database-backed `/ready`.
 
 All application APIs are under `/api/v1`; health probes are root paths.
@@ -180,9 +183,10 @@ concurrency, and inventory/job UI.
 
 Email delivery, password reset, email-verification delivery, MFA, OIDC/SSO, distributed rate
 limiting, PostgreSQL RLS, production deployment, and live-AWS validation remain deferred.
-Discovery is synchronous and automated tests use deterministic AWS doubles. Rules, findings,
-compliance, risk, scheduler, AI, notifications, and remediation are Stage 4+. Development/testing
-returns invitation tokens temporarily; production does not.
+Discovery and evaluation are synchronous and automated tests use deterministic AWS doubles.
+Compliance, risk, scheduler, AI, notifications, remediation, raw provider events, and customer
+AWS mutation are deferred. Development/testing returns invitation tokens temporarily;
+production does not.
 
 ## Architecture decisions
 
@@ -195,22 +199,19 @@ returns invitation tokens temporarily; production does not.
 ## Current migration and worktree
 
 The linear migration chain is `0001_stage1 -> 0002_stage2 -> 0003_stage3 ->
-0004_verification_repairs`. The current branch is `feature/3-asset-discovery`. At the start of
-this synchronization, the Stage 1–3 implementation candidate was staged for controlled review
-but not committed or pushed; documentation synchronization remained unstaged.
+0004_verification_repairs -> 0005_stage4_rule_engine`. The current branch is
+`feature/4-rule-engine`, based directly on merged `main` at `0849e75d...`.
 
-The final independent review reproduced 55 passing backend tests at 95% coverage and 34 passing
-frontend tests, with PostgreSQL migration/concurrency checks and all documented quality gates
-passing.
+PR #2 had no recorded GitHub approval. The repository owner explicitly accepted that missing
+approval as a governance exception and authorized Stage 4; no approval is fabricated. Stage 4
+must remain unmerged until fresh independent verification.
 
 ## Current priorities
 
-1. Commit and push the verified Stage 1–3 baseline.
-2. Submit it to `main` through the required pull-request review.
-3. Merge only after independent human approval.
-4. Keep `develop` unchanged unless repository owners explicitly designate it for synchronization.
-
-Do not begin Stage 4.
+1. Complete all Stage 4 quality, migration, concurrency, security, and regression gates.
+2. Push `feature/4-rule-engine` and open a draft pull request to `main`.
+3. Run fresh independent verification.
+4. Do not merge Stage 4 or begin Stage 5 until that review succeeds.
 
 ## HOW TO START A NEW AI SESSION
 

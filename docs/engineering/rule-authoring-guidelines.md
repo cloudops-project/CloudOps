@@ -1,12 +1,19 @@
-﻿# Deterministic Rule Authoring and Initial Catalogue
+# Deterministic Rule Authoring and Initial Catalogue
 
 ## Purpose and audience
 
-AWS/security engineers, analysts, compliance reviewers, and QA use this specification to design the Version 1 EC2, S3, and IAM rule set. It is a catalogue only: no rule logic has been implemented or validated.
+AWS/security engineers, analysts, and QA use this specification to evolve the implemented Stage
+4 typed rule pack. The executable source of truth is `apps/api/app/security_rules/`; the catalog
+below includes historical planning entries and must not be mistaken for implemented scope.
 
 ## Rule contract
 
 Every immutable version defines ID, title, AWS service/resource type, description, deterministic detection logic, minimal evidence fields, default severity, security impact, reviewed compliance mappings, false-positive/context considerations, manual guidance, automation eligibility, verification procedure, and version. Tests require positive, negative, missing-data, boundary, and permission-denied fixtures. Collectors normalize data; rules do not call AWS. Findings cite rule version and scan run.
+
+Implemented rules use stable globally unique keys, positive integer versions, and a typed
+`evaluate(asset, context)` contract. Evidence is bounded and secret-bearing keys are removed.
+Missing evidence returns `ERROR` or `NOT_APPLICABLE`, never a misleading pass. Rules cannot use
+boto3, network/filesystem access, `eval`, or untrusted dynamic imports.
 
 Severities below are proposals. “Conditional” means organization policy must enable the check or supply context; absence is not automatically a universal vulnerability. Compliance references are **candidate mapping families** (CIS AWS Foundations, NIST CSF/800-53) requiring licensed-source and control-level reviewer validation; CloudOps does not certify compliance.
 

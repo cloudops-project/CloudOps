@@ -1,8 +1,8 @@
 # CloudOps API
 
-FastAPI service for Stage 1 identity/tenant administration, Stage 2 cross-account AWS onboarding,
-and Stage 3 read-only asset discovery. Route handlers delegate to services; repositories own
-persistence, including organization-scoped lookups.
+FastAPI service for identity/tenancy, cross-account onboarding, read-only discovery, and Stage 4
+deterministic findings. Route handlers delegate to services; repositories own tenant-scoped
+persistence.
 
 ## Commands
 
@@ -39,3 +39,11 @@ Connected accounts may inventory EC2, S3, IAM, and RDS metadata. Configure regio
 `AWS_READ_TIMEOUT_SECONDS`, `AWS_MAX_RETRY_ATTEMPTS`, and `AWS_RETRY_MODE`. Assets and jobs are
 tenant-bound through composite PostgreSQL foreign keys. Discovery never evaluates security
 posture and never mutates customer AWS resources.
+
+## Stage 4 evaluation
+
+Discovery also persists bounded configuration for EC2 security groups/EBS, S3, IAM, RDS,
+CloudWatch alarms/log groups, and CloudTrail. Boto3 remains in discovery. Typed rules under
+`app/security_rules` evaluate persisted assets only. Evaluation/finding APIs enforce tenant
+scope and RBAC. Alembic head `0005_stage4_rule_engine` adds evaluation jobs and findings. Raw
+provider events, compliance, risk, AI, and remediation are not implemented.

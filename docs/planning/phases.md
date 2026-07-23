@@ -1,9 +1,9 @@
-﻿# Implementation Phases
+# Implementation Phases
 
 ## Current delivery status
 
-Stage 1 Foundation & Authentication, Stage 2 AWS onboarding, and Stage 3 Asset Discovery are
-implemented and independently verified. No Stage 4 executable functionality has begun.
+Stages 1–3 are merged. Stage 4 deterministic rules/findings are implemented on
+`feature/4-rule-engine` and await independent verification. Stage 5 has not started.
 
 ## Purpose and audience
 
