@@ -76,3 +76,13 @@ Severities below are proposals. “Conditional” means organization policy must
 Rule changes create new versions; activation is explicit and historical findings keep their original version. A two-person security review validates detection, permissions, evidence minimization, severity, context, remediation, and candidate control mapping. Deprecation never reuses IDs. Automated remediation defaults to unsupported; “candidate” means a later threat-modeled playbook could be approved, never that it is safe universally.
 
 Approve configurable policy baselines, exact sensitive-port list, unused/old thresholds, effective S3 public-access algorithm, IAM escalation pattern source, compliance content/licensing, initial enabled subset, and rule acceptance fixtures before Stage 5.
+
+## Stage 5 mapping policy
+
+Stage 5 stores official framework identifiers, versions, and reference URLs alongside short
+original CloudOps summaries. It does not reproduce restricted framework prose and does not claim
+certification. Mappings identify an inclusive rule-version range and a CloudOps rationale.
+Overlapping ranges for the same rule/control use deterministic union semantics; matching more
+than one range cannot improve a result. Catalog mappings are implementation candidates that
+require human compliance review before external assurance use. Draft or uncertain mappings must
+not be described as independently validated.

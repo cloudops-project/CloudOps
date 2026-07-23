@@ -6,8 +6,9 @@ These rules govern current CloudOps development. More detailed policies remain u
 `docs/engineering/`. When documents conflict, stop and resolve the contradiction before changing
 code.
 
-The governed baseline contains merged Stages 1–3 and Stage 4 implementation pending independent
-verification. Stage 5 has not started.
+The governed baseline contains verified, merged Stages 1–4. Stage 5 compliance work is isolated
+on `feature/5-compliance-engine`. Stage 6 must not begin until Stage 5 is committed, pushed,
+independently verified, and merged.
 
 ## Technology stack
 
@@ -46,8 +47,9 @@ partial indexes, composite foreign keys, or concurrency.
 - Pydantic schemas explicitly control request and response fields.
 - Frontend visibility is usability only; backend authorization is authoritative.
 - Rules evaluate persisted normalized data only; boto3 stays in discovery.
-- Do not introduce compliance, risk, AI, remediation, raw event ingestion, customer AWS mutation,
-  or Stage 5 functionality.
+- Compliance consumes persisted Stage 4 results; it never performs detection or live AWS calls.
+- Do not introduce risk, AI, remediation, raw event ingestion, customer AWS mutation, or Stage 6
+  functionality.
 
 ## Security rules
 
@@ -68,6 +70,10 @@ partial indexes, composite foreign keys, or concurrency.
 - Temporary AWS credentials remain in memory and are excluded from metadata, responses, logs,
   exceptions, audit events, and fixtures.
 - AWS SDK connect/read timeouts and retry counts must be explicit and bounded.
+- A missing finding is never sufficient evidence for compliance `PASS`.
+- Rule errors become compliance `ERROR`; missing or version-mismatched evidence becomes
+  `NOT_ASSESSED`; suppression does not turn a failure into a pass.
+- Compliance assessment snapshots and finalized per-rule evaluation summaries are immutable.
 
 ## RBAC and governance
 

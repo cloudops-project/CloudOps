@@ -4,25 +4,39 @@
 
 Stage 1 uses application-managed access JWTs and opaque refresh cookies per ADR-008. Access tokens use `Authorization: Bearer`; refresh/logout use an HttpOnly cookie scoped to `/api/v1/auth`. Errors use an `error` object with code, safe message, correlation ID, and validation details.
 
-| Area | Paths | Authorization |
-| --- | --- | --- |
+| Area           | Paths                                                                          | Authorization                                        |
+| -------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------- |
 | Authentication | `/api/v1/auth/register`, `login`, `refresh`, `logout`, `me`, `change-password` | Public, refresh cookie, or access JWT as appropriate |
-| Organizations | `/api/v1/organizations` and `/{organization_id}` | Authenticated active member; update owner/admin |
-| Members | `/{organization_id}/members` and role/status/delete subpaths | Capability policy; governance owner/admin |
-| Invitations | organization create/list/cancel and `/api/v1/invitations/accept` | Owner/admin; accept by matching authenticated user |
-| Audit | `/{organization_id}/audit-events` | Owner/admin/auditor |
-| Probes | `/health`, `/ready` | Public, no infrastructure details |
+| Organizations  | `/api/v1/organizations` and `/{organization_id}`                               | Authenticated active member; update owner/admin      |
+| Members        | `/{organization_id}/members` and role/status/delete subpaths                   | Capability policy; governance owner/admin            |
+| Invitations    | organization create/list/cancel and `/api/v1/invitations/accept`               | Owner/admin; accept by matching authenticated user   |
+| Audit          | `/{organization_id}/audit-events`                                              | Owner/admin/auditor                                  |
+| Probes         | `/health`, `/ready`                                                            | Public, no infrastructure details                    |
+
+## Stage 5 compliance contract
+
+| Area        | Paths                                                                            | Authorization                                                |
+| ----------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Frameworks  | `/api/v1/compliance/frameworks`, `/{framework_key}`, `/{framework_key}/controls` | Every active organization member                             |
+| Controls    | `/api/v1/compliance/controls/{id}`, `/rules`, `/findings`                        | Every active organization member; bounded finding pagination |
+| Assessments | `/api/v1/aws/accounts/{id}/compliance/assess`                                    | Owner, admin, security analyst, cloud engineer               |
+| History     | `/api/v1/compliance/assessments`, `/{id}`, `/{id}/controls/{snapshot_id}`        | Every active organization member                             |
+| Summary     | `/api/v1/compliance/summary`                                                     | Every active organization member                             |
+
+Assessment and traceability lists use validated filters, stable ordering, and bounded page sizes.
+Cross-tenant identifiers return non-disclosing not-found responses. Runtime responses expose
+CloudOps summaries and bounded identifiers, never raw policies, credentials, or provider errors.
 
 ### Stage 1 RBAC matrix
 
-| Capability | Owner | Admin | Analyst | Engineer | Auditor | Viewer |
-| --- | --- | --- | --- | --- | --- | --- |
-| Read organization | Yes | Yes | Yes | Yes | Yes | Yes |
-| Read members | Yes | Yes | Yes | Yes | Yes | No |
-| Update organization | Yes | Yes | No | No | No | No |
-| Invite/manage non-owner members | Yes | Yes | No | No | No | No |
-| Assign owner | Yes | No | No | No | No | No |
-| Read audit activity | Yes | Yes | No | No | Yes | No |
+| Capability                      | Owner | Admin | Analyst | Engineer | Auditor | Viewer |
+| ------------------------------- | ----- | ----- | ------- | -------- | ------- | ------ |
+| Read organization               | Yes   | Yes   | Yes     | Yes      | Yes     | Yes    |
+| Read members                    | Yes   | Yes   | Yes     | Yes      | Yes     | No     |
+| Update organization             | Yes   | Yes   | No      | No       | No      | No     |
+| Invite/manage non-owner members | Yes   | Yes   | No      | No       | No      | No     |
+| Assign owner                    | Yes   | No    | No      | No       | No      | No     |
+| Read audit activity             | Yes   | Yes   | No      | No       | Yes     | No     |
 
 Admins may govern non-owner memberships only; an existing owner may be governed only by another owner. Independently, no action may demote, suspend, or remove the final active owner. Platform administration remains separate and never grants an implicit tenant bypass.
 

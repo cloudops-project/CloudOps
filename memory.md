@@ -6,18 +6,19 @@
 
 ## Current branch and revision
 
-- Branch: `feature/4-rule-engine`
-- Base SHA: `0849e75d36cac65a4b801dcd9005c079941ad7fa`
-- Current Alembic head: `0005_stage4_rule_engine`
-- Stage 4 changes remain unmerged pending independent verification.
+- Branch: `feature/5-compliance-engine`
+- Baseline SHA: `04807de270bf1eeb152b67ab197d97f961e52179`
+- Current Alembic head: `0007_stage5_compliance_engine`
+- Stage 5 changes are intentionally dirty and uncommitted until every mandatory gate passes.
 
 ## Current implementation status
 
 - Stage 1 Foundation and Authentication: complete and regression-tested
 - Stage 2 AWS Account Onboarding: complete and independently verified
 - Stage 3 Asset Discovery: complete and independently verified
-- Stage 4 Deterministic Rule Engine and Findings: implemented, verification pending
-- Stage 5: not started
+- Stage 4 Deterministic Rule Engine and Findings: verified and merged
+- Stage 5 Compliance Engine: implemented, final verification in progress
+- Stage 6: not started
 
 ## Completed work
 
@@ -47,6 +48,13 @@ and suppression lifecycles; tenant-safe APIs; structured logs and audit events; 
 active-job and finding uniqueness; and frontend dashboards, filters, detail views, dialogs, and
 role-aware actions.
 
+### Stage 5
+
+Versioned frameworks and controls; rule-version-aware mappings; persisted per-rule Stage 4
+evaluation summaries; account assessments; immutable control snapshots; PASS/FAIL/
+NOT_ASSESSED/ERROR semantics; suppression-safe failure behavior; tenant-safe APIs; compliance
+RBAC; structured logs and audit events; and an accessible compliance workflow.
+
 ## Architecture decisions
 
 - ADR-007 establishes the authorized Stage 1 foundation/authentication scope.
@@ -71,15 +79,17 @@ role-aware actions.
 
 ## Database decisions
 
-The current twelve application tables are users, organizations, organization members,
+The application schema includes users, organizations, organization members,
 organization invitations, refresh sessions, audit events, AWS accounts, external-ID
-reservations, assets, discovery jobs, evaluation jobs, and findings.
+reservations, assets, discovery jobs, evaluation jobs, findings, evaluation rule results,
+compliance frameworks, controls, mappings, assessments, and assessment-control snapshots.
 
 Migration chain:
 
 ```text
 0001_stage1 -> 0002_stage2 -> 0003_stage3 -> 0004_verification_repairs ->
-0005_stage4_rule_engine
+0005_stage4_rule_engine -> 0006_stage4_verification_repairs ->
+0007_stage5_compliance_engine
 ```
 
 The repair migration backfills reservations without changing existing external IDs, adds
@@ -109,24 +119,26 @@ approval remains separate and required by repository policy.
   background scheduling, and deployment infrastructure are deferred.
 - A Starlette multipart parsing deprecation warning may appear in backend tests.
 - Python uses `pyproject.toml` without a committed Python lockfile.
-- Compliance, risk scoring, AI, raw event ingestion, remediation, and Stage 5 functionality are
-  absent by design.
+- Risk scoring, AI, raw event ingestion, remediation, and Stage 6 functionality are absent by
+  design. Stage 5 compliance is implemented without live AWS access or independent detection.
 
 ## Repository state
 
-The Stage 4 application, migration, tests, and documentation are local changes on
-`feature/4-rule-engine`. Generated output remains ignored. Publish only after every gate passes.
+The Stage 5 application, migration, tests, frontend, and documentation are local changes on
+`feature/5-compliance-engine`. Generated output remains ignored. Publish only after every gate
+passes.
 
 ## Governance record
 
 PR #2 was merged to `main` at `0849e75d...` with no recorded GitHub approval. The repository
 owner explicitly accepted that fact as a governance exception after technical gates passed and
-authorized Stage 4. This record does not claim that an independent GitHub approval occurred.
+authorized Stage 4. PR #3 subsequently merged the verified Stage 4 baseline at
+`04807de270bf1eeb152b67ab197d97f961e52179`. This record does not fabricate an approval.
 
 ## Next immediate task
 
-1. Complete Stage 4 gates.
-2. Commit and push `feature/4-rule-engine`.
+1. Complete Stage 5 gates.
+2. Commit and push `feature/5-compliance-engine`.
 3. Open a draft pull request to `main`.
-4. Run independent Stage 4 verification.
-5. Do not merge Stage 4 or start Stage 5 yet.
+4. Run detached clean-room Stage 5 verification.
+5. Do not merge Stage 5 or start Stage 6.

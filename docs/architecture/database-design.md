@@ -104,17 +104,26 @@ erDiagram
 | `audit_events` | Organization, actor/service, action, target, outcome, time, correlation/idempotency IDs, previous/event hash | Security record; organization/time, target/time, correlation indexes; append-only, archived/tamper-evident, never soft-delete ordinarily |
 | `ai_interactions` | Organization, purpose, provider/model, prompt template/version, input hash, redaction status, output status, token/cost metadata, related finding/report, timestamp | Sensitive metadata; indexes org/time, purpose, related IDs; raw secrets prohibited; raw prompts/outputs avoided or tightly governed/expired |
 
-## Current Stage 4 physical schema
+## Current Stage 5 physical schema
 
-The Alembic head is `0005_stage4_rule_engine`. `evaluation_jobs` carries tenant/account
+The Alembic head is `0007_stage5_compliance_engine`. `evaluation_jobs` carries tenant/account
 references, a monotonic sequence, nonnegative counters, constrained lifecycle timestamps, and a
 partial unique index allowing one pending/running evaluation per account.
 
 `findings` carries tenant/account and optional asset references, stable rule key/version,
 severity/category, bounded evidence, first/last seen, resolution/suppression fields, last
 evaluation, and lifecycle version. Composite foreign keys enforce tenant and asset/account
-agreement. Partial unique indexes provide one asset/rule or account/rule finding. Future
-compliance, risk, remediation, and AI tables in planning diagrams are not executable.
+agreement. Partial unique indexes provide one asset/rule or account/rule finding.
+
+`evaluation_rule_results` stores immutable per-rule/version invocation counts for a completed
+evaluation. `compliance_frameworks` and `compliance_controls` version catalog metadata without
+copying restricted standards prose. `rule_control_mappings` supports inclusive version ranges;
+overlapping ranges use deterministic union semantics. `compliance_assessments` references the
+tenant/account and source evaluation, while `compliance_assessment_controls` stores immutable
+point-in-time status snapshots. Composite foreign keys enforce tenant and framework agreement,
+partial indexes prevent duplicate active assessments and duplicate open-ended mappings, and
+triggers protect finalized summaries and snapshots. Risk, remediation, and AI tables remain
+planning-only; Stage 6 has not started.
 
 ## Relational rules
 

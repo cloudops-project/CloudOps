@@ -2,8 +2,9 @@
 
 ## Current status
 
-Stages 1, 2, and 3 are merged into `main`. Stage 4 is implemented on
-`feature/4-rule-engine` and awaits independent verification. Stage 5 has not started.
+Stages 1–4 are verified and merged into `main`. Stage 5 is implemented in the dirty
+`feature/5-compliance-engine` worktree and is undergoing PostgreSQL, API, frontend, and
+clean-room verification. Stage 6 has not started.
 
 ## Stage 0 — Planning and architecture
 
@@ -45,7 +46,7 @@ Final independent Stage 3 verification passed.
 
 ## Stage 4 — Deterministic Rule Engine and Findings
 
-**Status: IMPLEMENTED — AWAITING INDEPENDENT VERIFICATION**
+**Status: COMPLETE AND MERGED**
 
 Delivered typed deterministic rules, a static registry, evaluation jobs, finding lifecycle and
 suppression, PostgreSQL concurrency/tenant constraints, expanded configuration discovery,
@@ -55,11 +56,19 @@ findings/rule/evaluation workflows. Rules evaluate persisted data and never call
 Compliance frameworks, risk scoring, AI, raw provider-event ingestion, remediation, and customer
 AWS mutation are excluded.
 
-## Stage 5
+## Stage 5 — Compliance Engine
+
+**Status: IMPLEMENTED — VERIFICATION IN PROGRESS**
+
+Versioned frameworks and controls, rule-version mappings, Stage 4-backed assessments, immutable
+control snapshots, tenant-safe APIs, RBAC, audit events, and compliance frontend workflows are
+implemented. PostgreSQL migration `0007_stage5_compliance_engine` is the candidate head.
+
+## Stage 6
 
 **Status: NOT STARTED**
 
-Stage 5 scope is not authorized in this branch.
+No Stage 6 executable code is authorized or present.
 
 ## Later planned stages
 
@@ -80,8 +89,7 @@ These are plans, not completed functionality. Sequence and scope require approva
 
 ## Immediate gate
 
-1. Finish Stage 4 quality gates and publish a draft pull request.
-2. Run independent Stage 4 verification.
-3. Correct verified findings, if any.
-4. Merge only through repository policy.
-5. Do not start Stage 5.
+1. Finish every Stage 5 quality and migration gate.
+2. Commit and push the Stage 5 branch only after all gates pass.
+3. Open a draft pull request and run independent clean-room verification.
+4. Do not start Stage 6.

@@ -18,7 +18,20 @@ The implemented Stage 4 suite covers collector configuration metadata, determini
 positive/negative/error behavior, finding detect/update/resolve/reopen/suppress lifecycles, all
 six roles, bounded APIs, escaped frontend evidence, and PostgreSQL active-job,
 finding-identity, tenant-integrity, migration, and concurrency behavior. Jira, notifications,
-compliance, risk, and remediation remain future test strategy.
+risk, and remediation remain future test strategy.
+
+## Stage 5 executable coverage
+
+Stage 5 tests verify versioned catalogs, inclusive rule-version mapping ranges, deterministic
+overlap-union behavior, per-rule invocation summaries, PASS/FAIL/NOT_ASSESSED/ERROR semantics,
+suppression remaining failure evidence, legacy evaluations receiving no synthetic PASS, and
+immutable historical snapshots. Public HTTP tests cover all six roles, authentication failures,
+tenant probing, filters, bounded pagination, and sanitized errors. PostgreSQL tests cover an
+empty upgrade, populated `0006` to `0007` preservation, downgrade/re-upgrade, transactional DDL
+rollback, composite foreign keys, partial indexes, triggers, independent-session races, and
+evaluation finalization rollback. Frontend tests exercise protected compliance routes,
+framework/control/assessment workflows, accessible confirmation, safe text rendering, pagination,
+and role-aware controls.
 
 Security testing includes cross-tenant negatives, IDOR/mass assignment, session/CSRF, injection/XSS/SSRF, rate/replay/idempotency, IAM policy review, prompt injection, secret/log leakage, webhook forgery, dependency/secret/static scans, dynamic tests, and authorized manual penetration testing in sandbox/UAT. Performance tests establish baselines for representative assets and queue load; no target is asserted before measurement.
 

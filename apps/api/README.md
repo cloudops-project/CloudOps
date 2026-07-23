@@ -23,6 +23,24 @@ Authentication uses Argon2 passwords, 15-minute access JWTs by default, and opaq
 
 The root `compose.verify.yml` provides the disposable PostgreSQL database. Set `POSTGRES_TEST_DATABASE_URL` to its `cloudops_test` database before running `app\tests\test_postgres_concurrency.py`; the test rejects any other database name.
 
+## Stage 5 compliance
+
+Migration `0007_stage5_compliance_engine` adds versioned frameworks and controls,
+rule-version-range mappings, evaluation rule summaries, compliance assessments, and immutable
+control snapshots. Per-rule counts represent deterministic rule invocations over applicable
+assets (or one invocation for an account-level rule). A zero-count summary means the rule had
+no applicable invocation and cannot establish compliance `PASS`.
+
+Compliance uses persisted Stage 4 evidence only. Missing/legacy summaries and version mismatches
+are `NOT_ASSESSED`; mapped rule errors are `ERROR`; active and suppressed mapped findings are
+`FAIL`. PostgreSQL composite foreign keys enforce tenant and framework consistency, while
+partial unique indexes coordinate active assessments and open-ended mappings.
+
+Exact duplicate mapping ranges are forbidden. Overlapping non-identical ranges are allowed only
+as declarative catalog data and use union semantics: a rule version is applicable when it
+matches any range, and duplicate matches cannot improve a control result. There is no mutable
+mapping-administration API in Stage 5.
+
 ## Stage 2 AWS onboarding
 
 Set `AWS_TRUSTED_PRINCIPAL_ARN` to the CloudOps AWS principal that customers may trust and
@@ -45,5 +63,7 @@ posture and never mutates customer AWS resources.
 Discovery also persists bounded configuration for EC2 security groups/EBS, S3, IAM, RDS,
 CloudWatch alarms/log groups, and CloudTrail. Boto3 remains in discovery. Typed rules under
 `app/security_rules` evaluate persisted assets only. Evaluation/finding APIs enforce tenant
-scope and RBAC. Alembic head `0005_stage4_rule_engine` adds evaluation jobs and findings. Raw
-provider events, compliance, risk, AI, and remediation are not implemented.
+scope and RBAC. Revisions `0005_stage4_rule_engine` and
+`0006_stage4_verification_repairs` add and harden evaluation jobs and findings. Stage 5
+compliance consumes that persisted evidence. Raw provider events, risk, AI, and remediation are
+not implemented.
