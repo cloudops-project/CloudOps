@@ -1,10 +1,11 @@
 # CloudOps
 
-CloudOps is an AWS-focused, multi-tenant SaaS platform. Stages 1–4 are merged in `main`:
-identity and tenancy, secure AWS onboarding, normalized discovery, and deterministic findings.
-Stage 5 compliance assessments are being completed on `feature/5-compliance-engine`. Risk
-scoring, AI, notifications, remediation, raw event ingestion, customer AWS mutation, and Stage 6
-functionality are not implemented.
+CloudOps is an AWS-focused, multi-tenant SaaS platform. Stages 1–5 are independently verified
+and merged in `main`: identity and tenancy, secure AWS onboarding, normalized discovery,
+deterministic findings, and evidence-based compliance assessments. The current baseline is merge
+commit `68785b0138eaecf84850887a3d4005c40e9761c0`, with Alembic head
+`0007_stage5_compliance_engine`. Risk scoring, AI, notifications, remediation, raw event
+ingestion, customer AWS mutation, and Stage 6 functionality are not implemented.
 
 ## Technology stack
 

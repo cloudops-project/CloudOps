@@ -5,10 +5,11 @@ Use this file to resume work in a fresh AI chat. Detailed documents remain autho
 ## Purpose and current status
 
 CloudOps is an AWS-focused multi-tenant SaaS for secure AWS onboarding, normalized inventory,
-deterministic findings, and evidence-based compliance snapshots. Stages 1–4 are verified and
-merged in `main` at `04807de270bf1eeb152b67ab197d97f961e52179`. Stage 5 is being completed
-on `feature/5-compliance-engine`; migration head is `0007_stage5_compliance_engine`. Stage 6,
-risk scoring, AI, notifications, remediation, and raw event ingestion remain deferred.
+deterministic findings, and evidence-based compliance snapshots. Stages 1–5 are independently
+verified and merged in `main` at `68785b0138eaecf84850887a3d4005c40e9761c0`.
+Stage 5 feature SHA `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` was merged by PR #4;
+migration head is `0007_stage5_compliance_engine`. Stage 6 deterministic risk scoring, AI,
+notifications, remediation, and raw event ingestion remain deferred.
 
 ## Source-of-truth documents
 
@@ -78,8 +79,9 @@ mindmap
       Permanent external IDs
       Deterministic rules
       Finding lifecycle
+      Evidence-based compliance
     Future
-      Compliance and risk
+      Deterministic risk scoring
       Advisory AI
       Approved remediation
 ```
@@ -142,6 +144,8 @@ Database checks protect asset seen-time ordering and discovery-job counters and 
   normalized assets.
 - Security: list rules; start/list/detail evaluations; list/filter/summarize/detail findings;
   suppress and unsuppress findings.
+- Compliance: list frameworks and controls; inspect mappings and mapped findings; start, list,
+  and inspect immutable assessments and summaries.
 - Process: `/health` and database-backed `/ready`.
 
 All application APIs are under `/api/v1`; health probes are root paths.
@@ -184,9 +188,9 @@ concurrency, and inventory/job UI.
 Email delivery, password reset, email-verification delivery, MFA, OIDC/SSO, distributed rate
 limiting, PostgreSQL RLS, production deployment, and live-AWS validation remain deferred.
 Discovery and evaluation are synchronous and automated tests use deterministic AWS doubles.
-Compliance, risk, scheduler, AI, notifications, remediation, raw provider events, and customer
-AWS mutation are deferred. Development/testing returns invitation tokens temporarily;
-production does not.
+Risk scoring, scheduler, AI, notifications, remediation, raw provider events, customer AWS
+mutation, and compliance export are deferred. Development/testing returns invitation tokens
+temporarily; production does not.
 
 ## Architecture decisions
 
@@ -200,19 +204,21 @@ production does not.
 
 The linear migration chain is `0001_stage1 -> 0002_stage2 -> 0003_stage3 ->
 0004_verification_repairs -> 0005_stage4_rule_engine -> 0006_stage4_verification_repairs ->
-0007_stage5_compliance_engine`. The current branch is `feature/5-compliance-engine`, based on
-verified Stage 4 merge `04807de270bf1eeb152b67ab197d97f961e52179`.
+0007_stage5_compliance_engine`. The current release baseline is `main` at
+`68785b0138eaecf84850887a3d4005c40e9761c0`.
 
 PR #2 had no recorded GitHub approval. The repository owner explicitly accepted that missing
-approval as a governance exception and authorized Stage 4; no approval is fabricated. Stage 4
-must remain unmerged until fresh independent verification.
+approval as a governance exception and authorized Stage 4; no approval is fabricated. PR #4
+also had zero recorded GitHub reviews/approvals and no automated check rollup. After technical
+clean-room verification, the owner recorded an **Owner-authorized governance exception for PR
+#4**. Neither exception is an independent GitHub, CODEOWNER, CI, or repository-policy approval.
 
 ## Current priorities
 
-1. Complete all Stage 5 quality, migration, concurrency, security, and regression gates.
-2. Push `feature/5-compliance-engine` and open a draft pull request to `main`.
-3. Run clean-room independent verification against the pushed SHA.
-4. Do not merge Stage 5 or begin Stage 6 until that review succeeds.
+1. Review and merge the Stage 5 documentation synchronization PR.
+2. Synchronize local `main`.
+3. Obtain explicit Stage 6 scope authorization.
+4. Create the Stage 6 branch from synchronized clean `main`; do not add Stage 6 code before then.
 
 ## Stage 5 compliance boundary
 
@@ -221,6 +227,11 @@ evaluations, per-rule outcome summaries, and active findings. Versioned mappings
 immutable snapshots. Missing or mismatched evidence is `NOT_ASSESSED`, rule/source errors are
 `ERROR`, active or suppressed failures are `FAIL`, and `PASS` requires affirmative successful
 rule evidence. Catalog prose is CloudOps-authored and links to official references.
+
+The initial catalog contains four controls and twelve mappings. It is not complete framework
+coverage or certification, mappings require human compliance review, and compliance export is
+not implemented. Stage 6 will add deterministic risk scoring; AI must not perform detection or
+risk scoring.
 
 ## HOW TO START A NEW AI SESSION
 

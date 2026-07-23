@@ -2,12 +2,13 @@
 
 ## Last updated
 
-2026-07-24 — Stage 5 compliance completion on `feature/5-compliance-engine`.
+2026-07-24 — Stage 5 compliance merged and regression-verified on `main`.
 
 ## Current implementation
 
-Stages 1–4 are verified, merged, and regression-tested. Stage 5 compliance is implemented and
-under final release and clean-room verification. Stage 6 has not started.
+Stages 1–5 are independently verified, merged, and regression-tested. PR #4 merged verified
+feature SHA `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` at main commit
+`68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 has not started.
 
 Alembic revision `0007_stage5_compliance_engine` follows
 `0006_stage4_verification_repairs` and adds versioned frameworks and controls, rule mappings,
@@ -32,8 +33,10 @@ backfilled without change.
 - Frontend discovery requires an accessible confirmation and covers filters, pagination,
   states, RBAC, focus behavior, and escaped metadata.
 
-Exact final test totals and quality-gate results belong in the repair report after all commands
-have been rerun; older completion-report counts are not current evidence.
+Current release evidence is 162 backend tests passed with 0 failures and 0 skips at 95.88%
+coverage, plus 56 frontend tests passed with 0 failures. Migration lifecycle, populated
+`0006 -> 0007` upgrade, PostgreSQL integrity/concurrency, dependency audits, security scans, and
+merged-main regression verification passed.
 
 ## Decisions
 
@@ -50,9 +53,9 @@ tests use deterministic AWS doubles; controlled live-AWS validation remains oper
 
 ## Next task
 
-Complete Stage 5 final gates, commit/push `feature/5-compliance-engine`, open a draft pull
-request to `main`, and run detached clean-room verification. Do not merge Stage 5 or begin
-Stage 6.
+Review and merge the Stage 5 documentation synchronization, synchronize `main`, then obtain
+separate authorization for Stage 6 — deterministic risk scoring. Do not create Stage 6 code
+before that gate; AI must not perform detection or risk scoring.
 
 ## Stage 3 implementation snapshot
 
@@ -70,3 +73,15 @@ evidence and never performs detection or live AWS calls.
 PR #2 merged Stages 1–3 to `main` at `0849e75d...` without a recorded GitHub approval. The
 repository owner explicitly accepted the missing approval as a governance exception and
 authorized Stage 4. This is not a claim that an independent GitHub approval occurred.
+
+PR #4 had zero recorded GitHub reviews/approvals and no automated check rollup. The exact feature
+SHA passed independent technical clean-room verification, after which the owner recorded an
+**Owner-authorized governance exception for PR #4**. This is not an independent GitHub,
+CODEOWNER, automated CI, or repository-policy approval.
+
+## Stage 5 limitations
+
+The initial catalog contains four controls and twelve mappings. It is not complete framework
+coverage or certification, mappings require human compliance review, and compliance export is
+not implemented. The Starlette TestClient/httpx deprecation warning remains; Node 20 LTS or 22
+LTS is recommended.

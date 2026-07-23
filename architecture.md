@@ -1,5 +1,9 @@
 # CloudOps Current Architecture
 
+Stages 1–5 are independently verified and merged in `main` at
+`68785b0138eaecf84850887a3d4005c40e9761c0`; Alembic head is
+`0007_stage5_compliance_engine`. Stage 6 deterministic risk scoring has not started.
+
 ## Document role
 
 This document is the concise implementation architecture for future coding sessions. Detailed
@@ -145,20 +149,20 @@ newer lifecycle state. Terminal counters, structured logs, and audit events are 
 
 ## Current PostgreSQL schema
 
-| Model/table | Purpose |
-|---|---|
-| `User` / `users` | Global user identity and authentication status |
-| `Organization` / `organizations` | Tenant root |
-| `OrganizationMembership` / `organization_members` | User role/status in an organization |
-| `OrganizationInvitation` / `organization_invitations` | Hashed, expiring invitation |
-| `RefreshTokenSession` / `refresh_token_sessions` | Hashed rotating refresh session |
-| `AuditEvent` / `audit_events` | Authentication, governance, onboarding, and discovery history |
-| `AWSAccount` / `aws_accounts` | Organization-owned AWS connection metadata |
-| `AWSExternalIDReservation` / `aws_external_id_reservations` | Permanent global external-ID reservation |
-| `Asset` / `assets` | Normalized historical AWS resource inventory |
-| `DiscoveryJob` / `discovery_jobs` | Discovery execution state and counters |
-| `EvaluationJob` / `evaluation_jobs` | Evaluation sequence, status, and counters |
-| `Finding` / `findings` | Stable rule result, evidence, resolution, and suppression |
+| Model/table                                                 | Purpose                                                       |
+| ----------------------------------------------------------- | ------------------------------------------------------------- |
+| `User` / `users`                                            | Global user identity and authentication status                |
+| `Organization` / `organizations`                            | Tenant root                                                   |
+| `OrganizationMembership` / `organization_members`           | User role/status in an organization                           |
+| `OrganizationInvitation` / `organization_invitations`       | Hashed, expiring invitation                                   |
+| `RefreshTokenSession` / `refresh_token_sessions`            | Hashed rotating refresh session                               |
+| `AuditEvent` / `audit_events`                               | Authentication, governance, onboarding, and discovery history |
+| `AWSAccount` / `aws_accounts`                               | Organization-owned AWS connection metadata                    |
+| `AWSExternalIDReservation` / `aws_external_id_reservations` | Permanent global external-ID reservation                      |
+| `Asset` / `assets`                                          | Normalized historical AWS resource inventory                  |
+| `DiscoveryJob` / `discovery_jobs`                           | Discovery execution state and counters                        |
+| `EvaluationJob` / `evaluation_jobs`                         | Evaluation sequence, status, and counters                     |
+| `Finding` / `findings`                                      | Stable rule result, evidence, resolution, and suppression     |
 
 ## Database constraints and concurrency
 

@@ -6,9 +6,10 @@ These rules govern current CloudOps development. More detailed policies remain u
 `docs/engineering/`. When documents conflict, stop and resolve the contradiction before changing
 code.
 
-The governed baseline contains verified, merged Stages 1–4. Stage 5 compliance work is isolated
-on `feature/5-compliance-engine`. Stage 6 must not begin until Stage 5 is committed, pushed,
-independently verified, and merged.
+The governed baseline contains independently verified, merged Stages 1–5 at main commit
+`68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 deterministic risk scoring has not
+started and requires its own branch, scope authorization, implementation, tests, independent
+verification, review, and merge gate.
 
 ## Technology stack
 
@@ -163,4 +164,6 @@ A stage is done only when its scoped behavior, migrations, tests, security contr
 documentation, dependency audits, and independent verification pass; no later-stage executable
 scope is present; and no secrets or generated artifacts are committed.
 
-Stage 5 code must never be implemented until Stage 4 is independently verified and merged.
+No stage may begin until its predecessor is independently verified and merged. Stage 6 must
+branch from synchronized `main`; AI must not perform finding detection or deterministic risk
+scoring.

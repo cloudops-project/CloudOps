@@ -6,10 +6,11 @@
 
 ## Current branch and revision
 
-- Branch: `feature/5-compliance-engine`
-- Baseline SHA: `04807de270bf1eeb152b67ab197d97f961e52179`
+- Branch: `main` (documentation synchronization uses `docs/stage5-merge-sync`)
+- Current main SHA: `68785b0138eaecf84850887a3d4005c40e9761c0`
+- Verified Stage 5 feature SHA: `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f`
 - Current Alembic head: `0007_stage5_compliance_engine`
-- Stage 5 is committed and pushed on this branch in draft PR #4; independent verification is pending.
+- PR #4 is merged. Stage 5 is independently clean-room verified and regression-verified on main.
 
 ## Current implementation status
 
@@ -17,7 +18,7 @@
 - Stage 2 AWS Account Onboarding: complete and independently verified
 - Stage 3 Asset Discovery: complete and independently verified
 - Stage 4 Deterministic Rule Engine and Findings: verified and merged
-- Stage 5 Compliance Engine: implemented, final verification in progress
+- Stage 5 Compliance Engine: complete, independently verified, and merged
 - Stage 6: not started
 
 ## Completed work
@@ -96,49 +97,56 @@ The repair migration backfills reservations without changing existing external I
 account lifecycle coordination, enforces composite tenant relationships, and adds asset/job
 lifecycle checks.
 
-## Completed local test evidence
+## Completed verification evidence
 
-The final independent repository review reproduced:
+The exact Stage 5 feature SHA was independently clean-room verified and the merged main commit
+was regression-tested:
 
-- Stage 1–3 baseline: 55 backend tests and 34 frontend tests passed at 95% coverage
-- Current Stage 4 candidate: 79 backend tests and 44 frontend tests passed at 95% coverage
-- Ruff format/lint, Mypy, startup/import, Prettier, ESLint, TypeScript, and Vite build passed
-- PostgreSQL migration lifecycle, model drift check, and concurrency suites passed
+- Backend: 162 passed, 0 failed, 0 skipped; 95.88% coverage
+- Frontend: 56 passed, 0 failed
+- Ruff, Mypy (93 source files), startup/import, Prettier, ESLint, TypeScript, and Vite passed
+- Empty and populated `0006 -> 0007` migration, downgrade/re-upgrade, drift, integrity,
+  independent-session concurrency, rollback, and immutability checks passed
 - `pip check`, `pip-audit`, and `npm audit` passed
-- Secret, private-key, AWS-key, environment-file, and conflict-marker scans found no blocker
-
-These results satisfy the Stage 2/3 independent technical verification gate. Human pull-request
-approval remains separate and required by repository policy.
+- Secret, private-key, AWS-key, bearer/JWT, environment-file, unsafe-HTML, mojibake, local
+  database, and Stage 6 executable-code scans found no blocker
 
 ## Known issues and limitations
 
-- The Stage 4 feature branch is not yet committed, pushed, independently verified, or merged.
 - Live AWS validation/discovery is intentionally not part of deterministic automated tests.
 - Discovery is synchronous and uses a configured explicit region list.
 - Production email delivery, MFA, OIDC/SSO, password reset, distributed rate limiting,
   background scheduling, and deployment infrastructure are deferred.
 - A Starlette multipart parsing deprecation warning may appear in backend tests.
+- Supported Node 20 LTS or Node 22 LTS is recommended.
 - Python uses `pyproject.toml` without a committed Python lockfile.
+- The initial compliance catalog contains four controls and twelve mappings. It is not complete
+  framework coverage or certification; mappings require human compliance review.
+- Compliance export is not implemented, and GitHub reported no automated check rollup for PR #4.
 - Risk scoring, AI, raw event ingestion, remediation, and Stage 6 functionality are absent by
   design. Stage 5 compliance is implemented without live AWS access or independent detection.
 
 ## Repository state
 
-The Stage 5 application, migration, tests, frontend, and documentation are local changes on
-`feature/5-compliance-engine`. Generated output remains ignored. Publish only after every gate
-passes.
+Stage 5 is integrated in `main` through PR #4 at
+`68785b0138eaecf84850887a3d4005c40e9761c0`. Generated output remains ignored.
 
 ## Governance record
 
 PR #2 was merged to `main` at `0849e75d...` with no recorded GitHub approval. The repository
 owner explicitly accepted that fact as a governance exception after technical gates passed and
 authorized Stage 4. PR #3 subsequently merged the verified Stage 4 baseline at
-`04807de270bf1eeb152b67ab197d97f961e52179`. This record does not fabricate an approval.
+`04807de270bf1eeb152b67ab197d97f961e52179`.
+
+PR #4 had zero recorded GitHub reviews and approvals and no automated check rollup. After
+technical clean-room verification passed, the repository owner provided an
+**Owner-authorized governance exception for PR #4**. This is not an independent GitHub,
+CODEOWNER, automated CI, or repository-policy approval.
 
 ## Next immediate task
 
-1. Complete Stage 5 gates.
-2. Commit and push `feature/5-compliance-engine`.
-3. Open a draft pull request to `main`.
-4. Run detached clean-room Stage 5 verification.
-5. Do not merge Stage 5 or start Stage 6.
+1. Review and merge the Stage 5 documentation synchronization PR.
+2. Synchronize local `main`.
+3. Authorize Stage 6 — deterministic risk scoring.
+4. Create the Stage 6 feature branch only from the synchronized clean main baseline.
+5. Keep AI out of finding detection and deterministic risk scoring.
