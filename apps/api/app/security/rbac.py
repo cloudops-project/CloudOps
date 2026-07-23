@@ -17,6 +17,10 @@ class Capability(StrEnum):
     AWS_ACCOUNTS_READ = "aws_accounts.read"
     DISCOVERY_START = "discovery.start"
     ASSETS_READ = "assets.read"
+    RULES_READ = "rules.read"
+    EVALUATIONS_START = "evaluations.start"
+    FINDINGS_READ = "findings.read"
+    FINDINGS_SUPPRESS = "findings.suppress"
 
 
 ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
@@ -31,9 +35,12 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.AUDIT_READ,
             Capability.AWS_ACCOUNTS_MANAGE,
             Capability.AWS_ACCOUNTS_READ,
+            Capability.RULES_READ,
+            Capability.EVALUATIONS_START,
+            Capability.FINDINGS_READ,
+            Capability.FINDINGS_SUPPRESS,
             Capability.DISCOVERY_START,
             Capability.ASSETS_READ,
-            Capability.AWS_ACCOUNTS_READ,
         }
     ),
     OrganizationRole.SECURITY_ANALYST: frozenset(
@@ -43,6 +50,10 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.DISCOVERY_START,
             Capability.ASSETS_READ,
             Capability.AWS_ACCOUNTS_READ,
+            Capability.RULES_READ,
+            Capability.EVALUATIONS_START,
+            Capability.FINDINGS_READ,
+            Capability.FINDINGS_SUPPRESS,
         }
     ),
     OrganizationRole.CLOUD_ENGINEER: frozenset(
@@ -52,6 +63,9 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.DISCOVERY_START,
             Capability.ASSETS_READ,
             Capability.AWS_ACCOUNTS_READ,
+            Capability.RULES_READ,
+            Capability.EVALUATIONS_START,
+            Capability.FINDINGS_READ,
         }
     ),
     OrganizationRole.AUDITOR: frozenset(
@@ -60,6 +74,8 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.MEMBERS_READ,
             Capability.AUDIT_READ,
             Capability.ASSETS_READ,
+            Capability.RULES_READ,
+            Capability.FINDINGS_READ,
         }
     ),
     OrganizationRole.VIEWER: frozenset(
@@ -67,6 +83,8 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.ORGANIZATION_READ,
             Capability.ASSETS_READ,
             Capability.AWS_ACCOUNTS_READ,
+            Capability.RULES_READ,
+            Capability.FINDINGS_READ,
         }
     ),
 }

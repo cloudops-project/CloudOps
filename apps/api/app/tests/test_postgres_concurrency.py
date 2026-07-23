@@ -22,6 +22,8 @@ from app.models import (
     AWSAccount,
     AWSExternalIDReservation,
     DiscoveryJob,
+    EvaluationJob,
+    Finding,
     Organization,
     OrganizationInvitation,
     OrganizationMembership,
@@ -32,6 +34,9 @@ from app.models.enums import (
     AssetType,
     AWSAccountStatus,
     DiscoveryJobStatus,
+    EvaluationJobStatus,
+    FindingSeverity,
+    FindingStatus,
     InvitationStatus,
     MembershipStatus,
     OrganizationRole,
@@ -42,6 +47,7 @@ from app.services.auth import AuthService, IssuedTokens
 from app.services.aws_onboarding import AWSOnboardingService
 from app.services.common import now_utc
 from app.services.discovery import DiscoveryOrchestrator, NormalizedAsset
+from app.services.evaluations import EvaluationService
 from app.services.invitations import InvitationService
 from app.services.organizations import OrganizationService
 
@@ -1066,4 +1072,191 @@ def test_discovery_terminal_race_and_rollback_leave_consistent_state(
                 .where(Asset.resource_id == rollback_resource)
             )
             == 0
+        )
+
+
+def _stage4_account(db: Session, suffix: str) -> tuple[User, Organization, AWSAccount, Asset]:
+    owner = _user(f"evaluation-{suffix}-{uuid.uuid4()}@example.com")
+    db.add(owner)
+    db.flush()
+    organization = Organization(
+        name=f"Evaluation {suffix}",
+        slug=f"evaluation-{suffix}-{uuid.uuid4()}",
+        created_by_user_id=owner.id,
+    )
+    db.add(organization)
+    db.flush()
+    db.add(
+        OrganizationMembership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=OrganizationRole.OWNER,
+            status=MembershipStatus.ACTIVE,
+            joined_at=now_utc(),
+        )
+    )
+    account = AWSAccount(
+        organization_id=organization.id,
+        name="Production",
+        account_id=f"{abs(hash(suffix)) % 10**12:012d}",
+        role_arn=f"arn:aws:iam::{abs(hash(suffix)) % 10**12:012d}:role/CloudOpsReadOnlyRole",
+        external_id=f"cloudops-{uuid.uuid4()}",
+        status=AWSAccountStatus.CONNECTED,
+        connection_status=AWSAccountStatus.CONNECTED,
+        created_by_user_id=owner.id,
+    )
+    db.add(account)
+    db.flush()
+    asset = Asset(
+        organization_id=organization.id,
+        aws_account_id=account.id,
+        asset_type=AssetType.EC2_SECURITY_GROUP,
+        resource_id=f"sg-{uuid.uuid4()}",
+        name="public-ssh",
+        region="us-east-1",
+        status="active",
+        tags={},
+        metadata_json={
+            "ip_permissions": [
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 22,
+                    "ToPort": 22,
+                    "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
+                }
+            ]
+        },
+        first_seen_at=now_utc(),
+        last_seen_at=now_utc(),
+    )
+    db.add(asset)
+    db.flush()
+    return owner, organization, account, asset
+
+
+def test_stage4_concurrent_evaluation_start_and_different_accounts(
+    postgres_sessions: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with postgres_sessions.begin() as db:
+        owner_a, _organization_a, account_a, _asset_a = _stage4_account(db, "a")
+        owner_b, _organization_b, account_b, _asset_b = _stage4_account(db, "b")
+        owner_a_id, owner_b_id = owner_a.id, owner_b.id
+        account_a_id, account_b_id = account_a.id, account_b.id
+
+    def leave_pending(service: EvaluationService, job_id: uuid.UUID, _actor: User) -> EvaluationJob:
+        job = service.db.get(EvaluationJob, job_id)
+        assert job is not None
+        return job
+
+    monkeypatch.setattr(EvaluationService, "run", leave_pending)
+
+    def start(account_id: uuid.UUID, owner_id: uuid.UUID) -> EvaluationJob:
+        with postgres_sessions() as db:
+            owner = db.get(User, owner_id)
+            assert owner is not None
+            return EvaluationService(db).start(account_id, owner)
+
+    same = _run_concurrently(
+        lambda: start(account_a_id, owner_a_id),
+        lambda: start(account_a_id, owner_a_id),
+    )
+    assert sum(isinstance(result, EvaluationJob) for result in same) == 1
+    assert sum(isinstance(result, AppError) for result in same) == 1
+
+    with postgres_sessions.begin() as db:
+        active = db.scalars(
+            select(EvaluationJob).where(
+                EvaluationJob.aws_account_id == account_a_id,
+                EvaluationJob.status == EvaluationJobStatus.PENDING,
+            )
+        ).all()
+        assert len(active) == 1
+        active[0].status = EvaluationJobStatus.FAILED
+        active[0].started_at = now_utc()
+        active[0].finished_at = now_utc()
+
+    different = _run_concurrently(
+        lambda: start(account_a_id, owner_a_id),
+        lambda: start(account_b_id, owner_b_id),
+    )
+    assert all(isinstance(result, EvaluationJob) for result in different)
+
+
+def test_stage4_concurrent_finding_creation_and_cross_tenant_rejection(
+    postgres_sessions: sessionmaker[Session],
+) -> None:
+    with postgres_sessions.begin() as db:
+        owner, organization, account, asset = _stage4_account(db, "finding")
+        other_owner, other_org, _other_account, _other_asset = _stage4_account(db, "other")
+        job = EvaluationJob(
+            organization_id=organization.id,
+            aws_account_id=account.id,
+            sequence=1,
+            started_by_user_id=owner.id,
+        )
+        db.add(job)
+        db.flush()
+        ids = (
+            organization.id,
+            other_org.id,
+            account.id,
+            asset.id,
+            job.id,
+            other_owner.id,
+        )
+
+    organization_id, other_org_id, account_id, asset_id, job_id, _ = ids
+
+    def insert_finding() -> Finding:
+        with postgres_sessions.begin() as db:
+            finding = Finding(
+                organization_id=organization_id,
+                aws_account_id=account_id,
+                asset_id=asset_id,
+                rule_key="EC2_SG_SSH_OPEN_TO_WORLD",
+                rule_version=1,
+                severity=FindingSeverity.CRITICAL,
+                category="network",
+                status=FindingStatus.OPEN,
+                evidence_json={"cidr": "0.0.0.0/0"},
+                first_seen_at=now_utc(),
+                last_seen_at=now_utc(),
+                last_evaluation_id=job_id,
+            )
+            db.add(finding)
+            db.flush()
+            return finding
+
+    results = _run_concurrently(insert_finding, insert_finding)
+    assert sum(isinstance(result, Finding) for result in results) == 1
+    assert sum(isinstance(result, IntegrityError) for result in results) == 1
+    with postgres_sessions() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(Finding)
+                .where(
+                    Finding.asset_id == asset_id,
+                    Finding.rule_key == "EC2_SG_SSH_OPEN_TO_WORLD",
+                )
+            )
+            == 1
+        )
+
+    with pytest.raises(IntegrityError), postgres_sessions.begin() as db:
+        db.add(
+            Finding(
+                organization_id=other_org_id,
+                aws_account_id=account_id,
+                asset_id=asset_id,
+                rule_key="CROSS_TENANT_TEST",
+                rule_version=1,
+                severity=FindingSeverity.HIGH,
+                category="tenant",
+                status=FindingStatus.OPEN,
+                evidence_json={},
+                first_seen_at=now_utc(),
+                last_seen_at=now_utc(),
+                last_evaluation_id=job_id,
+            )
         )

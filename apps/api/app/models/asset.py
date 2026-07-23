@@ -28,6 +28,12 @@ class Asset(TimestampMixin, Base):
     __tablename__ = "assets"
     __table_args__ = (
         UniqueConstraint("aws_account_id", "asset_type", "resource_id", name="uq_asset_identity"),
+        UniqueConstraint(
+            "id",
+            "aws_account_id",
+            "organization_id",
+            name="uq_asset_id_account_organization",
+        ),
         CheckConstraint("last_seen_at >= first_seen_at", name="asset_seen_order"),
         ForeignKeyConstraint(
             ["aws_account_id", "organization_id"],

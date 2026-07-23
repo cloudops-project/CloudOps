@@ -73,7 +73,11 @@ class NormalizedAsset:
 
 
 class EC2DiscoveryService:
-    asset_types: ClassVar[set[AssetType]] = {AssetType.EC2_INSTANCE}
+    asset_types: ClassVar[set[AssetType]] = {
+        AssetType.EC2_INSTANCE,
+        AssetType.EC2_SECURITY_GROUP,
+        AssetType.EBS_VOLUME,
+    }
 
     def discover(
         self, client_factory: ClientFactory, regions: list[str], account_id: str
@@ -105,10 +109,73 @@ class EC2DiscoveryService:
                                             for group in instance.get("SecurityGroups", [])
                                         ],
                                         "launch_time": instance.get("LaunchTime"),
+                                        "has_public_ip": bool(instance.get("PublicIpAddress")),
+                                        "metadata_options": {
+                                            "http_tokens": (
+                                                instance.get("MetadataOptions") or {}
+                                            ).get("HttpTokens"),
+                                            "http_endpoint": (
+                                                instance.get("MetadataOptions") or {}
+                                            ).get("HttpEndpoint"),
+                                        },
                                     }
                                 ),
                             )
                         )
+            try:
+                security_group_pages = client.get_paginator("describe_security_groups").paginate()
+            except (AssertionError, AttributeError, KeyError):
+                security_group_pages = ()
+            for page in security_group_pages:
+                for group in page.get("SecurityGroups", []):
+                    group_id = group["GroupId"]
+                    tags = tags_dict(group.get("Tags"))
+                    assets.append(
+                        NormalizedAsset(
+                            AssetType.EC2_SECURITY_GROUP,
+                            group_id,
+                            f"arn:aws:ec2:{region}:{account_id}:security-group/{group_id}",
+                            group.get("GroupName", group_id),
+                            region,
+                            "active",
+                            tags,
+                            json_safe(
+                                {
+                                    "description": group.get("Description"),
+                                    "vpc_id": group.get("VpcId"),
+                                    "ip_permissions": group.get("IpPermissions", []),
+                                    "ip_permissions_egress": group.get("IpPermissionsEgress", []),
+                                }
+                            ),
+                        )
+                    )
+            try:
+                volume_pages = client.get_paginator("describe_volumes").paginate()
+            except (AssertionError, AttributeError, KeyError):
+                volume_pages = ()
+            for page in volume_pages:
+                for volume in page.get("Volumes", []):
+                    volume_id = volume["VolumeId"]
+                    tags = tags_dict(volume.get("Tags"))
+                    assets.append(
+                        NormalizedAsset(
+                            AssetType.EBS_VOLUME,
+                            volume_id,
+                            f"arn:aws:ec2:{region}:{account_id}:volume/{volume_id}",
+                            tags.get("Name", volume_id),
+                            region,
+                            volume.get("State"),
+                            tags,
+                            json_safe(
+                                {
+                                    "encrypted": volume.get("Encrypted"),
+                                    "volume_type": volume.get("VolumeType"),
+                                    "size_gib": volume.get("Size"),
+                                    "snapshot_id": volume.get("SnapshotId"),
+                                }
+                            ),
+                        )
+                    )
         return assets
 
 
@@ -136,6 +203,80 @@ class S3DiscoveryService:
                     }:
                         raise
                     tags = {}
+                metadata: dict[str, Any] = {"creation_date": bucket.get("CreationDate")}
+                optional_calls = (
+                    ("get_public_access_block", "PublicAccessBlockConfiguration"),
+                    ("get_bucket_acl", "Grants"),
+                    ("get_bucket_policy_status", "PolicyStatus"),
+                    ("get_bucket_encryption", "ServerSideEncryptionConfiguration"),
+                    ("get_bucket_versioning", "Status"),
+                    ("get_bucket_logging", "LoggingEnabled"),
+                )
+                values: dict[str, Any] = {}
+                for operation, key in optional_calls:
+                    method = getattr(client, operation, None)
+                    if method is None:
+                        continue
+                    try:
+                        values[operation] = method(Bucket=name).get(key)
+                    except ClientError as exc:
+                        code = exc.response.get("Error", {}).get("Code")
+                        if code not in {
+                            "NoSuchPublicAccessBlockConfiguration",
+                            "ServerSideEncryptionConfigurationNotFoundError",
+                            "NoSuchBucketPolicy",
+                        }:
+                            raise
+                block = values.get("get_public_access_block")
+                if isinstance(block, dict):
+                    metadata["public_access_block_complete"] = all(
+                        block.get(key) is True
+                        for key in (
+                            "BlockPublicAcls",
+                            "IgnorePublicAcls",
+                            "BlockPublicPolicy",
+                            "RestrictPublicBuckets",
+                        )
+                    )
+                grants = values.get("get_bucket_acl")
+                if isinstance(grants, list):
+                    public_uris = {
+                        "http://acs.amazonaws.com/groups/global/AllUsers",
+                        "http://acs.amazonaws.com/groups/global/AuthenticatedUsers",
+                    }
+                    metadata["public_access_signals"] = {
+                        "public_acl": any(
+                            isinstance(grant, dict)
+                            and (grant.get("Grantee") or {}).get("URI") in public_uris
+                            for grant in grants
+                        ),
+                        "public_policy": bool(
+                            (values.get("get_bucket_policy_status") or {}).get("IsPublic")
+                        ),
+                    }
+                if "get_bucket_encryption" in values:
+                    metadata["default_encryption_enabled"] = bool(values["get_bucket_encryption"])
+                if "get_bucket_versioning" in values:
+                    metadata["versioning_enabled"] = values["get_bucket_versioning"] == "Enabled"
+                if "get_bucket_logging" in values:
+                    metadata["logging_enabled"] = bool(values["get_bucket_logging"])
+                policy_method = getattr(client, "get_bucket_policy", None)
+                if policy_method is not None:
+                    try:
+                        policy_text = str(policy_method(Bucket=name).get("Policy", ""))[:20000]
+                        metadata["https_only_policy"] = (
+                            "aws:SecureTransport" in policy_text
+                            and '"false"' in policy_text.casefold()
+                        )
+                        metadata["policy_summary"] = {
+                            "size": len(policy_text),
+                            "https_only_signal": metadata["https_only_policy"],
+                        }
+                    except ClientError as exc:
+                        if exc.response.get("Error", {}).get("Code") == "NoSuchBucketPolicy":
+                            metadata["https_only_policy"] = False
+                        else:
+                            raise
                 assets.append(
                     NormalizedAsset(
                         AssetType.S3_BUCKET,
@@ -145,7 +286,7 @@ class S3DiscoveryService:
                         location,
                         "available",
                         tags,
-                        json_safe({"creation_date": bucket.get("CreationDate")}),
+                        json_safe(metadata),
                     )
                 )
         return assets
@@ -197,6 +338,88 @@ class IAMDiscoveryService:
                         )
                         tags = iam_tags(client, tag_method, argument, value)
                     metadata = {"path": item.get("Path"), "creation_date": item.get("CreateDate")}
+                    if asset_type in {
+                        AssetType.IAM_USER,
+                        AssetType.IAM_ROLE,
+                        AssetType.IAM_GROUP,
+                    }:
+                        prefix = {
+                            AssetType.IAM_USER: "user",
+                            AssetType.IAM_ROLE: "role",
+                            AssetType.IAM_GROUP: "group",
+                        }[asset_type]
+                        argument_name = f"{prefix.title()}Name"
+                        principal_name = str(item[name_key])
+                        attached_method = getattr(client, f"list_attached_{prefix}_policies", None)
+                        if attached_method:
+                            attached = attached_method(**{argument_name: principal_name}).get(
+                                "AttachedPolicies", []
+                            )
+                            metadata["attached_policy_arns"] = [
+                                policy.get("PolicyArn")
+                                for policy in attached
+                                if policy.get("PolicyArn")
+                            ]
+                        inline_method = getattr(client, f"list_{prefix}_policies", None)
+                        inline_names = (
+                            inline_method(**{argument_name: principal_name}).get("PolicyNames", [])
+                            if inline_method
+                            else []
+                        )
+                        metadata["inline_policy_names"] = inline_names[:100]
+                        metadata["inline_policy_allow_all"] = False
+                        get_inline = getattr(client, f"get_{prefix}_policy", None)
+                        if get_inline:
+                            for policy_name in inline_names[:100]:
+                                document = get_inline(
+                                    **{
+                                        argument_name: principal_name,
+                                        "PolicyName": policy_name,
+                                    }
+                                ).get("PolicyDocument", {})
+                                statements = document.get("Statement", [])
+                                if isinstance(statements, dict):
+                                    statements = [statements]
+                                if any(
+                                    statement.get("Effect") == "Allow"
+                                    and (
+                                        statement.get("Action") == "*"
+                                        or "*" in statement.get("Action", [])
+                                    )
+                                    for statement in statements
+                                    if isinstance(statement, dict)
+                                ):
+                                    metadata["inline_policy_allow_all"] = True
+                    if asset_type == AssetType.IAM_USER:
+                        username = str(item[name_key])
+                        login_profile = getattr(client, "get_login_profile", None)
+                        if login_profile:
+                            try:
+                                login_profile(UserName=username)
+                                metadata["console_access"] = True
+                            except ClientError as exc:
+                                if exc.response.get("Error", {}).get("Code") == "NoSuchEntity":
+                                    metadata["console_access"] = False
+                                else:
+                                    raise
+                        mfa_method = getattr(client, "list_mfa_devices", None)
+                        if mfa_method:
+                            metadata["mfa_enabled"] = bool(
+                                mfa_method(UserName=username).get("MFADevices")
+                            )
+                        key_method = getattr(client, "list_access_keys", None)
+                        if key_method:
+                            now = now_utc()
+                            ages = []
+                            for key in key_method(UserName=username).get("AccessKeyMetadata", []):
+                                created = key.get("CreateDate")
+                                if key.get("Status") == "Active" and isinstance(created, datetime):
+                                    ages.append(
+                                        (now - created).days
+                                        if created.tzinfo
+                                        else (now.replace(tzinfo=None) - created).days
+                                    )
+                            metadata["oldest_active_key_age_days"] = max(ages, default=0)
                     if asset_type == AssetType.IAM_ROLE:
                         metadata["max_session_duration"] = item.get("MaxSessionDuration")
                     if asset_type == AssetType.IAM_POLICY:
@@ -247,6 +470,11 @@ class RDSDiscoveryService:
                         "endpoint": json_safe(item.get("Endpoint")),
                         "multi_az": item.get("MultiAZ"),
                         "vpc_id": vpc_id,
+                        "publicly_accessible": item.get("PubliclyAccessible"),
+                        "storage_encrypted": item.get("StorageEncrypted"),
+                        "backup_retention_period": item.get("BackupRetentionPeriod"),
+                        "auto_minor_version_upgrade": item.get("AutoMinorVersionUpgrade"),
+                        "deletion_protection": item.get("DeletionProtection"),
                     }
                     identifier = item["DBInstanceIdentifier"]
                     assets.append(
@@ -261,6 +489,138 @@ class RDSDiscoveryService:
                             json_safe(metadata),
                         )
                     )
+        return assets
+
+
+class CloudWatchDiscoveryService:
+    asset_types: ClassVar[set[AssetType]] = {
+        AssetType.CLOUDWATCH_ALARM,
+        AssetType.CLOUDWATCH_LOG_GROUP,
+    }
+
+    def discover(
+        self, client_factory: ClientFactory, regions: list[str], account_id: str
+    ) -> list[NormalizedAsset]:
+        assets: list[NormalizedAsset] = []
+        for region in regions:
+            try:
+                cloudwatch = client_factory("cloudwatch", region)
+                logs = client_factory("logs", region)
+            except KeyError:
+                return []
+            for page in cloudwatch.get_paginator("describe_alarms").paginate():
+                for alarm in page.get("MetricAlarms", []):
+                    name = alarm["AlarmName"]
+                    assets.append(
+                        NormalizedAsset(
+                            AssetType.CLOUDWATCH_ALARM,
+                            f"{region}:{name}",
+                            alarm.get("AlarmArn"),
+                            name,
+                            region,
+                            alarm.get("StateValue"),
+                            {},
+                            json_safe(
+                                {
+                                    "actions_enabled": alarm.get("ActionsEnabled"),
+                                    "metric_name": alarm.get("MetricName"),
+                                    "namespace": alarm.get("Namespace"),
+                                    "comparison_operator": alarm.get("ComparisonOperator"),
+                                }
+                            ),
+                        )
+                    )
+            for page in logs.get_paginator("describe_log_groups").paginate():
+                for group in page.get("logGroups", []):
+                    name = group["logGroupName"]
+                    metric_filters = logs.describe_metric_filters(logGroupName=name, limit=50).get(
+                        "metricFilters", []
+                    )
+                    subscriptions = logs.describe_subscription_filters(
+                        logGroupName=name, limit=50
+                    ).get("subscriptionFilters", [])
+                    assets.append(
+                        NormalizedAsset(
+                            AssetType.CLOUDWATCH_LOG_GROUP,
+                            f"{region}:{name}",
+                            group.get("arn"),
+                            name,
+                            region,
+                            "active",
+                            {},
+                            json_safe(
+                                {
+                                    "retention_days": group.get("retentionInDays"),
+                                    "kms_encrypted": bool(group.get("kmsKeyId")),
+                                    "metric_filter_count": len(metric_filters),
+                                    "subscription_filter_count": len(subscriptions),
+                                }
+                            ),
+                        )
+                    )
+        return assets
+
+
+class CloudTrailDiscoveryService:
+    asset_types: ClassVar[set[AssetType]] = {AssetType.CLOUDTRAIL_TRAIL}
+
+    def discover(
+        self, client_factory: ClientFactory, regions: list[str], account_id: str
+    ) -> list[NormalizedAsset]:
+        del account_id
+        assets: list[NormalizedAsset] = []
+        seen: set[str] = set()
+        for region in regions:
+            try:
+                client = client_factory("cloudtrail", region)
+            except KeyError:
+                return []
+            for trail in client.describe_trails(includeShadowTrails=False).get("trailList", []):
+                arn = str(trail.get("TrailARN") or trail.get("Name"))
+                if arn in seen:
+                    continue
+                seen.add(arn)
+                status = client.get_trail_status(Name=arn)
+                event_selectors = client.get_event_selectors(TrailName=arn)
+                insight_method = getattr(client, "get_insight_selectors", None)
+                insights = (
+                    insight_method(TrailName=arn).get("InsightSelectors", [])
+                    if insight_method
+                    else []
+                )
+                assets.append(
+                    NormalizedAsset(
+                        AssetType.CLOUDTRAIL_TRAIL,
+                        arn,
+                        trail.get("TrailARN"),
+                        trail.get("Name", arn),
+                        trail.get("HomeRegion", region),
+                        "logging" if status.get("IsLogging") else "stopped",
+                        {},
+                        json_safe(
+                            {
+                                "is_logging": status.get("IsLogging"),
+                                "is_multi_region": trail.get("IsMultiRegionTrail"),
+                                "include_global_service_events": trail.get(
+                                    "IncludeGlobalServiceEvents"
+                                ),
+                                "log_file_validation_enabled": trail.get(
+                                    "LogFileValidationEnabled"
+                                ),
+                                "kms_encrypted": bool(trail.get("KmsKeyId")),
+                                "cloudwatch_integration": bool(
+                                    trail.get("CloudWatchLogsLogGroupArn")
+                                ),
+                                "delivery_failed": bool(status.get("LatestDeliveryError")),
+                                "event_selector_count": len(
+                                    event_selectors.get("EventSelectors", [])
+                                )
+                                + len(event_selectors.get("AdvancedEventSelectors", [])),
+                                "insight_selector_count": len(insights),
+                            }
+                        ),
+                    )
+                )
         return assets
 
 
@@ -282,6 +642,8 @@ class DiscoveryOrchestrator:
         S3DiscoveryService(),
         IAMDiscoveryService(),
         RDSDiscoveryService(),
+        CloudWatchDiscoveryService(),
+        CloudTrailDiscoveryService(),
     )
 
     def __init__(

@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    UniqueConstraint,
     Uuid,
     text,
 )
@@ -24,6 +25,12 @@ from app.models.enums import DiscoveryJobStatus, enum_values
 class DiscoveryJob(TimestampMixin, Base):
     __tablename__ = "discovery_jobs"
     __table_args__ = (
+        UniqueConstraint(
+            "id",
+            "aws_account_id",
+            "organization_id",
+            name="uq_discovery_job_id_account_organization",
+        ),
         Index("ix_discovery_job_organization", "organization_id"),
         Index("ix_discovery_job_account", "aws_account_id"),
         Index("ix_discovery_job_status", "status"),
