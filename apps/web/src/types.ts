@@ -117,6 +117,77 @@ export interface DiscoveryJob {
   error_summary: string | null;
 }
 
+export type ComplianceControlStatus =
+  "pass" | "fail" | "not_assessed" | "error";
+export interface ComplianceFramework {
+  id: string;
+  key: string;
+  name: string;
+  version: string;
+  description: string;
+  official_reference: string;
+  enabled: boolean;
+}
+export interface ComplianceControl {
+  id: string;
+  framework_id: string;
+  control_key: string;
+  title: string;
+  description: string;
+  section: string | null;
+}
+export interface ComplianceAssessment {
+  id: string;
+  organization_id: string;
+  aws_account_id: string | null;
+  framework_id: string;
+  evaluation_job_id: string | null;
+  status: string;
+  controls_total: number;
+  controls_passed: number;
+  controls_failed: number;
+  controls_not_assessed: number;
+  controls_error: number;
+  findings_count: number;
+  started_at: string | null;
+  finished_at: string | null;
+  error_summary: string | null;
+}
+export interface ComplianceAssessmentControl {
+  id: string;
+  assessment_id: string;
+  control_id: string;
+  framework_id: string;
+  status: ComplianceControlStatus;
+  findings_count: number;
+  assessed_at: string;
+}
+export interface RuleControlMapping {
+  id: string;
+  rule_key: string;
+  minimum_rule_version: number;
+  maximum_rule_version: number | null;
+  framework_id: string;
+  control_id: string;
+  mapping_type: string;
+  rationale: string;
+}
+export interface ComplianceSummary {
+  assessments_total: number;
+  controls_passed: number;
+  controls_failed: number;
+  controls_not_assessed: number;
+  controls_error: number;
+}
+export interface ComplianceControlFindings {
+  control: ComplianceControl;
+  status: ComplianceControlStatus | null;
+  finding_ids: string[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export type FindingSeverity =
   "critical" | "high" | "medium" | "low" | "informational";
 export type FindingStatus = "open" | "resolved" | "suppressed";

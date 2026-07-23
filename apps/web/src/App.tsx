@@ -19,6 +19,13 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { NotFoundPage, UnauthorizedPage } from "./pages/StatusPages";
 import {
+  ComplianceAssessmentPage,
+  ComplianceAssessmentsPage,
+  ComplianceControlPage,
+  ComplianceFrameworkPage,
+  CompliancePage,
+} from "./pages/CompliancePage";
+import {
   EvaluationJobsPage,
   FindingDetailsPage,
   FindingsDashboardPage,
@@ -55,6 +62,23 @@ export function App() {
           <Route path="/findings/:findingId" element={<FindingDetailsPage />} />
           <Route path="/rules" element={<RuleCatalogPage />} />
           <Route path="/evaluations" element={<EvaluationJobsPage />} />
+          <Route path="/compliance" element={<CompliancePage />} />
+          <Route
+            path="/compliance/frameworks/:frameworkKey"
+            element={<ComplianceFrameworkPage />}
+          />
+          <Route
+            path="/compliance/controls/:controlId"
+            element={<ComplianceControlPage />}
+          />
+          <Route
+            path="/compliance/assessments"
+            element={<ComplianceAssessmentsPage />}
+          />
+          <Route
+            path="/compliance/assessments/:assessmentId"
+            element={<ComplianceAssessmentPage />}
+          />
           <Route path="/aws/accounts" element={<AWSAccountsPage />} />
           <Route path="/aws/accounts/new" element={<AddAWSAccountPage />} />
           <Route

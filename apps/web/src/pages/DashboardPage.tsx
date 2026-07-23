@@ -75,7 +75,7 @@ export function DashboardPage() {
         </div>
       </div>
       {members.isLoading ? (
-        <p aria-live="polite">Loading dashboardÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</p>
+        <p aria-live="polite">Loading dashboard…</p>
       ) : members.isError ? (
         <p role="alert" className="text-red-400">
           Unable to load dashboard.
@@ -100,7 +100,7 @@ export function DashboardPage() {
           <Activity className="text-blue-400" />
           <h2 className="text-xl font-bold">Recent activity</h2>
         </div>
-        {audit.isLoading && <p>Loading activityÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</p>}
+        {audit.isLoading && <p>Loading activity…</p>}
         {audit.data?.length === 0 && (
           <p className="text-slate-400">No recent activity.</p>
         )}

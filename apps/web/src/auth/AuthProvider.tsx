@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   api,
   restoreAuthentication,
@@ -31,15 +32,17 @@ export function AuthProvider({
   initialMe?: Me | null;
   restoreOnMount?: boolean;
 }) {
+  const queryClient = useQueryClient();
   const [me, setMe] = useState<Me | null>(initialMe);
   const [loading, setLoading] = useState(restoreOnMount);
   useEffect(() => {
     setAuthInvalidatedHandler(() => {
       setAccessToken(null);
       setMe(null);
+      queryClient.clear();
     });
     return () => setAuthInvalidatedHandler(null);
-  }, []);
+  }, [queryClient]);
   async function reload() {
     setMe(await api<Me>("/api/v1/auth/me"));
   }
@@ -66,6 +69,7 @@ export function AuthProvider({
     await api("/api/v1/auth/logout", { method: "POST" }).catch(() => undefined);
     setAccessToken(null);
     setMe(null);
+    queryClient.clear();
   }
   const value = { me, loading, signIn, signOut, reload };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
