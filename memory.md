@@ -2,14 +2,14 @@
 
 ## Last updated
 
-2026-07-23
+2026-07-24
 
 ## Current branch and revision
 
 - Branch: `feature/5-compliance-engine`
 - Baseline SHA: `04807de270bf1eeb152b67ab197d97f961e52179`
 - Current Alembic head: `0007_stage5_compliance_engine`
-- Stage 5 changes are intentionally dirty and uncommitted until every mandatory gate passes.
+- Stage 5 is committed and pushed on this branch in draft PR #4; independent verification is pending.
 
 ## Current implementation status
 
