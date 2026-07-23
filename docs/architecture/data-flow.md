@@ -52,3 +52,11 @@ Remediation requires a separate request, current evidence, authorized approval, 
 ## Data minimization and retention
 
 Do not collect customer application content, AWS credentials, session tokens, complete IAM policies for AI submission, or unnecessary tags. Exact retention and regional residency are open decisions; deletion must preserve required audit/security records under approved policy.
+## Stage 6 risk-scoring flow
+
+Stage 6 reads committed Stage 4 finding lifecycle state and bounded risk context in one
+tenant-scoped transaction. The versioned pure scoring function produces component points and
+reason codes, after which the service persists immutable finding snapshots and deterministic
+account/organization aggregates. Rules make no boto3 calls; scoring makes no network calls.
+Suppression remains evidence, while an authorized compensating-control record supplies the only
+bounded adjustment.

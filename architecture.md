@@ -1,8 +1,9 @@
 # CloudOps Current Architecture
 
 Stages 1–5 are independently verified and merged in `main` at
-`68785b0138eaecf84850887a3d4005c40e9761c0`; Alembic head is
-`0007_stage5_compliance_engine`. Stage 6 deterministic risk scoring has not started.
+`9811aeb881a1386c1dfba7e3e1641a2b765430f2`. Stage 6 deterministic risk scoring is implemented
+on `feature/6-risk-scoring` with migration `0008_stage6_risk_scoring` and awaits independent
+verification.
 
 ## Document role
 
@@ -239,6 +240,6 @@ valid Stage 2/3 data is preserved.
 
 ## Future work
 
-Stage 5 compliance is implemented as interpretation of persisted Stage 4 evidence. Risk scoring,
-AI, notifications, raw event ingestion, scheduling, remediation, and production infrastructure
-remain future work; Stage 6 has not started.
+Stage 5 compliance interprets persisted Stage 4 evidence. Stage 6 deterministic risk scoring
+builds immutable point-in-time scores from those persisted findings. AI, notifications, raw
+event ingestion, scheduling, remediation, and production infrastructure remain future work.

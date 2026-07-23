@@ -7,9 +7,8 @@ These rules govern current CloudOps development. More detailed policies remain u
 code.
 
 The governed baseline contains independently verified, merged Stages 1–5 at main commit
-`68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 deterministic risk scoring has not
-started and requires its own branch, scope authorization, implementation, tests, independent
-verification, review, and merge gate.
+`9811aeb881a1386c1dfba7e3e1641a2b765430f2`. Stage 6 deterministic risk scoring is implemented
+on `feature/6-risk-scoring` and requires independent verification, review, and merge.
 
 ## Technology stack
 
@@ -196,7 +195,19 @@ A stage is done only when its scoped behavior, migrations, tests, security contr
 documentation, dependency audits, and independent verification pass; no later-stage executable
 scope is present; and no secrets or generated artifacts are committed.
 
-No stage may begin until its predecessor is independently verified and merged. Stage 6 must
-remain blocked until documentation PR #5 is reviewed/authorized, merged, and `main` is
-synchronized and clean. It must branch from that baseline; AI must not perform finding
+No stage may begin until its predecessor is independently verified and merged. Stage 7 remains
+blocked until Stage 6 is independently verified and merged; AI must not perform finding
 detection or deterministic risk scoring.
+
+## Deterministic risk policy
+
+- Risk rules consume persisted Stage 4 findings and bounded tenant context only.
+- Policy keys and positive versions are stable; a policy used by an assessment is immutable.
+- Unknown context receives documented conservative neutral values and is recorded in evidence.
+- Suppression does not lower risk. Only a separately authorized compensating control may apply a
+  bounded negative adjustment, with a reason, actor, optional expiry, and audit event.
+- Finding, account, and organization scores are immutable point-in-time snapshots.
+- Concurrent assessment and context mutations use PostgreSQL constraints, tenant-composite keys,
+  row locking, and optimistic versions; process-local locking is insufficient.
+- AI may later explain an already-computed score, but may never choose component values, alter
+  the formula, or determine a score.

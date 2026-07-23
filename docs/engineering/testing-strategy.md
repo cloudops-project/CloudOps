@@ -65,3 +65,12 @@ races, and rollback behavior with independent sessions. Frontend tests cover inv
 combined filters, pagination, details, accessible discovery confirmation, duplicate-click
 prevention, job states, escaped metadata, and role visibility. Live AWS remains a
 controlled-sandbox verification step.
+## Stage 6 verification
+
+Stage 6 tests cover every component and priority boundary, exact maximum, age buckets,
+unknown-input behavior, suppression, compensating controls, aggregate formulas, stable API
+ordering, all-role authorization, tenant isolation, PostgreSQL constraints, immutable snapshots,
+independent-session uniqueness races, migration lifecycle, escaped frontend rendering, dialog
+focus, and Stage 1–5 regression. Release gates remain at least 95% backend coverage, zero
+mandatory PostgreSQL skips, complete frontend tests/build, dependency audits, and
+credential/security scans.

@@ -2,11 +2,10 @@
 
 ## Current delivery status
 
-Stages 1–5 are independently verified and merged. Stage 5 feature SHA
-`ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` was merged by PR #4 at
-`68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 has not started, and Stages
-7–12 remain not started planning entries. Documentation PR #5 must be reviewed/authorized,
-merged, and synchronized to local `main` before Stage 6 branches.
+Stages 1–5 are independently verified and merged. Stage 6 is implemented on
+`feature/6-risk-scoring` from synchronized main
+`9811aeb881a1386c1dfba7e3e1641a2b765430f2` and awaits independent verification. Stages 7–12
+remain not-started planning entries.
 
 ## Purpose and audience
 
@@ -22,7 +21,7 @@ The five-member team and stakeholders use this dependency-ordered roadmap for pl
 | 3 Asset discovery                         | Build normalized EC2/S3/IAM/RDS inventory; connected Stage 2 account                        | Paginator-aware collectors, normalized assets, discovery jobs, safe stale lifecycle, partial failures, bounded inventory UI, tenant/RBAC/concurrency tests                                                                                                              | Throttling/incomplete inventory; M3 / M2+M5; sandbox inventory                             |
 | 4 Rule engine                             | Reproducibly evaluate versioned rules; 3                                                    | Rule schema/loader/evaluator/versioning and approved EC2/S3/IAM initial rules; fixtures prove deterministic results                                                                                                                                                     | false/context signals, policy parsing; M3 / M1+M5; fixture + sandbox findings              |
 | 5 Compliance                              | Explain reviewed control relationships; verified Stage 4                                    | **Complete, independently verified, and merged.** Versioned catalogs, rule-version mappings, immutable assessments, traceability, API/UI, PostgreSQL and accessibility verification; no certification claim                                                             | licensing/overclaiming; M1+M3 / M5; control drill-down                                     |
-| 6 Deterministic risk scoring              | **Not started**; accepted Stage 5 baseline required                                         | Deterministic scoring only; scope requires separate authorization. AI must not detect findings or assign risk                                                                                                                                                           | scope drift/misleading scores; M1+M3 / all; planning gate                                  |
+| 6 Deterministic risk scoring              | **Implemented on feature branch; independent verification pending**                         | Versioned deterministic scoring of persisted Stage 4 findings, immutable snapshots, bounded context and compensating controls; AI does not assign risk                                                                                                                  | scope drift/misleading scores; M1+M3 / all; verification gate                              |
 | 7 AI explanation assistant                | **Not started**; accepted deterministic risk boundary required                              | Optional safe explanations only; AI must not detect findings or determine risk scores                                                                                                                                                                                   | disclosure/hallucination/cost; M1+M2 / M3+M5; AI on/off comparison                         |
 | 8 Dashboard and reports                   | **Not started**; 3–7                                                                        | Expanded dashboards, reports, filters, and exports                                                                                                                                                                                                                      | dense data/misleading metrics; M4 / M1+M5; analyst journey                                 |
 | 9 Notifications                           | **Not started**; 5, 7–8                                                                     | Email, collaboration, and ticketing delivery with bounded retries and minimization                                                                                                                                                                                      | spam/token/webhook risk; M2 / M1+M5; finding-to-notification                               |

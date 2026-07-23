@@ -106,7 +106,8 @@ erDiagram
 
 ## Current Stage 5 physical schema
 
-The Alembic head is `0007_stage5_compliance_engine`. `evaluation_jobs` carries tenant/account
+The integrated Alembic head is `0007_stage5_compliance_engine`; Stage 6 feature migration
+`0008_stage6_risk_scoring` follows it. `evaluation_jobs` carries tenant/account
 references, a monotonic sequence, nonnegative counters, constrained lifecycle timestamps, and a
 partial unique index allowing one pending/running evaluation per account.
 
@@ -122,8 +123,19 @@ overlapping ranges use deterministic union semantics. `compliance_assessments` r
 tenant/account and source evaluation, while `compliance_assessment_controls` stores immutable
 point-in-time status snapshots. Composite foreign keys enforce tenant and framework agreement,
 partial indexes prevent duplicate active assessments and duplicate open-ended mappings, and
-triggers protect finalized summaries and snapshots. Risk, remediation, and AI tables remain
-planning-only; Stage 6 has not started.
+triggers protect finalized summaries and snapshots.
+
+## Stage 6 risk schema
+
+`risk_scoring_policies` stores immutable positive policy versions and bounded weights/bands.
+`asset_risk_contexts` stores one account default or one asset override with tenant-composite
+foreign keys and an optimistic version. `risk_assessments` enforces nonnegative matching
+counters, valid lifecycle timestamps, and one active assessment per scope and policy.
+`finding_risk_snapshots`, `account_risk_snapshots`, and
+`organization_risk_snapshots` are immutable through PostgreSQL triggers and retain point-in-time
+source identifiers and aggregates. `compensating_controls` requires a bounded negative
+adjustment and permits only one active record per finding. Composite foreign keys prevent
+cross-tenant account, asset, finding, assessment, and snapshot relationships.
 
 ## Relational rules
 

@@ -1,7 +1,7 @@
 # CloudOps Current UI Design
 
-This design reflects the independently verified and merged Stage 1–5 frontend baseline at main
-commit `68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 risk-scoring UI has not started.
+This design reflects the merged Stage 1–5 baseline and the Stage 6 feature implementation based
+on main commit `9811aeb881a1386c1dfba7e3e1641a2b765430f2`.
 
 ## Document role
 
@@ -9,7 +9,12 @@ This is the implementation-aligned frontend design summary. The detailed visual 
 in `docs/design/`.
 
 The current UI implements Stage 1 administration, Stage 2 AWS onboarding, Stage 3 inventory,
-Stage 4 deterministic findings, and the Stage 5 compliance workflow.
+Stage 4 deterministic findings, the Stage 5 compliance workflow, and the Stage 6 risk dashboard.
+
+The risk dashboard presents organization scores, explicit priority text, severity counts,
+highest-risk findings/assets/accounts, bounded filters, stable pagination, and a keyboard
+accessible confirmation dialog. Scores and status are never communicated by color alone, and
+provider-derived labels render as escaped React text.
 
 ## Application layout
 
@@ -174,5 +179,5 @@ hover. Desktop layouts use a 240px sidebar and a bounded content region.
 
 ## Future UI
 
-The design system reserves future space for risk, AI, notifications, and remediation. Those
-views must not be presented as implemented; Stage 6 has not started.
+The Stage 6 risk dashboard is implemented. The design system reserves future space for AI,
+notifications, and remediation; those views must not be presented as implemented.

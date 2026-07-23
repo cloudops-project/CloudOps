@@ -3,7 +3,8 @@
 ## Current status
 
 Stages 1–5 are independently verified, merged, and regression-tested in `main` at
-`68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 has not started.
+`9811aeb881a1386c1dfba7e3e1641a2b765430f2`. Stage 6 is implemented on its feature branch and
+awaits independent verification and merge.
 
 ## Stage 0 — Planning and architecture
 
@@ -68,10 +69,13 @@ complete framework coverage nor certification.
 
 ## Stage 6 — Deterministic Risk Scoring
 
-**Status: NOT STARTED**
+**Status: IMPLEMENTED — AWAITING INDEPENDENT VERIFICATION**
 
-No Stage 6 executable code is authorized or present. AI must not perform deterministic risk
-scoring.
+Delivered a versioned deterministic scoring policy, immutable finding/account/organization
+snapshots, explicit unknown-context handling, tenant-scoped context overrides, compensating
+controls, PostgreSQL concurrency and integrity controls, risk APIs, structured events, and an
+accessible risk dashboard. Scores are derived only from persisted Stage 4 findings. Migration
+`0008_stage6_risk_scoring` follows `0007_stage5_compliance_engine`. AI does not assign scores.
 
 ## Stage 7 — AI Explanation Assistant
 

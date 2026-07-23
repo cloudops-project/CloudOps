@@ -21,3 +21,12 @@ Events include UTC time, organization, actor type/ID, action, target type/ID, re
 Export signed/hash-chained batches to encrypted, versioned S3 with Object Lock capability considered for the required retention mode; access and deletion are separated and monitored. “Immutable” must not be claimed until configuration and reconciliation tests prove it. Authorized tenant users receive filtered read/export access; platform access is audited.
 
 Open questions: retention/legal holds, Object Lock mode, key ownership, event schema/signing, clock source, export frequency, and privacy deletion interactions.
+## Stage 6 risk events
+
+Stage 6 adds durable accepted-transition events for `risk.assessment.started`,
+`risk.assessment.completed`, `risk.assessment.failed`, `risk.context.changed`,
+`risk.compensating_control.added`, and `risk.compensating_control.removed`. Operational events
+may also include `risk.finding.scored` and `risk.aggregate.updated`. Only bounded identifiers,
+counts, durations, policy versions, component reason codes, and sanitized error codes are
+allowed; credentials, authorization headers, raw policies, raw exceptions, and unbounded
+evidence are prohibited.

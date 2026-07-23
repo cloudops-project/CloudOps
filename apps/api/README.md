@@ -67,3 +67,16 @@ scope and RBAC. Revisions `0005_stage4_rule_engine` and
 `0006_stage4_verification_repairs` add and harden evaluation jobs and findings. Stage 5
 compliance consumes that persisted evidence. Raw provider events, risk, AI, and remediation are
 not implemented.
+## Stage 6 deterministic risk scoring
+
+Migration `0008_stage6_risk_scoring` adds versioned scoring policies, tenant-scoped risk context,
+risk assessment jobs, immutable finding/account/organization snapshots, and bounded
+compensating controls. The engine evaluates persisted Stage 4 findings only and performs no AWS
+or other network calls.
+
+API routes under `/api/v1/risk` provide policy listing, assessment start/history/detail,
+organization summary, risk-ranked finding listing/detail, account and asset summaries, context
+read/update, and compensating-control add/remove. All list inputs are bounded and stable, every
+query is tenant-scoped, and cross-tenant identifiers are non-disclosing. Owners, admins,
+security analysts, and cloud engineers may assess; all active roles may view; only owners,
+admins, and security analysts may change context or compensating controls.
