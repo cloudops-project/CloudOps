@@ -205,7 +205,7 @@ class Repository:
         )
 
     def aws_account_for_user_for_update(
-        self, account_id: uuid.UUID, user_id: uuid.UUID
+        self, account_id: uuid.UUID, user_id: uuid.UUID, *, nowait: bool = False
     ) -> tuple[AWSAccount, OrganizationMembership] | None:
         """Lock one tenant-authorized AWS account lifecycle row."""
         return (
@@ -221,7 +221,7 @@ class Repository:
                     OrganizationMembership.status == MembershipStatus.ACTIVE,
                 )
                 .execution_options(populate_existing=True)
-                .with_for_update(of=AWSAccount)
+                .with_for_update(of=AWSAccount, nowait=nowait)
             )
             .tuples()
             .one_or_none()

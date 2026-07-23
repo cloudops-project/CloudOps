@@ -46,7 +46,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
-        logger.exception(
+        logger.error(
             "unexpected_error",
             extra={
                 "event_name": "request.failed",

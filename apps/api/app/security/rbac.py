@@ -21,6 +21,8 @@ class Capability(StrEnum):
     EVALUATIONS_START = "evaluations.start"
     FINDINGS_READ = "findings.read"
     FINDINGS_SUPPRESS = "findings.suppress"
+    COMPLIANCE_READ = "compliance.read"
+    COMPLIANCE_ASSESS = "compliance.assess"
 
 
 ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
@@ -39,6 +41,8 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.EVALUATIONS_START,
             Capability.FINDINGS_READ,
             Capability.FINDINGS_SUPPRESS,
+            Capability.COMPLIANCE_READ,
+            Capability.COMPLIANCE_ASSESS,
             Capability.DISCOVERY_START,
             Capability.ASSETS_READ,
         }
@@ -54,6 +58,8 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.EVALUATIONS_START,
             Capability.FINDINGS_READ,
             Capability.FINDINGS_SUPPRESS,
+            Capability.COMPLIANCE_READ,
+            Capability.COMPLIANCE_ASSESS,
         }
     ),
     OrganizationRole.CLOUD_ENGINEER: frozenset(
@@ -66,6 +72,8 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.RULES_READ,
             Capability.EVALUATIONS_START,
             Capability.FINDINGS_READ,
+            Capability.COMPLIANCE_READ,
+            Capability.COMPLIANCE_ASSESS,
         }
     ),
     OrganizationRole.AUDITOR: frozenset(
@@ -76,6 +84,7 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.ASSETS_READ,
             Capability.RULES_READ,
             Capability.FINDINGS_READ,
+            Capability.COMPLIANCE_READ,
         }
     ),
     OrganizationRole.VIEWER: frozenset(
@@ -85,6 +94,7 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.AWS_ACCOUNTS_READ,
             Capability.RULES_READ,
             Capability.FINDINGS_READ,
+            Capability.COMPLIANCE_READ,
         }
     ),
 }

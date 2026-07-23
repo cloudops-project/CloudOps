@@ -9,8 +9,10 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.models import EvaluationRuleResult
 from app.models.enums import (
     AssetType,
     EvaluationJobStatus,
@@ -226,6 +228,20 @@ def test_all_rule_errors_mark_evaluation_failed(db: Session) -> None:
     assert job.status == EvaluationJobStatus.FAILED
     assert job.evaluation_errors == 1
     assert job.finished_at is not None
+    totals = db.execute(
+        select(
+            func.sum(EvaluationRuleResult.passed_count),
+            func.sum(EvaluationRuleResult.failed_count),
+            func.sum(EvaluationRuleResult.not_applicable_count),
+            func.sum(EvaluationRuleResult.error_count),
+        ).where(EvaluationRuleResult.evaluation_job_id == job.id)
+    ).one()
+    assert tuple(value or 0 for value in totals) == (
+        job.passed_count,
+        job.failed_count,
+        job.not_applicable_count,
+        job.error_count,
+    )
 
 
 def test_fatal_repository_failure_cannot_leave_running_job(

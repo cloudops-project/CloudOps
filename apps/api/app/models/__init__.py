@@ -2,6 +2,14 @@ from app.models.asset import Asset
 from app.models.audit import AuditEvent
 from app.models.aws_account import AWSAccount
 from app.models.aws_external_id_reservation import AWSExternalIDReservation
+from app.models.compliance import (
+    ComplianceAssessment,
+    ComplianceAssessmentControl,
+    ComplianceControl,
+    ComplianceFramework,
+    EvaluationRuleResult,
+    RuleControlMapping,
+)
 from app.models.discovery_job import DiscoveryJob
 from app.models.evaluation_job import EvaluationJob
 from app.models.finding import Finding
@@ -16,12 +24,18 @@ __all__ = [
     "AWSExternalIDReservation",
     "Asset",
     "AuditEvent",
+    "ComplianceAssessment",
+    "ComplianceAssessmentControl",
+    "ComplianceControl",
+    "ComplianceFramework",
     "DiscoveryJob",
     "EvaluationJob",
+    "EvaluationRuleResult",
     "Finding",
     "Organization",
     "OrganizationInvitation",
     "OrganizationMembership",
     "RefreshTokenSession",
+    "RuleControlMapping",
     "User",
 ]

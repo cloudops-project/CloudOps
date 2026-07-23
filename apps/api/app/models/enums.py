@@ -105,6 +105,20 @@ class FindingSeverity(StrEnum):
     INFORMATIONAL = "informational"
 
 
+class ComplianceAssessmentStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ComplianceControlStatus(StrEnum):
+    PASS = "pass"
+    FAIL = "fail"
+    NOT_ASSESSED = "not_assessed"
+    ERROR = "error"
+
+
 class RuleService(StrEnum):
     EC2 = "ec2"
     S3 = "s3"
