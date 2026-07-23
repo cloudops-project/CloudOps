@@ -180,6 +180,16 @@ Use pull requests and required review. Report absent CI checks as absent. Do not
 rewrite history, push directly to `main`, merge, or start another stage without explicit
 authorization.
 
+`main` is the authoritative integrated baseline. New feature/stage branches start only from the
+current verified `main`; never base a new stage on an older feature branch. Before release
+actions, fetch and compare local, upstream, and `origin/main` SHAs.
+
+An open pull-request branch may differ from `main` only by its intended reviewed changes.
+Preserve branches with unique unmerged commits and investigate them before any cleanup. Once a
+historical feature branch is fully contained in `main`, has no open PR, and is not required by
+automation, remove it through normal non-force branch deletion rather than adding synchronization
+merges. Never delete a branch blindly or use history rewriting to manufacture parity.
+
 ## Definition of Done
 
 A stage is done only when its scoped behavior, migrations, tests, security controls,

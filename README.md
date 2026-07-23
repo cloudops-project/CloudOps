@@ -532,7 +532,19 @@ changes, local virtual environments you still need, or persistent development da
 11. Never describe an owner exception as independent approval.
 12. Never begin the next stage before integration and documentation gates pass.
 
-Never force push or rewrite shared history.
+`main` is the authoritative integrated baseline. Before release actions, fetch remote state and
+compare the local branch SHA, its upstream SHA, and `origin/main`. Active feature branches must
+start from current `main`, and an open pull-request branch may differ from `main` only by that
+pull request's intended changes.
+
+After a feature is merged and its tip is proven reachable from `main`, treat the old feature
+branch as historical. Delete it through normal reviewed cleanup instead of repeatedly merging
+`main` into it. Preserve any branch with unique unmerged commits until those commits are
+investigated and intentionally integrated or retired. Never start a new stage from an old
+feature branch.
+
+Never force push, rewrite shared history, blindly delete a branch, or use destructive reset as
+branch synchronization.
 
 ## Project Source-of-Truth and AI Handoff Files
 
