@@ -55,3 +55,16 @@ Any security exception requires documented owner, rationale, compensating contro
 - Composite account/organization foreign keys enforce tenant consistency in PostgreSQL.
 - Every boto3 client uses explicit bounded connect/read timeouts and bounded standard/adaptive
   retries configured from the environment.
+
+## Stage 5 compliance controls
+
+- Stage 4 remains the sole detection source; compliance never calls boto3 or evaluates live AWS.
+- PASS requires affirmative complete per-rule evidence. Missing or mismatched evidence is
+  NOT_ASSESSED, and mapped rule errors are ERROR.
+- Active and suppressed mapped findings remain FAIL; suppression never implies compliance.
+- Composite tenant/framework foreign keys, partial indexes, row locking, and immutable snapshot
+  triggers are mandatory PostgreSQL controls.
+- Catalog text is a short CloudOps-authored summary with official references. Initial mappings
+  require human compliance review and do not constitute certification.
+- Frontend query keys include organization scope, logout clears protected cached data, and all
+  descriptions/evidence render as escaped text without unsafe HTML.

@@ -2,8 +2,9 @@
 
 ## Current delivery status
 
-Stages 1–3 are merged. Stage 4 deterministic rules/findings are implemented on
-`feature/4-rule-engine` and await independent verification. Stage 5 has not started.
+Stages 1–4 are verified and merged. Stage 5 compliance is implemented on
+`feature/5-compliance-engine` and is undergoing final release and clean-room verification.
+Stage 6 has not started.
 
 ## Purpose and audience
 
@@ -18,8 +19,8 @@ The five-member team and stakeholders use this dependency-ordered roadmap for pl
 | 2 AWS onboarding | Securely connect/disconnect organization AWS accounts; independently verified Stage 1 | Account record, unique external ID, generated trust/policy instructions, role ARN validation, STS AssumeRole + GetCallerIdentity validation, owner/admin UI and audit events; no long-lived keys and failure paths verified | IAM excess/confused deputy; M3 / M1+M5; connect/validate/disconnect demo |
 | 3 Asset discovery | Build normalized EC2/S3/IAM/RDS inventory; connected Stage 2 account | Paginator-aware collectors, normalized assets, discovery jobs, safe stale lifecycle, partial failures, bounded inventory UI, tenant/RBAC/concurrency tests | Throttling/incomplete inventory; M3 / M2+M5; sandbox inventory |
 | 4 Rule engine | Reproducibly evaluate versioned rules; 3 | Rule schema/loader/evaluator/versioning and approved EC2/S3/IAM initial rules; fixtures prove deterministic results | false/context signals, policy parsing; M3 / M1+M5; fixture + sandbox findings |
-| 5 Findings/risk | Manage actionable lifecycle; 4 + 2 | Evidence, status/severity/risk, dedupe, suppression, exception workflow; concurrency/history/isolation verified | stale/deduped evidence; M2+M3 / M1; triage lifecycle |
-| 6 Compliance | Explain reviewed control relationships; 4–5 | CIS candidate mappings after license/review, extensible framework/control model, dashboard; mapping provenance/caveat visible | licensing/overclaiming; M1+M3 / M5; control drill-down |
+| 5 Compliance | Explain reviewed control relationships; verified Stage 4 | Versioned catalogs, rule-version mappings, immutable assessments, traceability, API/UI, PostgreSQL and accessibility verification; no certification claim | licensing/overclaiming; M1+M3 / M5; control drill-down |
+| 6 Future stage | Not started; accepted Stage 5 baseline required | Scope requires separate authorization and must not be inferred from older planning labels | scope drift; M1 / all; planning gate |
 | 7 AI assistance | Add optional safe explanations; 4–6 | provider adapter, redaction, explanations, recommendations, report summaries, Jira drafts; invalid/outage fallback and leak tests pass | disclosure/hallucination/cost; M1+M2 / M3+M5; AI on/off comparison |
 | 8 Dashboard/reporting | Make inventory and risk usable; 3–7 | assets/scans/findings/compliance/reports, filters/exports; target UAT and accessibility scenarios pass | dense data/misleading metrics; M4 / M1+M5; analyst journey |
 | 9 Notifications/Jira | Coordinate external work; 5, 7–8 | email, Teams, Jira creation, feasible status sync; signed callbacks, retries, minimization verified | spam/token/webhook risk; M2 / M1+M5; finding-to-Jira |

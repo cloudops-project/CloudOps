@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.exceptions.errors import ConflictError, NotFoundError
-from app.models import Asset, AWSAccount, EvaluationJob, Finding, User
+from app.models import Asset, AWSAccount, EvaluationJob, EvaluationRuleResult, Finding, User
 from app.models.enums import (
     AuditResult,
     AWSAccountStatus,
@@ -125,6 +125,18 @@ class EvaluationService:
             job.assets_evaluated = len(assets)
             errors: list[str] = []
             for rule in self.registry.filter(enabled=True):
+                rule_summary = EvaluationRuleResult(
+                    evaluation_job_id=job.id,
+                    organization_id=job.organization_id,
+                    aws_account_id=job.aws_account_id,
+                    rule_key=rule.key,
+                    rule_version=rule.version,
+                    passed_count=0,
+                    failed_count=0,
+                    not_applicable_count=0,
+                    error_count=0,
+                )
+                self.db.add(rule_summary)
                 targets: tuple[Asset | None, ...] = (
                     (None,)
                     if rule.asset_type is None
@@ -135,7 +147,7 @@ class EvaluationService:
                         result = rule.evaluate(asset, context)
                     except Exception:
                         result = RuleResult(RuleResultStatus.ERROR, {}, "rule_execution_failed")
-                    self._apply_result(job, rule, asset, result)
+                    self._apply_result(job, rule, asset, result, rule_summary)
                     if result.status == RuleResultStatus.ERROR:
                         errors.append(f"{rule.key}:{result.error_code or 'rule_error'}")
                         logger.warning(
@@ -182,17 +194,26 @@ class EvaluationService:
         rule: SecurityRule,
         asset: Asset | None,
         result: RuleResult,
+        rule_summary: EvaluationRuleResult | None = None,
     ) -> None:
         job.rules_evaluated += 1
         if result.status == RuleResultStatus.PASSED:
             job.passed_count += 1
+            if rule_summary is not None:
+                rule_summary.passed_count += 1
         elif result.status == RuleResultStatus.FAILED:
             job.failed_count += 1
+            if rule_summary is not None:
+                rule_summary.failed_count += 1
         elif result.status == RuleResultStatus.ERROR:
             job.error_count += 1
             job.evaluation_errors += 1
+            if rule_summary is not None:
+                rule_summary.error_count += 1
         else:
             job.not_applicable_count += 1
+            if rule_summary is not None:
+                rule_summary.not_applicable_count += 1
         finding = self.findings.for_rule(job.aws_account_id, rule.key, asset.id if asset else None)
         if finding is not None:
             last_job = self.db.get(EvaluationJob, finding.last_evaluation_id)

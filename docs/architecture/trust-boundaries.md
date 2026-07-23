@@ -8,6 +8,14 @@ call AWS, the network, or the filesystem. Findings/evaluations remain tenant sco
 evidence is escaped text. Structured logs and audit events exclude credentials, tokens, full
 policies, and raw provider exceptions.
 
+## Stage 5 compliance boundary
+
+Compliance begins after Stage 4 persistence. It performs no AWS or network calls and cannot
+mutate customer resources. Tenant-scoped queries and composite foreign keys govern evaluations,
+summaries, findings, accounts, assessments, and snapshots. Only authenticated bounded API
+responses cross into the browser. Operational logs contain bounded identifiers and counters;
+durable audit events record accepted assessment lifecycle transitions without raw evidence.
+
 ## Purpose and audience
 
 Security architects and implementers use this catalogue to place authentication, validation, minimization, and audit controls at each crossing.

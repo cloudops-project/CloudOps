@@ -4,6 +4,15 @@
 
 Security, architecture, engineering, and operations teams use this initial threat model to prioritize controls and security tests. It is a living model, not a claim that controls are implemented.
 
+## Stage 5 compliance trust considerations
+
+Compliance accepts only tenant-scoped persisted Stage 4 evaluations, per-rule summaries, and
+findings. Composite database relationships prevent assessments and snapshots from referencing
+another tenant or framework. Missing, legacy, malformed, or version-mismatched evidence cannot
+establish PASS. Catalog descriptions are bounded CloudOps summaries with official references,
+not official framework prose or certification. Frontend content is escaped React text; raw
+policies, provider errors, tokens, and credentials are excluded.
+
 ## Assets and adversaries
 
 Protect tenant configuration/evidence, identities and sessions, role/external-ID metadata, integration secrets, approval intent, remediation paths, audit integrity, database/backups, and service availability. Adversaries include external attackers, malicious/compromised tenant users, compromised organization or platform administrators, supply-chain actors, and compromised workers/providers.

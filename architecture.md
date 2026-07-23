@@ -39,6 +39,8 @@ flowchart LR
   Collectors --> Repos
   Repos --> Rules["Typed deterministic rules"]
   Rules --> Findings["Evaluation jobs and findings"]
+  Findings --> Compliance["Versioned compliance assessments"]
+  Compliance --> Snapshots["Immutable control snapshots"]
 ```
 
 Route handlers perform HTTP mapping and schema validation. Services own workflows, transaction
@@ -51,10 +53,11 @@ boundaries, invariants, and audit events. Repositories own persistence and tenan
 - **Database:** synchronous SQLAlchemy 2 sessions with PostgreSQL as the production target
 - **Migrations:** Alembic in `apps/api/alembic/`
 - **Models:** identity, tenancy, tokens, audit, AWS onboarding, assets, discovery jobs,
-  evaluation jobs, and findings
+  evaluation jobs, per-rule results, findings, compliance catalog, mappings, assessments, and
+  immutable snapshots
 - **Schemas:** explicit Pydantic v2 request/response models
 - **Services:** authentication, organizations, invitations, onboarding, discovery, evaluations,
-  and finding lifecycle
+  finding lifecycle, and compliance assessment
 - **Rules:** static typed registry under `app/security_rules`; no boto3, network, or filesystem
 - **Security:** Argon2, JWT validation, token hashing, centralized RBAC
 - **Logging:** request correlation and structured JSON-compatible events
@@ -70,6 +73,22 @@ React Hook Form, Zod, and Lucide React.
 - Failed refresh invalidates the in-memory token and user state.
 - `ProtectedRoute` controls authenticated navigation; backend authorization remains authoritative.
 - Page modules cover administration, AWS onboarding, inventory, findings, rules, and evaluations.
+- Compliance pages expose framework summaries, historical assessments, and a role-gated
+  accessible assessment confirmation workflow.
+
+## Compliance flow
+
+1. Lock and tenant-authorize the AWS account.
+2. Select a versioned framework and latest applicable completed Stage 4 evaluation.
+3. Match persisted per-rule results to version-bounded control mappings.
+4. Preserve direct active or suppressed failure evidence.
+5. Produce PASS, FAIL, NOT_ASSESSED, or ERROR without inferring success from absence.
+6. Persist immutable control snapshots and aggregate counters in one transaction.
+7. Emit bounded structured logs and durable assessment lifecycle audit events.
+
+PostgreSQL composite foreign keys enforce account/evaluation/organization and
+control/framework consistency. Partial unique indexes prevent duplicate active assessments and
+open-ended mappings. Finalized per-rule summaries and assessment snapshots cannot be updated.
 
 ## Authentication flow
 
@@ -192,7 +211,9 @@ tokens, authorization/cookie headers, and AWS credentials are excluded.
   -> 0002_stage2
   -> 0003_stage3
   -> 0004_verification_repairs
-  -> 0005_stage4_rule_engine (current head)
+  -> 0005_stage4_rule_engine
+  -> 0006_stage4_verification_repairs
+  -> 0007_stage5_compliance_engine (current head)
 ```
 
 `0004_verification_repairs` backfills permanent external-ID reservations and adds the composite
@@ -201,6 +222,6 @@ valid Stage 2/3 data is preserved.
 
 ## Future work
 
-Stage 5 has not started. Compliance, risk scoring, AI, notifications, raw event ingestion,
-scheduling, remediation, and production infrastructure are not part of the executable
-architecture.
+Stage 5 compliance is implemented as interpretation of persisted Stage 4 evidence. Risk scoring,
+AI, notifications, raw event ingestion, scheduling, remediation, and production infrastructure
+remain future work; Stage 6 has not started.

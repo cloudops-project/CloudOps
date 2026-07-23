@@ -1,10 +1,10 @@
 # CloudOps
 
-CloudOps is an AWS-focused, multi-tenant SaaS platform. Stages 1–3 provide identity and
-organization tenancy, secure AWS account onboarding, and normalized asset discovery. Stage 4 is
-implemented on `feature/4-rule-engine` for independent verification: deterministic typed rules
-evaluate persisted inventory and maintain security findings. Compliance, risk scoring, AI,
-notifications, remediation, raw event ingestion, and customer AWS mutation are not implemented.
+CloudOps is an AWS-focused, multi-tenant SaaS platform. Stages 1–4 are merged in `main`:
+identity and tenancy, secure AWS onboarding, normalized discovery, and deterministic findings.
+Stage 5 compliance assessments are being completed on `feature/5-compliance-engine`. Risk
+scoring, AI, notifications, remediation, raw event ingestion, customer AWS mutation, and Stage 6
+functionality are not implemented.
 
 ## Technology stack
 
@@ -76,6 +76,14 @@ customer-managed policies, plus RDS instances. Regional collectors use
 `AWS_DISCOVERY_REGIONS`; IAM and S3 are global. Assets are normalized and upserted, and a
 successful collector marks missing resources inactive instead of deleting history.
 
+## Stage 5 compliance assessments
+
+Stage 5 maps versioned deterministic Stage 4 rules to versioned CIS AWS, NIST CSF, ISO/IEC
+27001, and PCI DSS controls. Assessments create immutable historical control snapshots with
+`PASS`, `FAIL`, `NOT_ASSESSED`, or `ERROR` status. Missing or version-mismatched rule evidence
+never becomes `PASS`; active suppressed findings remain failures. Catalog descriptions are
+short CloudOps-authored summaries with official references, not reproduced framework prose.
+
 Owner, admin, security analyst, and cloud engineer roles may start discovery; every active
 member may view bounded, filterable asset and job lists. Per-account locking and a PostgreSQL
 partial unique index prevent overlapping jobs. Failed collectors cannot stale their previous
@@ -126,5 +134,6 @@ The Compose database uses tmpfs and is verification-only. Never point these test
 - No password reset, email verification delivery, MFA, social login, or SSO.
 - Invitation email delivery and distributed rate limiting are deferred.
 - PostgreSQL is the production database; SQLite is used only for isolated tests.
-- Cloud infrastructure, deployment automation, security analysis, findings, compliance, risk,
-  and remediation remain later stages.
+- Cloud infrastructure, deployment automation, risk scoring, AI assistance, notifications,
+  remediation, and Stage 6 remain later work. Deterministic findings and Stage 5 compliance
+  assessments are implemented.

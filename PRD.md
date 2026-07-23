@@ -9,10 +9,8 @@ future intent.
 ## Project overview
 
 CloudOps is a multi-tenant SaaS application for securely connecting AWS accounts and building a
-normalized, historical inventory of selected AWS resources. It currently provides identity and
-organization administration, cross-account AWS onboarding, and inventory-only asset discovery.
-
-CloudOps does not yet evaluate the security posture of discovered resources.
+normalized inventory, deterministic security findings, and point-in-time compliance
+assessments. Stages 1–4 are merged; Stage 5 is undergoing final verification.
 
 ## Business goals
 
@@ -77,6 +75,25 @@ other platforms are out of scope.
 - Partial-failure isolation by service
 - Discovery jobs, counts, sanitized errors, and audit events
 - Bounded, filterable asset APIs and inventory frontend
+
+### Stage 4 — Deterministic Findings
+
+- Typed deterministic rules over persisted inventory
+- Evaluation jobs and finding lifecycle
+- Finding suppression, APIs, audit events, and frontend workflows
+
+### Stage 5 — Compliance Engine
+
+- Versioned frameworks and controls
+- Rule-version-aware many-to-many mappings
+- Account assessments backed by persisted Stage 4 evaluation evidence
+- Immutable historical control snapshots
+- PASS, FAIL, NOT_ASSESSED, and ERROR semantics
+- Framework, control, finding-traceability, summary, and assessment APIs
+- Tenant-scoped RBAC and compliance UI
+
+Stage 5 does not detect findings and does not claim independent certification. Risk scoring,
+recommendations, remediation, and Stage 6 functionality remain out of scope.
 
 Stage 3 remains the inventory foundation. Stage 4 expands bounded configuration metadata needed
 for deterministic checks; it does not ingest raw logs/events or perform full IAM simulation.
@@ -151,9 +168,10 @@ scores, compliance scores, AI content, or remediation controls.
 - All authorization is enforced by the backend.
 - No credentials are persisted or exposed.
 - Rule errors cannot falsely pass or resolve findings.
-- Stage 5 functionality is absent.
+- Stage 5 assessments require affirmative Stage 4 evidence and preserve immutable snapshots.
 
 ## Delivery status
 
-Stages 1–3 are merged. Stage 4 is implemented on `feature/4-rule-engine` and awaits independent
-verification and pull-request review. Stage 5 has not started.
+Stages 1–4 are verified and merged at `04807de270bf1eeb152b67ab197d97f961e52179`.
+Stage 5 is implemented on `feature/5-compliance-engine` and is undergoing final verification.
+Stage 6 has not started.

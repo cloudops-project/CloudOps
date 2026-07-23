@@ -5,8 +5,8 @@
 This is the implementation-aligned frontend design summary. The detailed visual standard remains
 in `docs/design/`.
 
-The current UI implements Stage 1 administration, Stage 2 AWS onboarding, Stage 3 inventory, and
-Stage 4 deterministic findings. Stage 4 awaits independent verification.
+The current UI implements Stage 1 administration, Stage 2 AWS onboarding, Stage 3 inventory,
+Stage 4 deterministic findings, and the Stage 5 compliance workflow.
 
 ## Application layout
 
@@ -19,6 +19,15 @@ Authenticated pages use a responsive application shell:
 
 Primary navigation exposes Dashboard, AWS Accounts, Assets, Security, Members, and Profile.
 Discovery and evaluation jobs, the rule catalog, and finding details have dedicated routes.
+
+### Compliance
+
+- Framework cards with versions and official references
+- Historical assessment list and PASS/FAIL/NOT_ASSESSED/ERROR counts
+- Owner/admin/security-analyst/cloud-engineer assessment action
+- Accessible account/framework confirmation dialog with initial focus, Escape handling,
+  duplicate-submit prevention, and focus return
+- Auditor/viewer read-only behavior aligned with backend capabilities
 
 ## Current screens
 
@@ -68,7 +77,8 @@ Discovery and evaluation jobs, the rule catalog, and finding details have dedica
 - Accessible evaluation confirmation and suppression dialogs
 - Role-aware actions
 
-Risk, compliance, AI, and remediation screens are not implemented.
+Risk, AI, and remediation screens are not implemented. Compliance overview, framework/control
+details, assessment history/details, and the assessment confirmation workflow are implemented.
 
 ## Design tokens
 
@@ -158,7 +168,7 @@ hover. Desktop layouts use a 240px sidebar and a bounded content region.
 - Status and error meaning conveyed with text, not color alone
 - Untrusted metadata rendered as escaped text; no unsafe HTML
 
-## Stage 5 reservation
+## Future UI
 
-The design system reserves future space for compliance, risk, AI, notifications, and
-remediation. Those views must not be presented as implemented.
+The design system reserves future space for risk, AI, notifications, and remediation. Those
+views must not be presented as implemented; Stage 6 has not started.

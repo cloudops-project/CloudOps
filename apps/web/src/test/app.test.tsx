@@ -318,6 +318,341 @@ describe("Stage 1 application", () => {
   });
 });
 
+describe("Stage 5 compliance", () => {
+  const framework = {
+    id: "framework-1",
+    key: "cis_aws",
+    name: "CIS AWS Foundations",
+    version: "1.5",
+    description: "CloudOps-authored summary.",
+    official_reference: "https://example.invalid/cis",
+    enabled: true,
+  };
+  const awsAccount = {
+    id: "account-1",
+    organization_id: "o1",
+    name: "Production",
+    account_id: "123456789012",
+    role_arn: "arn:aws:iam::123456789012:role/CloudOpsReadOnlyRole",
+    external_id: "test-external-id",
+    status: "connected",
+    connection_status: "connected",
+    failure_reason: null,
+    last_validated_at: null,
+  };
+
+  it("confirms an assessment once and restores focus", async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const isAssessmentPost =
+          url.includes("/compliance/assess") && init?.method === "POST";
+        const data = isAssessmentPost
+          ? {}
+          : url.includes("/compliance/frameworks")
+            ? [framework]
+            : url.includes("/aws/accounts")
+              ? [awsAccount]
+              : { items: [], total: 0, page: 1, page_size: 25 };
+        return new Response(JSON.stringify(data), {
+          status: isAssessmentPost ? 201 : 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderApp("/compliance", owner);
+    const trigger = await screen.findByRole("button", {
+      name: /run assessment/i,
+    });
+    await userEvent.click(trigger);
+    expect(
+      screen.getByRole("dialog", { name: /run compliance assessment/i }),
+    ).toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByLabelText(/aws account/i),
+      awsAccount.id,
+    );
+    await userEvent.selectOptions(
+      screen.getByLabelText(/framework/i),
+      framework.id,
+    );
+    const confirm = screen.getByRole("button", {
+      name: /confirm assessment/i,
+    });
+    await userEvent.dblClick(confirm);
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(
+      fetchMock.mock.calls.filter(
+        ([input, init]) =>
+          String(input).includes("/compliance/assess") &&
+          init?.method === "POST",
+      ),
+    ).toHaveLength(1);
+    expect(trigger).toHaveFocus();
+  });
+
+  it.each([
+    ["owner", true],
+    ["admin", true],
+    ["security_analyst", true],
+    ["cloud_engineer", true],
+    ["auditor", false],
+    ["viewer", false],
+  ] as const)("applies assessment controls for %s", async (role, allowed) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const data = String(input).includes("/compliance/frameworks")
+          ? [framework]
+          : String(input).includes("/aws/accounts")
+            ? [awsAccount]
+            : { items: [], total: 0, page: 1, page_size: 25 };
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    renderApp("/compliance", {
+      ...owner,
+      organizations: [{ ...owner.organizations[0], role }],
+    });
+    await screen.findByRole("heading", { name: "Compliance" });
+    const trigger = screen.queryByRole("button", { name: /run assessment/i });
+    if (allowed) expect(trigger).toBeInTheDocument();
+    else expect(trigger).not.toBeInTheDocument();
+  });
+
+  it("renders framework and control detail with escaped CloudOps text", async () => {
+    const control = {
+      id: "control-1",
+      framework_id: framework.id,
+      control_key: "1.1",
+      title: "<script>Control title</script>",
+      description: "CloudOps summary, not official wording.",
+      section: "Identity",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const data = url.includes("/controls/control-1/rules")
+          ? [
+              {
+                id: "mapping-1",
+                rule_key: "IAM_USER_CONSOLE_ACCESS_WITHOUT_MFA",
+                minimum_rule_version: 1,
+                maximum_rule_version: null,
+                framework_id: framework.id,
+                control_id: control.id,
+                mapping_type: "detective",
+                rationale: "MFA evidence supports this control.",
+              },
+            ]
+          : url.includes("/controls/control-1/findings")
+            ? {
+                control,
+                status: "fail",
+                finding_ids: [],
+                total: 0,
+                page: 1,
+                page_size: 25,
+              }
+            : url.includes("/controls/control-1")
+              ? control
+              : url.includes("/frameworks/cis_aws/controls")
+                ? [control]
+                : url.includes("/compliance/frameworks")
+                  ? [framework]
+                  : [];
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    const frameworkView = renderApp("/compliance/frameworks/cis_aws", owner);
+    expect(
+      await screen.findByRole("heading", { name: framework.name }),
+    ).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/search controls/i), "1.1");
+    expect(screen.getByRole("link", { name: "1.1" })).toBeInTheDocument();
+    frameworkView.unmount();
+
+    renderApp("/compliance/controls/control-1", owner);
+    expect(
+      await screen.findByRole("heading", {
+        name: /<script>control title<\/script>/i,
+      }),
+    ).toBeInTheDocument();
+    expect(document.querySelector("script")).toBeNull();
+    expect(
+      screen.getByText("IAM_USER_CONSOLE_ACCESS_WITHOUT_MFA"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/MFA evidence supports/i)).toBeInTheDocument();
+    expect(screen.getByText(/No mapped findings/i)).toBeInTheDocument();
+  });
+
+  it("filters and paginates assessment history", async () => {
+    const assessment = {
+      id: "assessment-1",
+      organization_id: "o1",
+      aws_account_id: awsAccount.id,
+      framework_id: framework.id,
+      evaluation_job_id: "evaluation-1",
+      status: "completed",
+      controls_total: 4,
+      controls_passed: 1,
+      controls_failed: 1,
+      controls_not_assessed: 1,
+      controls_error: 1,
+      findings_count: 1,
+      started_at: "2026-07-24T00:00:00Z",
+      finished_at: "2026-07-24T00:01:00Z",
+      error_summary: null,
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const data = url.includes("/compliance/frameworks")
+        ? [framework]
+        : url.includes("/aws/accounts")
+          ? [awsAccount]
+          : { items: [assessment], total: 11, page: 1, page_size: 10 };
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderApp("/compliance/assessments", owner);
+    expect(
+      await screen.findByRole("heading", { name: /compliance assessments/i }),
+    ).toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByLabelText(/assessment status/i),
+      "completed",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /next assessment page/i }),
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("page=2"),
+        expect.anything(),
+      ),
+    );
+    expect(screen.getByText("Page 2")).toBeInTheDocument();
+  });
+
+  it("renders immutable assessment snapshots and status filtering", async () => {
+    const detail = {
+      id: "assessment-1",
+      organization_id: "o1",
+      aws_account_id: awsAccount.id,
+      framework_id: framework.id,
+      evaluation_job_id: "evaluation-1",
+      status: "completed",
+      controls_total: 1,
+      controls_passed: 0,
+      controls_failed: 1,
+      controls_not_assessed: 0,
+      controls_error: 0,
+      findings_count: 1,
+      started_at: "2026-07-24T00:00:00Z",
+      finished_at: "2026-07-24T00:01:00Z",
+      error_summary: null,
+      controls: [
+        {
+          id: "snapshot-1",
+          assessment_id: "assessment-1",
+          control_id: "control-1",
+          framework_id: framework.id,
+          status: "fail",
+          findings_count: 1,
+          assessed_at: "2026-07-24T00:01:00Z",
+        },
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify(detail), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+    renderApp("/compliance/assessments/assessment-1", owner);
+    expect(
+      await screen.findByText(/immutable snapshot does not change/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Source evaluation: evaluation-1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Status" }),
+    ).toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByLabelText(/control status/i),
+      "fail",
+    );
+    expect(screen.getByText("Status: fail")).toBeInTheDocument();
+  });
+
+  it("cancels and closes assessment confirmation with Escape", async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, _init?: RequestInit) => {
+        void _init;
+        const url = String(input);
+        const data = url.includes("/compliance/frameworks")
+          ? [framework]
+          : url.includes("/aws/accounts")
+            ? [awsAccount]
+            : url.includes("/summary")
+              ? {
+                  assessments_total: 0,
+                  controls_passed: 0,
+                  controls_failed: 0,
+                  controls_not_assessed: 0,
+                  controls_error: 0,
+                }
+              : { items: [], total: 0, page: 1, page_size: 5 };
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderApp("/compliance", owner);
+    const trigger = await screen.findByRole("button", {
+      name: /run assessment/i,
+    });
+    await userEvent.click(trigger);
+    expect(
+      screen.getByRole("button", { name: /confirm assessment/i }),
+    ).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    await userEvent.click(trigger);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(
+      fetchMock.mock.calls.filter(
+        ([input, init]) =>
+          String(input).includes("/compliance/assess") &&
+          init?.method === "POST",
+      ),
+    ).toHaveLength(0);
+  });
+});
+
 describe("Stage 4 deterministic findings", () => {
   const account = {
     id: "a1",

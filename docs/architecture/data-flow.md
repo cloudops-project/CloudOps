@@ -41,7 +41,11 @@ not ingested.
 
 Authentication establishes a user; authorization resolves an active organization membership and permission for each resource. Job creation uses an idempotency key and writes requester/organization/rule-set scope. The worker receives only identifiers, obtains STS credentials at execution time, and discards them after use. Collectors retrieve configuration metadata for EC2, S3, and IAM, redact disallowed fields, and normalize source provenance.
 
-The deterministic engine evaluates an explicitly pinned rule version. Findings retain evidence and input/run linkage. Risk and compliance are reviewed deterministic mappings with contextual qualifiers. AI receives the smallest redacted projection and can add an explanation only; invalid or unavailable output is omitted. Notifications and Jira receive allowlisted fields.
+The deterministic engine evaluates an explicitly pinned rule version. Findings retain evidence
+and input/run linkage. Implemented Stage 5 compliance maps persisted per-rule results and
+findings to versioned controls, producing immutable PASS, FAIL, NOT_ASSESSED, or ERROR snapshots.
+Missing evidence never becomes PASS, and suppression remains failure evidence. Risk and AI
+remain future work. No compliance rule calls boto3 or customer AWS APIs.
 
 Remediation requires a separate request, current evidence, authorized approval, playbook/version, idempotency key, and separate permissions. Execution outcome never alone closes a finding: a verification scan evaluates it. Every state transition emits an audit event.
 
