@@ -2,9 +2,8 @@
 
 ## Current status
 
-Stages 1–4 are verified and merged into `main`. Stage 5 is implemented in the dirty
-`feature/5-compliance-engine` worktree and is undergoing PostgreSQL, API, frontend, and
-clean-room verification. Stage 6 has not started.
+Stages 1–5 are independently verified, merged, and regression-tested in `main` at
+`68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 has not started.
 
 ## Stage 0 — Planning and architecture
 
@@ -58,38 +57,63 @@ AWS mutation are excluded.
 
 ## Stage 5 — Compliance Engine
 
-**Status: IMPLEMENTED — VERIFICATION IN PROGRESS**
+**Status: COMPLETE, INDEPENDENTLY VERIFIED, AND MERGED**
 
 Versioned frameworks and controls, rule-version mappings, Stage 4-backed assessments, immutable
 control snapshots, tenant-safe APIs, RBAC, audit events, and compliance frontend workflows are
-implemented. PostgreSQL migration `0007_stage5_compliance_engine` is the candidate head.
+implemented. PostgreSQL migration `0007_stage5_compliance_engine` is the current head.
+Stage 5 interprets persisted Stage 4 evidence and does not independently detect security
+failures. Its initial catalog contains four controls and twelve mappings; this is neither
+complete framework coverage nor certification.
 
-## Stage 6
+## Stage 6 — Deterministic Risk Scoring
 
 **Status: NOT STARTED**
 
-No Stage 6 executable code is authorized or present.
+No Stage 6 executable code is authorized or present. AI must not perform deterministic risk
+scoring.
 
-## Later planned stages
+## Stage 7 — AI Explanation Assistant
 
-The detailed roadmap under `docs/planning/` currently reserves later work for:
+**Status: NOT STARTED**
 
-1. Compliance and risk
-2. Optional advisory AI
-3. Extended reporting
-4. Notifications and Jira
-5. Governed remediation
-6. Scheduling and background workers
-7. Audit/security hardening
-8. Infrastructure and deployment
-9. Integrated testing/UAT
-10. Final documentation and demonstration
+Optional advisory explanations only. AI must not detect findings or determine risk scores.
 
-These are plans, not completed functionality. Sequence and scope require approval before work.
+## Stage 8 — Dashboard and Reports
+
+**Status: NOT STARTED**
+
+Expanded dashboards, reports, and export experiences remain planned.
+
+## Stage 9 — Notifications
+
+**Status: NOT STARTED**
+
+Notification and ticketing integrations remain planned.
+
+## Stage 10 — Remediation Workflow
+
+**Status: NOT STARTED**
+
+Governed remediation and customer-resource mutation are not implemented.
+
+## Stage 11 — Scheduler
+
+**Status: NOT STARTED**
+
+Scheduling, queues, and background-worker orchestration are not implemented.
+
+## Stage 12 — Extended Tamper-Evident Audit Timeline
+
+**Status: NOT STARTED**
+
+The extended audit timeline/archive is planned; current audit controls must not be described as
+absolutely immutable.
 
 ## Immediate gate
 
-1. Finish every Stage 5 quality and migration gate.
-2. Commit and push the Stage 5 branch only after all gates pass.
-3. Open a draft pull request and run independent clean-room verification.
-4. Do not start Stage 6.
+1. Review and explicitly authorize documentation PR #5 where required.
+2. Merge PR #5 and synchronize local `main`.
+3. Confirm a clean worktree and preserved Stage 5 regression baseline.
+4. Authorize and create a separate Stage 6 branch from updated `main`.
+5. Keep deterministic risk scoring separate from optional advisory AI.

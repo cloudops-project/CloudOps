@@ -1,5 +1,9 @@
 # CloudOps Current Architecture
 
+Stages 1–5 are independently verified and merged in `main` at
+`68785b0138eaecf84850887a3d4005c40e9761c0`; Alembic head is
+`0007_stage5_compliance_engine`. Stage 6 deterministic risk scoring has not started.
+
 ## Document role
 
 This document is the concise implementation architecture for future coding sessions. Detailed
@@ -145,20 +149,26 @@ newer lifecycle state. Terminal counters, structured logs, and audit events are 
 
 ## Current PostgreSQL schema
 
-| Model/table | Purpose |
-|---|---|
-| `User` / `users` | Global user identity and authentication status |
-| `Organization` / `organizations` | Tenant root |
-| `OrganizationMembership` / `organization_members` | User role/status in an organization |
-| `OrganizationInvitation` / `organization_invitations` | Hashed, expiring invitation |
-| `RefreshTokenSession` / `refresh_token_sessions` | Hashed rotating refresh session |
-| `AuditEvent` / `audit_events` | Authentication, governance, onboarding, and discovery history |
-| `AWSAccount` / `aws_accounts` | Organization-owned AWS connection metadata |
-| `AWSExternalIDReservation` / `aws_external_id_reservations` | Permanent global external-ID reservation |
-| `Asset` / `assets` | Normalized historical AWS resource inventory |
-| `DiscoveryJob` / `discovery_jobs` | Discovery execution state and counters |
-| `EvaluationJob` / `evaluation_jobs` | Evaluation sequence, status, and counters |
-| `Finding` / `findings` | Stable rule result, evidence, resolution, and suppression |
+| Model/table                                                      | Purpose                                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------- |
+| `User` / `users`                                                 | Global user identity and authentication status                |
+| `Organization` / `organizations`                                 | Tenant root                                                   |
+| `OrganizationMembership` / `organization_members`                | User role/status in an organization                           |
+| `OrganizationInvitation` / `organization_invitations`            | Hashed, expiring invitation                                   |
+| `RefreshTokenSession` / `refresh_token_sessions`                 | Hashed rotating refresh session                               |
+| `AuditEvent` / `audit_events`                                    | Authentication, governance, onboarding, and discovery history |
+| `AWSAccount` / `aws_accounts`                                    | Organization-owned AWS connection metadata                    |
+| `AWSExternalIDReservation` / `aws_external_id_reservations`      | Permanent global external-ID reservation                      |
+| `Asset` / `assets`                                               | Normalized historical AWS resource inventory                  |
+| `DiscoveryJob` / `discovery_jobs`                                | Discovery execution state and counters                        |
+| `EvaluationJob` / `evaluation_jobs`                              | Evaluation sequence, status, and counters                     |
+| `EvaluationRuleResult` / `evaluation_rule_results`               | Immutable per-rule outcome counts for compliance evidence     |
+| `Finding` / `findings`                                           | Stable rule result, evidence, resolution, and suppression     |
+| `ComplianceFramework` / `compliance_frameworks`                  | Versioned framework catalog                                   |
+| `ComplianceControl` / `compliance_controls`                      | Version-scoped CloudOps control summaries                     |
+| `RuleControlMapping` / `rule_control_mappings`                   | Rule-version ranges mapped to controls                        |
+| `ComplianceAssessment` / `compliance_assessments`                | Account/framework assessment lifecycle and counters           |
+| `ComplianceAssessmentControl` / `compliance_assessment_controls` | Immutable historical control result snapshot                  |
 
 ## Database constraints and concurrency
 
@@ -175,6 +185,10 @@ newer lifecycle state. Terminal counters, structured logs, and audit events are 
 - A partial unique index prevents more than one pending/running evaluation per account.
 - Partial unique indexes provide one asset/rule or account/rule finding identity.
 - Composite foreign keys enforce finding organization/account/asset agreement.
+- Compliance assessment/account/evaluation and snapshot/control/framework relationships use
+  composite tenant and framework constraints.
+- Finalized evaluation-rule summaries and compliance snapshots are immutable.
+- Partial indexes prevent duplicate active assessments and duplicate open-ended mappings.
 - PostgreSQL row locks serialize refresh rotation, invitation acceptance, final-owner changes,
   AWS account lifecycle mutations, and account-level asset lifecycle work.
 - Validation operation tokens stop stale STS results from overwriting newer account changes.
@@ -191,8 +205,10 @@ ownership.
 
 Audit events include organization, actor, event type, resource, result, safe metadata, request
 context, and timestamp. Covered families include authentication, invitations, membership,
-organization creation, AWS account lifecycle, and discovery lifecycle. Passwords, hashes, raw
-tokens, authorization/cookie headers, and AWS credentials are excluded.
+organization creation, AWS account lifecycle, discovery, evaluation/finding, and compliance
+assessment lifecycles. Operational logs use correlation IDs and bounded structured fields;
+durable audit events remain separate. Passwords, hashes, raw tokens, authorization/cookie
+headers, AWS credentials, full policies, and unbounded evidence are excluded.
 
 ## API routers
 
@@ -202,6 +218,7 @@ tokens, authorization/cookie headers, and AWS credentials are excluded.
 - `aws_accounts`: account onboarding and lifecycle
 - `discovery`: discovery start, jobs, assets, summary
 - `security_findings`: rules, evaluations, findings, summary, suppression
+- `compliance`: frameworks, controls, mappings/findings, summaries, assessments, snapshots
 - `health`: liveness and readiness
 
 ## Migration chain

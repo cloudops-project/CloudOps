@@ -5,10 +5,21 @@ Use this file to resume work in a fresh AI chat. Detailed documents remain autho
 ## Purpose and current status
 
 CloudOps is an AWS-focused multi-tenant SaaS for secure AWS onboarding, normalized inventory,
-deterministic findings, and evidence-based compliance snapshots. Stages 1–4 are verified and
-merged in `main` at `04807de270bf1eeb152b67ab197d97f961e52179`. Stage 5 is being completed
-on `feature/5-compliance-engine`; migration head is `0007_stage5_compliance_engine`. Stage 6,
-risk scoring, AI, notifications, remediation, and raw event ingestion remain deferred.
+deterministic findings, and evidence-based compliance snapshots. Stages 1–5 are independently
+verified and merged in `main` at `68785b0138eaecf84850887a3d4005c40e9761c0`.
+Stage 5 feature SHA `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` was merged by PR #4;
+migration head is `0007_stage5_compliance_engine`. Stage 6 deterministic risk scoring, AI,
+notifications, remediation, and raw event ingestion remain deferred.
+
+- Repository: `D:\learn\cdac\cloudfix`
+- Remote: `https://github.com/cloudops-project/CloudOps.git`
+- Active integration branch: `main`
+- Documentation release branch: `docs/stage5-merge-sync`
+- Documentation release: PR #5 is open for review and must not be treated as merged.
+- Stage 5 release evidence: 162 backend tests passed with 0 failures and 0 skips at 95.88%
+  coverage; 56 frontend tests passed with 0 failures.
+- Current warnings: Starlette TestClient/httpx deprecation; use supported Node 20 LTS or Node
+  22 LTS. GitHub reported no automated check rollup for PR #4.
 
 ## Source-of-truth documents
 
@@ -78,8 +89,9 @@ mindmap
       Permanent external IDs
       Deterministic rules
       Finding lifecycle
+      Evidence-based compliance
     Future
-      Compliance and risk
+      Deterministic risk scoring
       Advisory AI
       Approved remediation
 ```
@@ -142,6 +154,8 @@ Database checks protect asset seen-time ordering and discovery-job counters and 
   normalized assets.
 - Security: list rules; start/list/detail evaluations; list/filter/summarize/detail findings;
   suppress and unsuppress findings.
+- Compliance: list frameworks and controls; inspect mappings and mapped findings; start, list,
+  and inspect immutable assessments and summaries.
 - Process: `/health` and database-backed `/ready`.
 
 All application APIs are under `/api/v1`; health probes are root paths.
@@ -167,7 +181,9 @@ Never put values or secrets in this file.
 
 ## Commands
 
-See the root README and app READMEs for install, migration, lint, type-check, test, and build commands.
+See the root `README.md` for the complete teammate run guide, exact environment variables,
+PostgreSQL lifecycle, quality gates, troubleshooting, and safe cleanup commands. App READMEs
+provide subsystem detail.
 
 ## Completed capabilities
 
@@ -184,9 +200,9 @@ concurrency, and inventory/job UI.
 Email delivery, password reset, email-verification delivery, MFA, OIDC/SSO, distributed rate
 limiting, PostgreSQL RLS, production deployment, and live-AWS validation remain deferred.
 Discovery and evaluation are synchronous and automated tests use deterministic AWS doubles.
-Compliance, risk, scheduler, AI, notifications, remediation, raw provider events, and customer
-AWS mutation are deferred. Development/testing returns invitation tokens temporarily;
-production does not.
+Risk scoring, scheduler, AI, notifications, remediation, raw provider events, customer AWS
+mutation, and compliance export are deferred. Development/testing returns invitation tokens
+temporarily; production does not.
 
 ## Architecture decisions
 
@@ -200,19 +216,22 @@ production does not.
 
 The linear migration chain is `0001_stage1 -> 0002_stage2 -> 0003_stage3 ->
 0004_verification_repairs -> 0005_stage4_rule_engine -> 0006_stage4_verification_repairs ->
-0007_stage5_compliance_engine`. The current branch is `feature/5-compliance-engine`, based on
-verified Stage 4 merge `04807de270bf1eeb152b67ab197d97f961e52179`.
+0007_stage5_compliance_engine`. The current release baseline is `main` at
+`68785b0138eaecf84850887a3d4005c40e9761c0`.
 
 PR #2 had no recorded GitHub approval. The repository owner explicitly accepted that missing
-approval as a governance exception and authorized Stage 4; no approval is fabricated. Stage 4
-must remain unmerged until fresh independent verification.
+approval as a governance exception and authorized Stage 4; no approval is fabricated. PR #4
+also had zero recorded GitHub reviews/approvals and no automated check rollup. After technical
+clean-room verification, the owner recorded an **Owner-authorized governance exception for PR
+#4**. Neither exception is an independent GitHub, CODEOWNER, CI, or repository-policy approval.
 
 ## Current priorities
 
-1. Complete all Stage 5 quality, migration, concurrency, security, and regression gates.
-2. Push `feature/5-compliance-engine` and open a draft pull request to `main`.
-3. Run clean-room independent verification against the pushed SHA.
-4. Do not merge Stage 5 or begin Stage 6 until that review succeeds.
+1. Review and explicitly authorize PR #5 where governance requires it.
+2. Merge PR #5 and synchronize local `main`.
+3. Reconfirm the Stage 1–5 baseline and clean worktree.
+4. Obtain explicit Stage 6 scope authorization.
+5. Create the Stage 6 branch from synchronized clean `main`; do not add Stage 6 code before then.
 
 ## Stage 5 compliance boundary
 
@@ -222,16 +241,42 @@ immutable snapshots. Missing or mismatched evidence is `NOT_ASSESSED`, rule/sour
 `ERROR`, active or suppressed failures are `FAIL`, and `PASS` requires affirmative successful
 rule evidence. Catalog prose is CloudOps-authored and links to official references.
 
+The initial catalog contains four controls and twelve mappings. It is not complete framework
+coverage or certification, mappings require human compliance review, and compliance export is
+not implemented. Stage 6 will add deterministic risk scoring; AI must not perform detection or
+risk scoring.
+
 ## HOW TO START A NEW AI SESSION
 
-Read all attached project documents first and treat them as the source of truth. Before changing
-code, summarize:
+Attach these seven root source-of-truth files to the new session:
 
-- the project goal;
-- the architecture;
-- the current implementation;
-- known issues and limitations; and
-- the next task.
+1. `NEW_CHAT_CONTEXT.md`
+2. `PRD.md`
+3. `architecture.md`
+4. `design.md`
+5. `rules.md`
+6. `phases.md`
+7. `memory.md`
 
-Identify and resolve contradictions or missing information before proceeding. Do not modify code
-until those contradictions are resolved.
+Then send this exact starter prompt:
+
+```text
+Read the attached project files and treat them as the source of truth.
+
+First, summarize your understanding of:
+
+- the project goal
+- the architecture
+- the current implementation state
+- known issues
+- the next task
+
+Do not modify code yet. Identify contradictions or missing information before proceeding.
+```
+
+The new session must resolve any conflict between these files and current repository evidence
+before changing code. Never use real customer AWS accounts or credentials for automated tests.
+Stages advance sequentially: Stage 6 cannot begin until PR #5 is reviewed/authorized, merged,
+`main` is synchronized, and the verified baseline remains clean. Stage 4 detects findings;
+Stage 5 interprets persisted deterministic evidence for compliance. AI must not perform finding
+detection or deterministic risk scoring.

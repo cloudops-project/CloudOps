@@ -6,9 +6,10 @@ These rules govern current CloudOps development. More detailed policies remain u
 `docs/engineering/`. When documents conflict, stop and resolve the contradiction before changing
 code.
 
-The governed baseline contains verified, merged Stages 1–4. Stage 5 compliance work is isolated
-on `feature/5-compliance-engine`. Stage 6 must not begin until Stage 5 is committed, pushed,
-independently verified, and merged.
+The governed baseline contains independently verified, merged Stages 1–5 at main commit
+`68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 deterministic risk scoring has not
+started and requires its own branch, scope authorization, implementation, tests, independent
+verification, review, and merge gate.
 
 ## Technology stack
 
@@ -41,6 +42,8 @@ partial indexes, composite foreign keys, or concurrency.
 
 ## Code boundaries
 
+- Python uses strict Mypy-compatible annotations; TypeScript must pass both application and Node
+  project type checks. Do not add broad type ignores to hide defects.
 - Route handlers remain thin.
 - Services own business workflows, transaction boundaries, and audit emission.
 - Repositories own database access and tenant predicates.
@@ -74,6 +77,19 @@ partial indexes, composite foreign keys, or concurrency.
 - Rule errors become compliance `ERROR`; missing or version-mismatched evidence becomes
   `NOT_ASSESSED`; suppression does not turn a failure into a pass.
 - Compliance assessment snapshots and finalized per-rule evaluation summaries are immutable.
+- Automated tests must use synthetic fixtures, deterministic AWS doubles, and disposable
+  PostgreSQL. Production/customer AWS accounts and credentials are forbidden.
+
+## Structured logging and audit rules
+
+- Operational logs use bounded structured fields and correlation IDs.
+- Durable audit events record accepted user-visible lifecycle transitions.
+- Never log JWTs, authorization/cookie headers, passwords, AWS credentials, full policies, raw
+  provider/database exceptions, or unbounded evidence.
+- Do not claim audit data is absolutely immutable; database controls and retention/archive
+  guarantees must be described precisely.
+- Owner governance exceptions must state the exact PR and must not be described as independent,
+  CODEOWNER, CI, or repository-policy approval.
 
 ## RBAC and governance
 
@@ -133,6 +149,10 @@ coverage. Required gates are:
 - Repository: secret/private-key/AWS-key/environment scans, conflict-marker scan, and
   `git diff --check`
 
+The maintained baseline expects at least 95% backend coverage. Run focused unit/integration tests
+first, then PostgreSQL integrity/concurrency and the complete regression suite. Verify the exact
+pushed SHA from a separate clean detached worktree before integration.
+
 Do not mark a check passed unless its command ran successfully. Mock AWS deterministically; live
 AWS validation belongs only in a controlled sandbox and must never use customer credentials.
 
@@ -149,13 +169,26 @@ AWS validation belongs only in a controlled sandbox and must never use customer 
 
 ## Branch strategy
 
-- `main`: protected release baseline
-- `develop`: protected integration target
+- `main`: active integration and release baseline
+- `develop`: legacy long-lived branch; do not base new work on it unless policy is explicitly
+  changed
 - `feature/*`: stage implementation branches
 - `fix/*`: narrowly scoped repair branches when needed
+- `docs/*`: documentation-only branches
 
-Use pull requests, required review, and CI. Do not push, merge, rewrite history, or start another
-stage without explicit authorization.
+Use pull requests and required review. Report absent CI checks as absent. Do not force push,
+rewrite history, push directly to `main`, merge, or start another stage without explicit
+authorization.
+
+`main` is the authoritative integrated baseline. New feature/stage branches start only from the
+current verified `main`; never base a new stage on an older feature branch. Before release
+actions, fetch and compare local, upstream, and `origin/main` SHAs.
+
+An open pull-request branch may differ from `main` only by its intended reviewed changes.
+Preserve branches with unique unmerged commits and investigate them before any cleanup. Once a
+historical feature branch is fully contained in `main`, has no open PR, and is not required by
+automation, remove it through normal non-force branch deletion rather than adding synchronization
+merges. Never delete a branch blindly or use history rewriting to manufacture parity.
 
 ## Definition of Done
 
@@ -163,4 +196,7 @@ A stage is done only when its scoped behavior, migrations, tests, security contr
 documentation, dependency audits, and independent verification pass; no later-stage executable
 scope is present; and no secrets or generated artifacts are committed.
 
-Stage 5 code must never be implemented until Stage 4 is independently verified and merged.
+No stage may begin until its predecessor is independently verified and merged. Stage 6 must
+remain blocked until documentation PR #5 is reviewed/authorized, merged, and `main` is
+synchronized and clean. It must branch from that baseline; AI must not perform finding
+detection or deterministic risk scoring.

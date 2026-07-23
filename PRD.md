@@ -10,29 +10,29 @@ future intent.
 
 CloudOps is a multi-tenant SaaS application for securely connecting AWS accounts and building a
 normalized inventory, deterministic security findings, and point-in-time compliance
-assessments. Stages 1–4 are merged; Stage 5 is undergoing final verification.
+assessments. Stages 1–5 are independently verified and merged; Stage 6 has not started.
 
 ## Business goals
 
 - Give each customer organization an isolated administrative boundary.
 - Avoid long-lived customer AWS credentials by using cross-account IAM roles and AWS STS.
 - Maintain an auditable record of authentication, membership, onboarding, and discovery actions.
-- Build a reliable inventory foundation for later security analysis without prematurely claiming
-  findings, risk, or compliance.
+- Build reliable inventory and deterministic evidence without prematurely claiming risk,
+  certification, or unsupported compliance coverage.
 - Preserve historical asset visibility when resources disappear from a later successful
   discovery.
 
 ## Target users
 
-| User | Current needs |
-|---|---|
+| User               | Current needs                                                                          |
+| ------------------ | -------------------------------------------------------------------------------------- |
 | Organization owner | Create and govern an organization, manage members, connect AWS accounts, run discovery |
-| Organization admin | Manage non-owner members, onboard AWS accounts, run discovery |
-| Security analyst | View organization data and inventory, run discovery |
-| Cloud engineer | View organization data and inventory, run discovery |
-| Auditor | Read organization, audit, onboarding, asset, and discovery-job data |
-| Viewer | Limited read-only access to organization data and inventory |
-| Platform admin | Separate platform flag; it does not implicitly bypass tenant authorization |
+| Organization admin | Manage non-owner members, onboard AWS accounts, run discovery                          |
+| Security analyst   | View organization data and inventory, run discovery                                    |
+| Cloud engineer     | View organization data and inventory, run discovery                                    |
+| Auditor            | Read organization, audit, onboarding, asset, and discovery-job data                    |
+| Viewer             | Limited read-only access to organization data and inventory                            |
+| Platform admin     | Separate platform flag; it does not implicitly bypass tenant authorization             |
 
 ## Supported cloud provider
 
@@ -118,6 +118,8 @@ for deterministic checks; it does not ingest raw logs/events or perform full IAM
 8. Run discovery on a connected account.
 9. Review normalized assets and discovery-job results.
 10. Run a deterministic evaluation and review findings.
+11. Run a compliance assessment backed by the completed evaluation.
+12. Review framework, control, mapped-finding, and immutable historical assessment details.
 
 ## Current API capabilities
 
@@ -133,19 +135,22 @@ All application APIs are versioned under `/api/v1`.
 - Assets: list with filters/pagination, summarize, retrieve details
 - Rules, evaluations, and findings: catalog, execution, jobs, filters, summaries, details, and
   authorized suppression
+- Compliance: frameworks, controls, rule mappings, mapped findings, summaries, assessment
+  execution, history, and immutable snapshot details
 - Operations: `/health` and database-backed `/ready`
 
 ## Current dashboard capabilities
 
 The frontend provides organization identity and role context, member and invitation counts,
 recent authentication/membership activity, member administration, AWS onboarding, asset
-inventory, discovery jobs, findings, rule catalog, and evaluation jobs. It does not display risk
-scores, compliance scores, AI content, or remediation controls.
+inventory, discovery jobs, findings, rule catalog, evaluation jobs, compliance frameworks,
+control details, and assessment history. It does not display deterministic risk scores, AI
+content, or remediation controls.
 
 ## Out of scope and not implemented
 
 - Risk scoring
-- Compliance evaluation or scoring
+- Complete framework coverage or compliance certification
 - Security recommendations
 - AI assistance
 - Notifications and ticketing
@@ -153,6 +158,20 @@ scores, compliance scores, AI content, or remediation controls.
 - Scheduled/background discovery
 - Raw CloudWatch log or CloudTrail event ingestion, EventBridge, or deployment infrastructure
 - MFA, SSO/OIDC, password reset, and production invitation email delivery
+- Stage 6 deterministic risk scoring; Stage 7 AI explanations; Stage 8 expanded
+  dashboards/reports; Stage 9 notifications; Stage 10 remediation; Stage 11 scheduling; and
+  Stage 12 extended tamper-evident audit timeline
+
+## Security and test boundaries
+
+- Every tenant-owned operation requires active membership, centralized RBAC, and organization
+  scope; cross-tenant detail probes use non-disclosing behavior.
+- AWS integration is read-only and uses STS temporary credentials only.
+- Automated tests use synthetic data and deterministic AWS mocks. Production and customer AWS
+  accounts or credentials must never be used.
+- Stage 4 rules are the only implemented detection boundary. Stage 5 interprets persisted
+  deterministic evidence and cannot infer `PASS` from missing evidence.
+- AI must not detect findings or determine risk scores.
 
 ## Acceptance criteria for the current baseline
 
@@ -172,6 +191,7 @@ scores, compliance scores, AI content, or remediation controls.
 
 ## Delivery status
 
-Stages 1–4 are verified and merged at `04807de270bf1eeb152b67ab197d97f961e52179`.
-Stage 5 is implemented on `feature/5-compliance-engine` and is undergoing final verification.
-Stage 6 has not started.
+Stages 1–5 are independently verified and merged in `main`. Stage 5 feature SHA
+`ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` was merged by PR #4 at
+`68785b0138eaecf84850887a3d4005c40e9761c0`; Alembic head is
+`0007_stage5_compliance_engine`. Stage 6 deterministic risk scoring has not started.

@@ -1,5 +1,8 @@
 # CloudOps Current UI Design
 
+This design reflects the independently verified and merged Stage 1–5 frontend baseline at main
+commit `68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 risk-scoring UI has not started.
+
 ## Document role
 
 This is the implementation-aligned frontend design summary. The detailed visual standard remains
@@ -17,8 +20,9 @@ Authenticated pages use a responsive application shell:
 - Header with the signed-in email and logout action
 - Constrained main content area for forms, tables, cards, and status views
 
-Primary navigation exposes Dashboard, AWS Accounts, Assets, Security, Members, and Profile.
-Discovery and evaluation jobs, the rule catalog, and finding details have dedicated routes.
+Primary navigation exposes Dashboard, AWS Accounts, Assets, Security, Compliance, Members, and
+Profile. Discovery and evaluation jobs, the rule catalog, finding details, compliance
+frameworks/controls, and assessment history have dedicated routes.
 
 ### Compliance
 
@@ -91,24 +95,24 @@ details, assessment history/details, and the assessment confirmation workflow ar
 
 ### Color palette
 
-| Token | Value |
-|---|---|
-| Primary background | `#0F172A` |
+| Token                | Value     |
+| -------------------- | --------- |
+| Primary background   | `#0F172A` |
 | Secondary background | `#111827` |
-| Sidebar | `#0B1220` |
-| Card | `#1E293B` |
-| Hover/border | `#334155` |
-| Primary text | `#F8FAFC` |
-| Secondary text | `#CBD5E1` |
-| Muted text | `#94A3B8` |
-| Disabled text | `#64748B` |
-| Primary blue | `#2563EB` |
-| Blue hover | `#1D4ED8` |
-| Accent blue | `#60A5FA` |
-| Success | `#22C55E` |
-| Warning | `#F59E0B` |
-| Critical | `#DC2626` |
-| Information | `#06B6D4` |
+| Sidebar              | `#0B1220` |
+| Card                 | `#1E293B` |
+| Hover/border         | `#334155` |
+| Primary text         | `#F8FAFC` |
+| Secondary text       | `#CBD5E1` |
+| Muted text           | `#94A3B8` |
+| Disabled text        | `#64748B` |
+| Primary blue         | `#2563EB` |
+| Blue hover           | `#1D4ED8` |
+| Accent blue          | `#60A5FA` |
+| Success              | `#22C55E` |
+| Warning              | `#F59E0B` |
+| Critical             | `#DC2626` |
+| Information          | `#06B6D4` |
 
 Future risk colors are reserved design tokens only; their presence does not imply risk
 functionality.
