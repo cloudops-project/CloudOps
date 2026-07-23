@@ -55,12 +55,17 @@ class AWSAccountStatus(StrEnum):
 
 class AssetType(StrEnum):
     EC2_INSTANCE = "ec2_instance"
+    EC2_SECURITY_GROUP = "ec2_security_group"
+    EBS_VOLUME = "ebs_volume"
     S3_BUCKET = "s3_bucket"
     IAM_USER = "iam_user"
     IAM_ROLE = "iam_role"
     IAM_GROUP = "iam_group"
     IAM_POLICY = "iam_policy"
     RDS_INSTANCE = "rds_instance"
+    CLOUDWATCH_ALARM = "cloudwatch_alarm"
+    CLOUDWATCH_LOG_GROUP = "cloudwatch_log_group"
+    CLOUDTRAIL_TRAIL = "cloudtrail_trail"
 
 
 class DiscoveryJobStatus(StrEnum):
@@ -69,3 +74,59 @@ class DiscoveryJobStatus(StrEnum):
     COMPLETED = "completed"
     PARTIALLY_COMPLETED = "partially_completed"
     FAILED = "failed"
+
+
+class RuleResultStatus(StrEnum):
+    PASSED = "passed"
+    FAILED = "failed"
+    NOT_APPLICABLE = "not_applicable"
+    ERROR = "error"
+
+
+class FindingStatus(StrEnum):
+    OPEN = "open"
+    RESOLVED = "resolved"
+    SUPPRESSED = "suppressed"
+
+
+class EvaluationJobStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    PARTIALLY_COMPLETED = "partially_completed"
+    FAILED = "failed"
+
+
+class FindingSeverity(StrEnum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    INFORMATIONAL = "informational"
+
+
+class RuleService(StrEnum):
+    EC2 = "ec2"
+    S3 = "s3"
+    IAM = "iam"
+    RDS = "rds"
+    CLOUDWATCH = "cloudwatch"
+    CLOUDWATCH_LOGS = "cloudwatch_logs"
+    CLOUDTRAIL = "cloudtrail"
+
+
+class RuleCategory(StrEnum):
+    COVERAGE = "coverage"
+    CREDENTIAL_HYGIENE = "credential_hygiene"
+    DATA_PROTECTION = "data_protection"
+    EXPOSURE = "exposure"
+    HARDENING = "hardening"
+    IDENTITY = "identity"
+    INTEGRITY = "integrity"
+    LEAST_PRIVILEGE = "least_privilege"
+    LOGGING = "logging"
+    MONITORING = "monitoring"
+    NETWORK = "network"
+    PATCHING = "patching"
+    RESILIENCE = "resilience"
+    TRANSPORT = "transport"

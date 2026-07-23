@@ -16,7 +16,7 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
-  current_user_role: Role;
+  role: Role;
 }
 export interface Me {
   user: User;
@@ -68,12 +68,17 @@ export interface AWSAccountDetail {
 }
 export type AssetType =
   | "ec2_instance"
+  | "ec2_security_group"
+  | "ebs_volume"
   | "s3_bucket"
   | "iam_user"
   | "iam_role"
   | "iam_group"
   | "iam_policy"
-  | "rds_instance";
+  | "rds_instance"
+  | "cloudwatch_alarm"
+  | "cloudwatch_log_group"
+  | "cloudtrail_trail";
 export interface Asset {
   id: string;
   organization_id: string;
@@ -110,4 +115,81 @@ export interface DiscoveryJob {
   assets_updated: number;
   assets_deactivated: number;
   error_summary: string | null;
+}
+
+export type FindingSeverity =
+  "critical" | "high" | "medium" | "low" | "informational";
+export type FindingStatus = "open" | "resolved" | "suppressed";
+export interface SecurityRule {
+  key: string;
+  version: number;
+  name: string;
+  description: string;
+  service: string;
+  asset_type: AssetType | null;
+  asset_types: AssetType[];
+  category: string;
+  severity: FindingSeverity;
+  remediation: string;
+  references: string[];
+  enabled_by_default: boolean;
+}
+export interface Finding {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  asset_id: string | null;
+  rule_key: string;
+  rule_version: number;
+  severity: FindingSeverity;
+  category: string;
+  service: string;
+  asset_type: AssetType | null;
+  region: string | null;
+  remediation: string;
+  references: string[];
+  status: FindingStatus;
+  evidence: Record<string, unknown>;
+  first_seen_at: string;
+  last_seen_at: string;
+  resolved_at: string | null;
+  suppressed_at: string | null;
+  suppressed_until: string | null;
+  suppression_reason: string | null;
+  last_evaluation_id: string;
+}
+export type EvaluationStatus =
+  "pending" | "running" | "completed" | "partially_completed" | "failed";
+export interface EvaluationJob {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  sequence: number;
+  status: EvaluationStatus;
+  assets_evaluated: number;
+  rules_evaluated: number;
+  passed_count: number;
+  failed_count: number;
+  error_count: number;
+  not_applicable_count: number;
+  findings_created: number;
+  findings_updated: number;
+  findings_resolved: number;
+  findings_reopened: number;
+  evaluation_errors: number;
+  error_summary: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+}
+export interface FindingSummary {
+  total: number;
+  items: Array<{
+    severity: FindingSeverity;
+    status: FindingStatus;
+    service: string;
+    aws_account_id: string;
+    asset_type: AssetType | null;
+    region: string | null;
+    count: number;
+  }>;
 }

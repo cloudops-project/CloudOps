@@ -35,8 +35,10 @@ flowchart LR
   Services --> Audit["Audit writer"]
   Services --> STS["AWS STS AssumeRole"]
   STS --> Temp["Temporary in-memory credentials"]
-  Temp --> Collectors["EC2 / S3 / IAM / RDS collectors"]
+  Temp --> Collectors["EC2 / S3 / IAM / RDS / CloudWatch / CloudTrail collectors"]
   Collectors --> Repos
+  Repos --> Rules["Typed deterministic rules"]
+  Rules --> Findings["Evaluation jobs and findings"]
 ```
 
 Route handlers perform HTTP mapping and schema validation. Services own workflows, transaction
@@ -48,9 +50,12 @@ boundaries, invariants, and audit events. Repositories own persistence and tenan
 - **Configuration:** Pydantic Settings in `app/core/config.py`
 - **Database:** synchronous SQLAlchemy 2 sessions with PostgreSQL as the production target
 - **Migrations:** Alembic in `apps/api/alembic/`
-- **Models:** identity, tenancy, tokens, audit, AWS onboarding, assets, discovery jobs
+- **Models:** identity, tenancy, tokens, audit, AWS onboarding, assets, discovery jobs,
+  evaluation jobs, and findings
 - **Schemas:** explicit Pydantic v2 request/response models
-- **Services:** authentication, organizations, invitations, AWS onboarding, discovery
+- **Services:** authentication, organizations, invitations, onboarding, discovery, evaluations,
+  and finding lifecycle
+- **Rules:** static typed registry under `app/security_rules`; no boto3, network, or filesystem
 - **Security:** Argon2, JWT validation, token hashing, centralized RBAC
 - **Logging:** request correlation and structured JSON-compatible events
 
@@ -64,7 +69,7 @@ React Hook Form, Zod, and Lucide React.
 - Refresh requests use credentials and are single-flight.
 - Failed refresh invalidates the in-memory token and user state.
 - `ProtectedRoute` controls authenticated navigation; backend authorization remains authoritative.
-- Page modules cover Stage 1 administration, Stage 2 AWS onboarding, and Stage 3 inventory.
+- Page modules cover administration, AWS onboarding, inventory, findings, rules, and evaluations.
 
 ## Authentication flow
 
@@ -112,6 +117,13 @@ in-memory service clients and are never stored.
 9. Commit each successful service boundary independently.
 10. Finish the job as `completed`, `partially_completed`, or `failed` and record audit metadata.
 
+## Evaluation flow
+
+Authorize and lock a connected account, allocate a monotonic job sequence, read persisted active
+assets, and run static typed rules. Passed results resolve existing findings, failures
+create/update/reopen them, and errors preserve prior state. Stale sequences cannot overwrite
+newer lifecycle state. Terminal counters, structured logs, and audit events are committed.
+
 ## Current PostgreSQL schema
 
 | Model/table | Purpose |
@@ -126,6 +138,8 @@ in-memory service clients and are never stored.
 | `AWSExternalIDReservation` / `aws_external_id_reservations` | Permanent global external-ID reservation |
 | `Asset` / `assets` | Normalized historical AWS resource inventory |
 | `DiscoveryJob` / `discovery_jobs` | Discovery execution state and counters |
+| `EvaluationJob` / `evaluation_jobs` | Evaluation sequence, status, and counters |
+| `Finding` / `findings` | Stable rule result, evidence, resolution, and suppression |
 
 ## Database constraints and concurrency
 
@@ -139,6 +153,9 @@ in-memory service clients and are never stored.
 - Asset identity is unique by account/type/resource ID.
 - Asset seen timestamps and discovery-job counters/status timestamps have check constraints.
 - A partial unique index prevents more than one pending/running discovery job per account.
+- A partial unique index prevents more than one pending/running evaluation per account.
+- Partial unique indexes provide one asset/rule or account/rule finding identity.
+- Composite foreign keys enforce finding organization/account/asset agreement.
 - PostgreSQL row locks serialize refresh rotation, invitation acceptance, final-owner changes,
   AWS account lifecycle mutations, and account-level asset lifecycle work.
 - Validation operation tokens stop stale STS results from overwriting newer account changes.
@@ -165,6 +182,7 @@ tokens, authorization/cookie headers, and AWS credentials are excluded.
 - `invitations`: invitation acceptance
 - `aws_accounts`: account onboarding and lifecycle
 - `discovery`: discovery start, jobs, assets, summary
+- `security_findings`: rules, evaluations, findings, summary, suppression
 - `health`: liveness and readiness
 
 ## Migration chain
@@ -173,7 +191,8 @@ tokens, authorization/cookie headers, and AWS credentials are excluded.
 0001_stage1
   -> 0002_stage2
   -> 0003_stage3
-  -> 0004_verification_repairs (current head)
+  -> 0004_verification_repairs
+  -> 0005_stage4_rule_engine (current head)
 ```
 
 `0004_verification_repairs` backfills permanent external-ID reservations and adds the composite
@@ -182,7 +201,6 @@ valid Stage 2/3 data is preserved.
 
 ## Future work
 
-Stage 4 has not started. It may introduce a deterministic security rule engine and findings only after independent
-Stage 2/3 verification and merge. Findings, compliance, risk, recommendations, AI,
-notifications, scheduling, remediation, and production infrastructure are not part of the
-current executable architecture.
+Stage 5 has not started. Compliance, risk scoring, AI, notifications, raw event ingestion,
+scheduling, remediation, and production infrastructure are not part of the executable
+architecture.

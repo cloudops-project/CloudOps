@@ -19,7 +19,7 @@ const owner: Me = {
       id: "o1",
       name: "Example Org",
       slug: "example",
-      current_user_role: "owner",
+      role: "owner",
     },
   ],
 };
@@ -112,6 +112,52 @@ describe("Stage 1 application", () => {
       await screen.findByText(/use at least 12 characters/i),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/full name/i)).toBeVisible();
+  });
+  it("shows safe field-specific backend registration validation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const payload = JSON.parse(String(init?.body)) as Record<
+          string,
+          unknown
+        >;
+        expect(payload).not.toHaveProperty("organization_name");
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: "validation_error",
+              message: "Request validation failed.",
+              details: [
+                {
+                  field: "body.email",
+                  message: "Use a deliverable email domain.",
+                },
+              ],
+            },
+          }),
+          {
+            status: 422,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }),
+    );
+    renderApp("/register");
+    await userEvent.type(screen.getByLabelText("Full name"), "Test User");
+    await userEvent.type(screen.getByLabelText("Email"), "user@example.com");
+    await userEvent.type(
+      screen.getByLabelText("Password"),
+      "Strong-Password-123!",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Create account" }),
+    );
+    expect(
+      await screen.findByText("Use a deliverable email domain."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Request validation failed."),
+    ).not.toBeInTheDocument();
   });
   it("validates login", async () => {
     renderApp("/login");
@@ -272,6 +318,239 @@ describe("Stage 1 application", () => {
   });
 });
 
+describe("Stage 4 deterministic findings", () => {
+  const account = {
+    id: "a1",
+    organization_id: "o1",
+    name: "Production",
+    account_id: "123456789012",
+    role_arn: "arn:aws:iam::123456789012:role/CloudOpsReadOnlyRole",
+    external_id: "test-external-id",
+    status: "connected",
+    connection_status: "connected",
+    failure_reason: null,
+    last_validated_at: null,
+  };
+  const finding = {
+    id: "f1",
+    organization_id: "o1",
+    aws_account_id: "a1",
+    asset_id: "asset1",
+    rule_key: "EC2_SG_SSH_OPEN_TO_WORLD",
+    rule_version: 1,
+    severity: "critical",
+    category: "network",
+    service: "ec2",
+    asset_type: "ec2_security_group",
+    region: "us-east-1",
+    remediation: "Restrict SSH access.",
+    references: ["https://docs.aws.amazon.com/"],
+    status: "open",
+    evidence: { cidr: "<script>alert('unsafe')</script>" },
+    first_seen_at: "2026-07-23T00:00:00Z",
+    last_seen_at: "2026-07-23T00:00:00Z",
+    resolved_at: null,
+    suppressed_at: null,
+    suppressed_until: null,
+    suppression_reason: null,
+    last_evaluation_id: "e1",
+  };
+
+  it("renders severity counts and escaped finding evidence", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const data = url.includes("/summary")
+          ? {
+              total: 1,
+              items: [
+                {
+                  severity: "critical",
+                  status: "open",
+                  service: "ec2",
+                  aws_account_id: "a1",
+                  asset_type: "ec2_security_group",
+                  region: "us-east-1",
+                  count: 1,
+                },
+              ],
+            }
+          : finding;
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    const dashboard = renderApp("/security", owner);
+    expect((await screen.findAllByText("1")).length).toBeGreaterThanOrEqual(1);
+    dashboard.unmount();
+    renderApp("/findings/f1", owner);
+    expect(
+      await screen.findByText("<script>alert('unsafe')</script>", {
+        exact: false,
+      }),
+    ).toBeInTheDocument();
+    expect(document.querySelector("script")).toBeNull();
+  });
+
+  it("filters and paginates findings", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const data = url.includes("/aws/accounts")
+        ? [account]
+        : { items: [finding], total: 30, page: 1, page_size: 25 };
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderApp("/findings", owner);
+    const user = userEvent.setup();
+    await screen.findByText("EC2_SG_SSH_OPEN_TO_WORLD");
+    await user.selectOptions(screen.getByLabelText("AWS account"), "a1");
+    await user.selectOptions(screen.getByLabelText("Service"), "ec2");
+    await user.selectOptions(
+      screen.getByLabelText("Asset type"),
+      "ec2_security_group",
+    );
+    await user.selectOptions(screen.getByLabelText("Severity"), "critical");
+    await user.selectOptions(screen.getByLabelText("Status"), "open");
+    await user.type(screen.getByLabelText("Region"), "us-east-1");
+    await user.type(screen.getByLabelText("Rule"), "EC2_SG_SSH_OPEN_TO_WORLD");
+    await user.type(screen.getByLabelText("Asset ID"), "asset1");
+    await user.type(screen.getByLabelText("Search findings"), "ssh");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map(([input]) => String(input));
+      const url = urls.find((value) => value.includes("/findings?")) ?? "";
+      for (const expected of [
+        "aws_account_id=a1",
+        "service=ec2",
+        "asset_type=ec2_security_group",
+        "severity=critical",
+        "status=open",
+        "region=us-east-1",
+        "rule_key=EC2_SG_SSH_OPEN_TO_WORLD",
+        "asset_id=asset1",
+        "search=ssh",
+        "page=2",
+      ]) {
+        expect(urls.some((value) => value.includes(expected))).toBe(true);
+      }
+      expect(url).toContain("organization_id=");
+    });
+  });
+
+  it("requires a suppression reason and restores dialog focus", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const suppressed = init?.method === "POST";
+        return new Response(
+          JSON.stringify(
+            suppressed ? { ...finding, status: "suppressed" } : finding,
+          ),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }),
+    );
+    renderApp("/findings/f1", owner);
+    const user = userEvent.setup();
+    const trigger = await screen.findByRole("button", {
+      name: "Suppress finding",
+    });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Suppress finding" });
+    expect(dialog).toBeInTheDocument();
+    const confirm = screen.getByRole("button", { name: "Confirm suppression" });
+    expect(confirm).toBeDisabled();
+    await user.type(screen.getByLabelText("Suppression reason"), "Maintenance");
+    expect(confirm).toBeEnabled();
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(confirm).toHaveFocus();
+    await user.tab();
+    expect(screen.getByLabelText("Suppression reason")).toHaveFocus();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it.each([
+    ["owner", true],
+    ["admin", true],
+    ["security_analyst", true],
+    ["cloud_engineer", true],
+    ["auditor", false],
+    ["viewer", false],
+  ] as const)("applies evaluation controls for %s", async (role, allowed) => {
+    const me: Me = {
+      ...owner,
+      organizations: [{ ...owner.organizations[0], role: role }],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const data = String(input).includes("/aws/accounts")
+          ? [account]
+          : { items: [], total: 0, page: 1, page_size: 25 };
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    renderApp("/evaluations", me);
+    await screen.findByText(/no evaluations yet/i);
+    const trigger = screen.queryByRole("button", { name: /run evaluation/i });
+    if (allowed) expect(trigger).toBeInTheDocument();
+    else expect(trigger).not.toBeInTheDocument();
+  });
+
+  it("confirms an evaluation once and cancels without calling the API", async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const data = url.includes("/aws/accounts")
+          ? [account]
+          : url.includes("/evaluate") && init?.method === "POST"
+            ? {
+                id: "e1",
+                status: "completed",
+                sequence: 1,
+              }
+            : { items: [], total: 0, page: 1, page_size: 25 };
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderApp("/evaluations", owner);
+    const user = userEvent.setup();
+    await screen.findByRole("option", { name: "Production" });
+    await user.selectOptions(screen.getByLabelText("AWS account"), "a1");
+    await user.click(screen.getByRole("button", { name: "Run evaluation" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).includes("/evaluate")),
+    ).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Run evaluation" }));
+    await user.click(
+      screen.getByRole("button", { name: "Confirm evaluation" }),
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([url]) =>
+          String(url).includes("/evaluate"),
+        ),
+      ).toHaveLength(1),
+    );
+  });
+});
+
 describe("Stage 2 AWS account onboarding", () => {
   it("validates the create-account form before sending a request", async () => {
     renderApp("/aws/accounts/new", owner);
@@ -357,9 +636,7 @@ describe("Stage 2 AWS account onboarding", () => {
   it("rejects non-admin users from onboarding routes", async () => {
     const viewer: Me = {
       ...owner,
-      organizations: [
-        { ...owner.organizations[0], current_user_role: "viewer" },
-      ],
+      organizations: [{ ...owner.organizations[0], role: "viewer" }],
     };
     renderApp("/aws/accounts/new", viewer);
     expect(
@@ -721,9 +998,7 @@ describe("Stage 3 asset discovery", () => {
   it("hides discovery controls from viewers while allowing inventory access", async () => {
     const viewer: Me = {
       ...owner,
-      organizations: [
-        { ...owner.organizations[0], current_user_role: "viewer" },
-      ],
+      organizations: [{ ...owner.organizations[0], role: "viewer" }],
     };
     vi.stubGlobal(
       "fetch",
@@ -754,7 +1029,7 @@ describe("Stage 3 asset discovery", () => {
   ] as const)("applies discovery controls for %s", async (role, allowed) => {
     const me: Me = {
       ...owner,
-      organizations: [{ ...owner.organizations[0], current_user_role: role }],
+      organizations: [{ ...owner.organizations[0], role: role }],
     };
     vi.stubGlobal(
       "fetch",

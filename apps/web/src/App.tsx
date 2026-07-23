@@ -19,6 +19,13 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { NotFoundPage, UnauthorizedPage } from "./pages/StatusPages";
 import {
+  EvaluationJobsPage,
+  FindingDetailsPage,
+  FindingsDashboardPage,
+  FindingsPage,
+  RuleCatalogPage,
+} from "./pages/FindingsPages";
+import {
   AssetDetailsPage,
   AssetsPage,
   DiscoveryJobsPage,
@@ -43,6 +50,11 @@ export function App() {
           <Route path="/assets" element={<AssetsPage />} />
           <Route path="/assets/:assetId" element={<AssetDetailsPage />} />
           <Route path="/discovery/jobs" element={<DiscoveryJobsPage />} />
+          <Route path="/security" element={<FindingsDashboardPage />} />
+          <Route path="/findings" element={<FindingsPage />} />
+          <Route path="/findings/:findingId" element={<FindingDetailsPage />} />
+          <Route path="/rules" element={<RuleCatalogPage />} />
+          <Route path="/evaluations" element={<EvaluationJobsPage />} />
           <Route path="/aws/accounts" element={<AWSAccountsPage />} />
           <Route path="/aws/accounts/new" element={<AddAWSAccountPage />} />
           <Route

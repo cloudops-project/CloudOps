@@ -6,11 +6,13 @@ from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from threading import Barrier, Event, Lock
+from typing import Any
 
 import pytest
 from pydantic import SecretStr
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -22,6 +24,8 @@ from app.models import (
     AWSAccount,
     AWSExternalIDReservation,
     DiscoveryJob,
+    EvaluationJob,
+    Finding,
     Organization,
     OrganizationInvitation,
     OrganizationMembership,
@@ -32,27 +36,36 @@ from app.models.enums import (
     AssetType,
     AWSAccountStatus,
     DiscoveryJobStatus,
+    EvaluationJobStatus,
+    FindingSeverity,
+    FindingStatus,
     InvitationStatus,
     MembershipStatus,
     OrganizationRole,
 )
 from app.security.passwords import hash_password
 from app.security.tokens import hash_opaque_token
+from app.security_rules import default_registry
+from app.security_rules.base import RuleContext
 from app.services.auth import AuthService, IssuedTokens
 from app.services.aws_onboarding import AWSOnboardingService
 from app.services.common import now_utc
 from app.services.discovery import DiscoveryOrchestrator, NormalizedAsset
+from app.services.evaluations import EvaluationService
 from app.services.invitations import InvitationService
 from app.services.organizations import OrganizationService
 
 POSTGRES_TEST_DATABASE_URL = os.getenv("POSTGRES_TEST_DATABASE_URL")
-EXPECTED_SUFFIX = "/cloudops_test"
+if POSTGRES_TEST_DATABASE_URL:
+    database_name = make_url(POSTGRES_TEST_DATABASE_URL).database or ""
+else:
+    database_name = ""
 
-if POSTGRES_TEST_DATABASE_URL and not POSTGRES_TEST_DATABASE_URL.split("?", 1)[0].endswith(
-    EXPECTED_SUFFIX
+if POSTGRES_TEST_DATABASE_URL and not (
+    database_name == "cloudops_test" or database_name.startswith("cloudops_e2e_")
 ):
     raise RuntimeError(
-        "POSTGRES_TEST_DATABASE_URL must target the disposable cloudops_test database"
+        "POSTGRES_TEST_DATABASE_URL must target cloudops_test or a cloudops_e2e_* database"
     )
 
 pytestmark = pytest.mark.skipif(
@@ -1066,4 +1079,498 @@ def test_discovery_terminal_race_and_rollback_leave_consistent_state(
                 .where(Asset.resource_id == rollback_resource)
             )
             == 0
+        )
+
+
+def _stage4_account(db: Session, suffix: str) -> tuple[User, Organization, AWSAccount, Asset]:
+    owner = _user(f"evaluation-{suffix}-{uuid.uuid4()}@example.com")
+    db.add(owner)
+    db.flush()
+    organization = Organization(
+        name=f"Evaluation {suffix}",
+        slug=f"evaluation-{suffix}-{uuid.uuid4()}",
+        created_by_user_id=owner.id,
+    )
+    db.add(organization)
+    db.flush()
+    db.add(
+        OrganizationMembership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=OrganizationRole.OWNER,
+            status=MembershipStatus.ACTIVE,
+            joined_at=now_utc(),
+        )
+    )
+    account = AWSAccount(
+        organization_id=organization.id,
+        name="Production",
+        account_id=f"{abs(hash(suffix)) % 10**12:012d}",
+        role_arn=f"arn:aws:iam::{abs(hash(suffix)) % 10**12:012d}:role/CloudOpsReadOnlyRole",
+        external_id=f"cloudops-{uuid.uuid4()}",
+        status=AWSAccountStatus.CONNECTED,
+        connection_status=AWSAccountStatus.CONNECTED,
+        created_by_user_id=owner.id,
+    )
+    db.add(account)
+    db.flush()
+    asset = Asset(
+        organization_id=organization.id,
+        aws_account_id=account.id,
+        asset_type=AssetType.EC2_SECURITY_GROUP,
+        resource_id=f"sg-{uuid.uuid4()}",
+        name="public-ssh",
+        region="us-east-1",
+        status="active",
+        tags={},
+        metadata_json={
+            "ip_permissions": [
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 22,
+                    "ToPort": 22,
+                    "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
+                }
+            ]
+        },
+        first_seen_at=now_utc(),
+        last_seen_at=now_utc(),
+    )
+    db.add(asset)
+    db.flush()
+    return owner, organization, account, asset
+
+
+def test_stage4_concurrent_evaluation_start_and_different_accounts(
+    postgres_sessions: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with postgres_sessions.begin() as db:
+        owner_a, _organization_a, account_a, _asset_a = _stage4_account(db, "a")
+        owner_b, _organization_b, account_b, _asset_b = _stage4_account(db, "b")
+        owner_a_id, owner_b_id = owner_a.id, owner_b.id
+        account_a_id, account_b_id = account_a.id, account_b.id
+
+    def leave_pending(service: EvaluationService, job_id: uuid.UUID, _actor: User) -> EvaluationJob:
+        job = service.db.get(EvaluationJob, job_id)
+        assert job is not None
+        return job
+
+    monkeypatch.setattr(EvaluationService, "run", leave_pending)
+
+    def start(account_id: uuid.UUID, owner_id: uuid.UUID) -> EvaluationJob:
+        with postgres_sessions() as db:
+            owner = db.get(User, owner_id)
+            assert owner is not None
+            return EvaluationService(db).start(account_id, owner)
+
+    same = _run_concurrently(
+        lambda: start(account_a_id, owner_a_id),
+        lambda: start(account_a_id, owner_a_id),
+    )
+    assert sum(isinstance(result, EvaluationJob) for result in same) == 1
+    assert sum(isinstance(result, AppError) for result in same) == 1
+
+    with postgres_sessions.begin() as db:
+        active = db.scalars(
+            select(EvaluationJob).where(
+                EvaluationJob.aws_account_id == account_a_id,
+                EvaluationJob.status == EvaluationJobStatus.PENDING,
+            )
+        ).all()
+        assert len(active) == 1
+        active[0].status = EvaluationJobStatus.FAILED
+        active[0].started_at = now_utc()
+        active[0].finished_at = now_utc()
+
+    different = _run_concurrently(
+        lambda: start(account_a_id, owner_a_id),
+        lambda: start(account_b_id, owner_b_id),
+    )
+    assert all(isinstance(result, EvaluationJob) for result in different)
+
+
+def test_stage4_concurrent_finding_creation_and_cross_tenant_rejection(
+    postgres_sessions: sessionmaker[Session],
+) -> None:
+    with postgres_sessions.begin() as db:
+        owner, organization, account, asset = _stage4_account(db, "finding")
+        other_owner, other_org, _other_account, _other_asset = _stage4_account(db, "other")
+        job = EvaluationJob(
+            organization_id=organization.id,
+            aws_account_id=account.id,
+            sequence=1,
+            started_by_user_id=owner.id,
+        )
+        db.add(job)
+        db.flush()
+        ids = (
+            organization.id,
+            other_org.id,
+            account.id,
+            asset.id,
+            job.id,
+            other_owner.id,
+        )
+
+    organization_id, other_org_id, account_id, asset_id, job_id, _ = ids
+
+    def insert_finding() -> Finding:
+        with postgres_sessions.begin() as db:
+            finding = Finding(
+                organization_id=organization_id,
+                aws_account_id=account_id,
+                asset_id=asset_id,
+                rule_key="EC2_SG_SSH_OPEN_TO_WORLD",
+                rule_version=1,
+                severity=FindingSeverity.CRITICAL,
+                category="network",
+                status=FindingStatus.OPEN,
+                evidence_json={"cidr": "0.0.0.0/0"},
+                first_seen_at=now_utc(),
+                last_seen_at=now_utc(),
+                last_evaluation_id=job_id,
+            )
+            db.add(finding)
+            db.flush()
+            return finding
+
+    results = _run_concurrently(insert_finding, insert_finding)
+    assert sum(isinstance(result, Finding) for result in results) == 1
+    assert sum(isinstance(result, IntegrityError) for result in results) == 1
+    with postgres_sessions() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(Finding)
+                .where(
+                    Finding.asset_id == asset_id,
+                    Finding.rule_key == "EC2_SG_SSH_OPEN_TO_WORLD",
+                )
+            )
+            == 1
+        )
+
+    with pytest.raises(IntegrityError), postgres_sessions.begin() as db:
+        db.add(
+            Finding(
+                organization_id=other_org_id,
+                aws_account_id=account_id,
+                asset_id=asset_id,
+                rule_key="CROSS_TENANT_TEST",
+                rule_version=1,
+                severity=FindingSeverity.HIGH,
+                category="tenant",
+                status=FindingStatus.OPEN,
+                evidence_json={},
+                first_seen_at=now_utc(),
+                last_seen_at=now_utc(),
+                last_evaluation_id=job_id,
+            )
+        )
+
+
+def test_stage4_repair_constraint_matrix(
+    postgres_sessions: sessionmaker[Session],
+) -> None:
+    with postgres_sessions.begin() as db:
+        owner, organization, account, asset = _stage4_account(db, "constraints")
+        valid_job = EvaluationJob(
+            organization_id=organization.id,
+            aws_account_id=account.id,
+            sequence=1,
+            status=EvaluationJobStatus.COMPLETED,
+            started_by_user_id=owner.id,
+            started_at=now_utc(),
+            finished_at=now_utc(),
+        )
+        db.add(valid_job)
+        db.flush()
+        ids = organization.id, account.id, asset.id, owner.id, valid_job.id
+
+    organization_id, account_id, asset_id, owner_id, job_id = ids
+
+    invalid_jobs: tuple[dict[str, Any], ...] = (
+        {"status": EvaluationJobStatus.RUNNING, "started_at": None, "finished_at": None},
+        {
+            "status": EvaluationJobStatus.RUNNING,
+            "started_at": now_utc(),
+            "finished_at": now_utc(),
+        },
+        {
+            "status": EvaluationJobStatus.COMPLETED,
+            "started_at": now_utc(),
+            "finished_at": None,
+        },
+        {
+            "status": EvaluationJobStatus.FAILED,
+            "started_at": now_utc(),
+            "finished_at": now_utc(),
+            "evaluation_errors": -1,
+        },
+        {
+            "status": EvaluationJobStatus.COMPLETED,
+            "started_at": now_utc(),
+            "finished_at": now_utc(),
+            "findings_reopened": -1,
+        },
+    )
+    for sequence, values in enumerate(invalid_jobs, start=2):
+        with pytest.raises(IntegrityError), postgres_sessions.begin() as db:
+            db.add(
+                EvaluationJob(
+                    organization_id=organization_id,
+                    aws_account_id=account_id,
+                    sequence=sequence,
+                    started_by_user_id=owner_id,
+                    **values,
+                )
+            )
+
+    now = now_utc()
+    invalid_findings: tuple[dict[str, Any], ...] = (
+        {
+            "status": FindingStatus.RESOLVED,
+            "resolved_at": None,
+        },
+        {
+            "status": FindingStatus.SUPPRESSED,
+            "suppressed_at": now,
+            "suppression_reason": "Maintenance",
+            "suppressed_by_user_id": None,
+        },
+        {
+            "status": FindingStatus.SUPPRESSED,
+            "suppressed_at": now,
+            "suppression_reason": "",
+            "suppressed_by_user_id": owner_id,
+        },
+        {
+            "status": FindingStatus.OPEN,
+            "first_seen_at": now,
+            "last_seen_at": now - timedelta(seconds=1),
+        },
+    )
+    for index, values in enumerate(invalid_findings):
+        with pytest.raises(IntegrityError), postgres_sessions.begin() as db:
+            finding = Finding(
+                organization_id=organization_id,
+                aws_account_id=account_id,
+                asset_id=asset_id,
+                rule_key=f"CONSTRAINT_TEST_{index}",
+                rule_version=1,
+                severity=FindingSeverity.HIGH,
+                category="integrity",
+                evidence_json={},
+                first_seen_at=now,
+                last_seen_at=now,
+                last_evaluation_id=job_id,
+            )
+            for name, value in values.items():
+                setattr(finding, name, value)
+            db.add(finding)
+
+    with postgres_sessions.begin() as db:
+        valid = Finding(
+            organization_id=organization_id,
+            aws_account_id=account_id,
+            asset_id=asset_id,
+            rule_key="VALID_SUPPRESSION",
+            rule_version=1,
+            severity=FindingSeverity.MEDIUM,
+            category="integrity",
+            status=FindingStatus.SUPPRESSED,
+            evidence_json={},
+            first_seen_at=now,
+            last_seen_at=now,
+            suppressed_at=now,
+            suppression_reason="Approved exception",
+            suppressed_by_user_id=owner_id,
+            last_evaluation_id=job_id,
+        )
+        db.add(valid)
+        db.flush()
+
+
+def test_stage4_suppression_and_terminal_races_are_serialized(
+    postgres_sessions: sessionmaker[Session],
+) -> None:
+    with postgres_sessions() as db:
+        owner, organization, account, asset = _stage4_account(db, "lifecycle-race")
+        db.commit()
+        first = EvaluationService(db).start(account.id, owner)
+        finding = db.scalar(
+            select(Finding).where(
+                Finding.asset_id == asset.id,
+                Finding.rule_key == "EC2_SG_SSH_OPEN_TO_WORLD",
+            )
+        )
+        assert finding is not None
+        running = EvaluationJob(
+            organization_id=organization.id,
+            aws_account_id=account.id,
+            sequence=first.sequence + 1,
+            status=EvaluationJobStatus.RUNNING,
+            started_by_user_id=owner.id,
+            started_at=now_utc(),
+        )
+        db.add(running)
+        db.commit()
+        ids = owner.id, organization.id, account.id, asset.id, finding.id, running.id
+
+    owner_id, organization_id, _account_id, asset_id, finding_id, running_id = ids
+    barrier = Barrier(2)
+
+    def suppress() -> None:
+        with postgres_sessions() as db:
+            owner = db.get(User, owner_id)
+            assert owner is not None
+            barrier.wait()
+            EvaluationService(db).suppress(
+                organization_id,
+                finding_id,
+                owner,
+                "Approved concurrent maintenance",
+                now_utc() + timedelta(hours=1),
+            )
+
+    def resolve() -> None:
+        with postgres_sessions.begin() as db:
+            owner = db.get(User, owner_id)
+            job = db.get(EvaluationJob, running_id)
+            item = db.get(Asset, asset_id)
+            assert owner is not None and job is not None and item is not None
+            rule = default_registry.get("EC2_SG_SSH_OPEN_TO_WORLD")
+            assert rule is not None
+            item.metadata_json = {"ip_permissions": []}
+            result = rule.evaluate(item, RuleContext((item,), evaluated_at=now_utc()))
+            barrier.wait()
+            EvaluationService(db)._apply_result(job, rule, item, result)
+
+    results = _run_concurrently(suppress, resolve)
+    assert all(result is None for result in results)
+    with postgres_sessions() as db:
+        finding = db.get(Finding, finding_id)
+        assert finding is not None
+        assert finding.status == FindingStatus.SUPPRESSED
+        assert finding.suppression_reason == "Approved concurrent maintenance"
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(
+                    AuditEvent.resource_id == finding_id,
+                    AuditEvent.event_type == "security.finding.suppressed",
+                )
+            )
+            == 1
+        )
+
+    terminal_barrier = Barrier(2)
+
+    def finish(status: EvaluationJobStatus) -> EvaluationJob:
+        with postgres_sessions() as db:
+            owner = db.get(User, owner_id)
+            assert owner is not None
+            terminal_barrier.wait()
+            return EvaluationService(db)._finish(running_id, owner, status, [])
+
+    terminal = _run_concurrently(
+        lambda: finish(EvaluationJobStatus.COMPLETED),
+        lambda: finish(EvaluationJobStatus.FAILED),
+    )
+    assert sum(isinstance(result, EvaluationJob) for result in terminal) == 1
+    assert sum(isinstance(result, AppError) for result in terminal) == 1
+    with postgres_sessions() as db:
+        job = db.get(EvaluationJob, running_id)
+        assert job is not None
+        assert job.status in {EvaluationJobStatus.COMPLETED, EvaluationJobStatus.FAILED}
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(
+                    AuditEvent.resource_id == running_id,
+                    AuditEvent.event_type.in_(
+                        ["security.evaluation.completed", "security.evaluation.failed"]
+                    ),
+                )
+            )
+            == 1
+        )
+
+
+def test_stage4_actual_service_path_serializes_same_finding_creation(
+    postgres_sessions: sessionmaker[Session],
+) -> None:
+    with postgres_sessions.begin() as db:
+        owner, organization, account, asset = _stage4_account(db, "finding-service-race")
+        at = now_utc()
+        jobs = [
+            EvaluationJob(
+                organization_id=organization.id,
+                aws_account_id=account.id,
+                sequence=1,
+                status=EvaluationJobStatus.COMPLETED,
+                started_by_user_id=owner.id,
+                started_at=at,
+                finished_at=at,
+            ),
+            EvaluationJob(
+                organization_id=organization.id,
+                aws_account_id=account.id,
+                sequence=2,
+                status=EvaluationJobStatus.RUNNING,
+                started_by_user_id=owner.id,
+                started_at=at,
+            ),
+        ]
+        db.add_all(jobs)
+        db.flush()
+        ids = account.id, asset.id, jobs[0].id, jobs[1].id
+
+    account_id, asset_id, first_job_id, second_job_id = ids
+    barrier = Barrier(2)
+
+    def apply(job_id: uuid.UUID) -> None:
+        with postgres_sessions.begin() as db:
+            job = db.get(EvaluationJob, job_id)
+            item = db.get(Asset, asset_id)
+            rule = default_registry.get("EC2_SG_SSH_OPEN_TO_WORLD")
+            assert job is not None and item is not None and rule is not None
+            result = rule.evaluate(item, RuleContext((item,), evaluated_at=now_utc()))
+            barrier.wait()
+            EvaluationService(db)._apply_result(job, rule, item, result)
+
+    results = _run_concurrently(
+        lambda: apply(first_job_id),
+        lambda: apply(second_job_id),
+    )
+    assert all(result is None for result in results)
+    with postgres_sessions() as db:
+        findings = db.scalars(
+            select(Finding).where(
+                Finding.aws_account_id == account_id,
+                Finding.asset_id == asset_id,
+                Finding.rule_key == "EC2_SG_SSH_OPEN_TO_WORLD",
+            )
+        ).all()
+        assert len(findings) == 1
+        assert findings[0].first_seen_at <= findings[0].last_seen_at
+        persisted_jobs = db.scalars(
+            select(EvaluationJob).where(EvaluationJob.id.in_([first_job_id, second_job_id]))
+        ).all()
+        assert sum(job.findings_created for job in persisted_jobs) == 1
+        assert sum(job.findings_updated for job in persisted_jobs) == 1
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(
+                    AuditEvent.resource_id == findings[0].id,
+                    AuditEvent.event_type.in_(
+                        ["security.finding.created", "security.finding.updated"]
+                    ),
+                )
+            )
+            == 2
         )

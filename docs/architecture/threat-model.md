@@ -1,4 +1,4 @@
-﻿# CloudOps Threat Model
+# CloudOps Threat Model
 
 ## Purpose and audience
 
@@ -32,6 +32,11 @@ Encrypt in transit and at rest; store application/provider secrets in Secrets Ma
 ## High-risk misuse cases
 
 An attacker tries a valid finding ID from another tenant; the repository's organization predicate returns indistinguishable not-found/forbidden behavior and logs a redacted denial. A malicious S3 tag contains prompt instructions; it is treated as data, minimized/redacted, and cannot alter the structured prompt or call tools. A replayed approval request hits a unique idempotency key and current-version precondition. A compromised administrator cannot silently erase history.
+
+Stage 4 rules have no network/filesystem access and cannot dynamically execute untrusted
+content. A rule error cannot resolve a finding. Evaluation sequences reject stale results,
+PostgreSQL uniqueness prevents duplicate active jobs/findings, suppression is capability
+controlled, and React renders evidence as escaped text.
 
 ## Residual risks and open questions
 

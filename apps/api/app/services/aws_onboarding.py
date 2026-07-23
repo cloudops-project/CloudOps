@@ -135,6 +135,10 @@ class AWSOnboardingService:
         OrganizationService(self.db).require_capability(
             organization_id, actor.id, Capability.AWS_ACCOUNTS_MANAGE
         )
+        # Account creation always returns onboarding trust policy details.
+        # Validate the service principal before reserving an external ID or
+        # committing anything, so a 503 cannot leave a hidden account behind.
+        self._trusted_principal()
         provider_account_id = self.validate_account_id(account_id)
         if self.repo.aws_account_by_provider_id(organization_id, provider_account_id):
             raise ConflictError(
@@ -332,13 +336,7 @@ class AWSOnboardingService:
         self.db.commit()
 
     def trust_policy(self, account: AWSAccount) -> dict[str, Any]:
-        principal = self.settings.aws_trusted_principal_arn.strip()
-        if not PRINCIPAL_ARN_PATTERN.fullmatch(principal):
-            raise AppError(
-                "aws_principal_not_configured",
-                "CloudOps AWS trusted principal is not configured.",
-                503,
-            )
+        principal = self._trusted_principal()
         return {
             "Version": "2012-10-17",
             "Statement": [
@@ -350,6 +348,16 @@ class AWSOnboardingService:
                 }
             ],
         }
+
+    def _trusted_principal(self) -> str:
+        principal = self.settings.aws_trusted_principal_arn.strip()
+        if not PRINCIPAL_ARN_PATTERN.fullmatch(principal):
+            raise AppError(
+                "aws_principal_not_configured",
+                "CloudOps AWS trusted principal is not configured.",
+                503,
+            )
+        return principal
 
     @staticmethod
     def permission_policy() -> dict[str, str]:

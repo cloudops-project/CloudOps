@@ -1,4 +1,4 @@
-﻿# Testing Strategy
+# Testing Strategy
 
 ## Stage 1 executable suite
 
@@ -13,6 +13,12 @@ The disposable PostgreSQL 16 suite validates upgrade/downgrade/re-upgrade, schem
 Engineering, QA, security, and product use this staged strategy to verify behavior without claiming tests already exist or pass.
 
 Unit tests cover state machines, redaction, normalization, deterministic rules, permission policy, fingerprinting, and retry decisions. Integration tests use PostgreSQL and provider adapters for repository tenancy, transactions, STS/Jira/notification contracts, queue leases, and audit outbox. Contract tests pin OpenAPI/provider assumptions. End-to-end tests cover onboarding, scan, finding, Jira/manual/approved sandbox remediation, verification, acceptance expiry, and audit.
+
+The implemented Stage 4 suite covers collector configuration metadata, deterministic rule
+positive/negative/error behavior, finding detect/update/resolve/reopen/suppress lifecycles, all
+six roles, bounded APIs, escaped frontend evidence, and PostgreSQL active-job,
+finding-identity, tenant-integrity, migration, and concurrency behavior. Jira, notifications,
+compliance, risk, and remediation remain future test strategy.
 
 Security testing includes cross-tenant negatives, IDOR/mass assignment, session/CSRF, injection/XSS/SSRF, rate/replay/idempotency, IAM policy review, prompt injection, secret/log leakage, webhook forgery, dependency/secret/static scans, dynamic tests, and authorized manual penetration testing in sandbox/UAT. Performance tests establish baselines for representative assets and queue load; no target is asserted before measurement.
 

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from alembic.config import Config
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine.url import make_url
 
 from alembic import command
 from app.core.config import get_settings
@@ -21,7 +22,8 @@ pytestmark = pytest.mark.skipif(
 
 def test_repair_migration_backfills_and_preserves_stage2_and_stage3_data() -> None:
     assert POSTGRES_TEST_DATABASE_URL is not None
-    assert POSTGRES_TEST_DATABASE_URL.split("?", 1)[0].endswith("/cloudops_test")
+    database_name = make_url(POSTGRES_TEST_DATABASE_URL).database or ""
+    assert database_name == "cloudops_test" or database_name.startswith("cloudops_e2e_")
     os.environ["DATABASE_URL"] = POSTGRES_TEST_DATABASE_URL
     get_settings.cache_clear()
 

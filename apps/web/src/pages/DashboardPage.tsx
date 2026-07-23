@@ -17,8 +17,7 @@ export function DashboardPage() {
   const invitations = useQuery({
     queryKey: ["invitations", organization?.id],
     enabled: Boolean(
-      organization &&
-      ["owner", "admin"].includes(organization.current_user_role),
+      organization && ["owner", "admin"].includes(organization.role),
     ),
     queryFn: () =>
       api<Invitation[]>(
@@ -28,8 +27,7 @@ export function DashboardPage() {
   const audit = useQuery({
     queryKey: ["audit", organization?.id],
     enabled: Boolean(
-      organization &&
-      ["owner", "admin", "auditor"].includes(organization.current_user_role),
+      organization && ["owner", "admin", "auditor"].includes(organization.role),
     ),
     queryFn: () =>
       api<AuditEvent[]>(
@@ -63,7 +61,7 @@ export function DashboardPage() {
           </p>
           <h1 className="text-3xl font-extrabold">{organization.name}</h1>
           <p className="text-slate-400">
-            Your role: {organization.current_user_role.replace("_", " ")}
+            Your role: {organization.role.replace("_", " ")}
           </p>
         </div>
         <div className="flex gap-3">
@@ -77,7 +75,7 @@ export function DashboardPage() {
         </div>
       </div>
       {members.isLoading ? (
-        <p aria-live="polite">Loading dashboard…</p>
+        <p aria-live="polite">Loading dashboardÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</p>
       ) : members.isError ? (
         <p role="alert" className="text-red-400">
           Unable to load dashboard.
@@ -102,7 +100,7 @@ export function DashboardPage() {
           <Activity className="text-blue-400" />
           <h2 className="text-xl font-bold">Recent activity</h2>
         </div>
-        {audit.isLoading && <p>Loading activity…</p>}
+        {audit.isLoading && <p>Loading activityÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</p>}
         {audit.data?.length === 0 && (
           <p className="text-slate-400">No recent activity.</p>
         )}

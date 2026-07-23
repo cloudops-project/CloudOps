@@ -1,4 +1,12 @@
-﻿# Trust Boundaries
+# Trust Boundaries
+
+## Stage 4 clarification
+
+Boto3 and temporary credentials remain inside trusted discovery services. Persisted normalized
+metadata crosses into deterministic evaluation only after bounding and redaction. Rules cannot
+call AWS, the network, or the filesystem. Findings/evaluations remain tenant scoped. Browser
+evidence is escaped text. Structured logs and audit events exclude credentials, tokens, full
+policies, and raw provider exceptions.
 
 ## Purpose and audience
 

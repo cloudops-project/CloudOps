@@ -78,8 +78,16 @@ other platforms are out of scope.
 - Discovery jobs, counts, sanitized errors, and audit events
 - Bounded, filterable asset APIs and inventory frontend
 
-Stage 3 is inventory only. Discovery does not inspect bucket policy, ACL exposure, encryption,
-network exposure, IAM privilege, policy documents, vulnerabilities, or compliance.
+Stage 3 remains the inventory foundation. Stage 4 expands bounded configuration metadata needed
+for deterministic checks; it does not ingest raw logs/events or perform full IAM simulation.
+
+### Stage 4 — Deterministic Rule Engine and Findings
+
+- Static, trusted typed Python rule registry; rules evaluate persisted assets only
+- High-confidence EC2, S3, IAM, RDS, CloudWatch, CloudWatch Logs, and CloudTrail rules
+- Evaluation jobs with one active job per AWS account
+- Stable findings with open, resolved, reopened, and suppressed lifecycle behavior
+- Bounded evidence, tenant-safe APIs, audit events, structured logs, and frontend workflows
 
 ## Current user journey
 
@@ -92,6 +100,7 @@ network exposure, IAM privilege, policy documents, vulnerabilities, or complianc
 7. Enter the role ARN and validate the connection through STS.
 8. Run discovery on a connected account.
 9. Review normalized assets and discovery-job results.
+10. Run a deterministic evaluation and review findings.
 
 ## Current API capabilities
 
@@ -105,19 +114,19 @@ All application APIs are versioned under `/api/v1`.
 - AWS accounts: create, list, retrieve, update, validate, disconnect, delete
 - Discovery: start account discovery; list and retrieve jobs
 - Assets: list with filters/pagination, summarize, retrieve details
+- Rules, evaluations, and findings: catalog, execution, jobs, filters, summaries, details, and
+  authorized suppression
 - Operations: `/health` and database-backed `/ready`
 
 ## Current dashboard capabilities
 
 The frontend provides organization identity and role context, member and invitation counts,
 recent authentication/membership activity, member administration, AWS onboarding, asset
-inventory, asset details, discovery confirmation, and discovery-job status. It does not display
-security findings, risk charts, compliance scores, recommendations, or remediation controls.
+inventory, discovery jobs, findings, rule catalog, and evaluation jobs. It does not display risk
+scores, compliance scores, AI content, or remediation controls.
 
 ## Out of scope and not implemented
 
-- Security findings and misconfiguration detection
-- Deterministic security-rule execution
 - Risk scoring
 - Compliance evaluation or scoring
 - Security recommendations
@@ -125,7 +134,7 @@ security findings, risk charts, compliance scores, recommendations, or remediati
 - Notifications and ticketing
 - Remediation or customer-resource mutation
 - Scheduled/background discovery
-- CloudWatch, EventBridge, or production deployment infrastructure
+- Raw CloudWatch log or CloudTrail event ingestion, EventBridge, or deployment infrastructure
 - MFA, SSO/OIDC, password reset, and production invitation email delivery
 
 ## Acceptance criteria for the current baseline
@@ -141,9 +150,10 @@ security findings, risk charts, compliance scores, recommendations, or remediati
 - PostgreSQL enforces account/organization consistency and lifecycle constraints.
 - All authorization is enforced by the backend.
 - No credentials are persisted or exposed.
-- No executable Stage 4 functionality exists.
+- Rule errors cannot falsely pass or resolve findings.
+- Stage 5 functionality is absent.
 
 ## Delivery status
 
-Stages 1, 2, and 3 are implemented and independently verified by the final repository review.
-Stage 4 has not started. Merge remains subject to repository pull-request review and approval.
+Stages 1–3 are merged. Stage 4 is implemented on `feature/4-rule-engine` and awaits independent
+verification and pull-request review. Stage 5 has not started.

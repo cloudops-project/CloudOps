@@ -135,7 +135,11 @@ def invite(
     )
 
 
-@router.get("/{organization_id}/invitations", response_model=list[InvitationResponse])
+@router.get(
+    "/{organization_id}/invitations",
+    response_model=list[InvitationResponse],
+    response_model_exclude_none=True,
+)
 def invitations(
     organization_id: uuid.UUID, user: CurrentUser, db: DbSession, settings: AppSettings
 ) -> list[InvitationResponse]:

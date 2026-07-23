@@ -2,14 +2,16 @@
 
 ## Last updated
 
-2026-07-23 — documentation synchronization on `feature/3-asset-discovery`.
+2026-07-23 — Stage 4 implementation on `feature/4-rule-engine`.
 
 ## Current implementation
 
-Stage 1 is implemented and regression-tested. Stage 2 AWS onboarding and Stage 3 asset discovery
-are implemented and independently verified. Stage 4 has not started.
+Stages 1–3 are merged and regression-tested. Stage 4 deterministic evaluation and findings are
+implemented and pending independent verification. Stage 5 has not started.
 
-Alembic revision `0004_verification_repairs` follows `0003_stage3`. It adds immutable
+Alembic revision `0005_stage4_rule_engine` follows `0004_verification_repairs` and adds
+evaluation jobs, findings, tenant/lifecycle constraints, and active-job/finding uniqueness.
+Revision `0004_verification_repairs` adds immutable
 external-ID reservation history, AWS-account lifecycle coordination fields, database-enforced
 account/organization consistency for assets and jobs, asset timestamp checks, nonnegative job
 counts, and job status/timestamp invariants. Existing account IDs and external IDs are
@@ -47,9 +49,8 @@ tests use deterministic AWS doubles; controlled live-AWS validation remains oper
 
 ## Next task
 
-Commit and push the verified Stage 1–3 baseline, then open a pull request to `main` and obtain the
-required independent human approval. Do not begin Stage 4 rule evaluation, findings, posture,
-compliance, risk, notifications, AI, remediation, or deployment infrastructure.
+Complete Stage 4 gates, commit/push `feature/4-rule-engine`, open a draft pull request to `main`,
+and run independent verification. Do not merge Stage 4 or begin Stage 5.
 
 ## Stage 3 implementation snapshot
 
@@ -58,4 +59,11 @@ external-ID history and database integrity/concurrency controls. EC2, S3, IAM, a
 collectors normalize paginated inventory. Repeated runs preserve
 first-seen history, update current values, and safely deactivate missing assets only after that
 collector succeeds. The UI provides asset filters/details and discovery job status/results.
-Temporary AWS credentials are not persisted, and no Stage 4 security analysis exists.
+Temporary AWS credentials are not persisted. Stage 4 rules evaluate persisted normalized data;
+compliance, risk, AI, remediation, and raw event ingestion remain absent.
+
+## Governance exception
+
+PR #2 merged Stages 1–3 to `main` at `0849e75d...` without a recorded GitHub approval. The
+repository owner explicitly accepted the missing approval as a governance exception and
+authorized Stage 4. This is not a claim that an independent GitHub approval occurred.
