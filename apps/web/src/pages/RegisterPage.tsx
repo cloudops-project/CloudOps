@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
-import { api } from "../api/client";
+import { ApiError, api } from "../api/client";
 import { AuthCard, Field } from "../components/AuthCard";
 
 const schema = z.object({
@@ -35,13 +35,33 @@ export function RegisterPage() {
         className="grid gap-4"
         onSubmit={handleSubmit(async (values) => {
           try {
+            const payload = {
+              ...values,
+              organization_name: values.organization_name?.trim() || undefined,
+            };
             await api(
               "/api/v1/auth/register",
-              { method: "POST", body: JSON.stringify(values) },
+              { method: "POST", body: JSON.stringify(payload) },
               false,
             );
             navigate("/login");
           } catch (error) {
+            if (error instanceof ApiError && error.details.length > 0) {
+              let fieldErrorApplied = false;
+              for (const detail of error.details) {
+                const field = detail.field.split(".").at(-1);
+                if (
+                  field === "full_name" ||
+                  field === "email" ||
+                  field === "password" ||
+                  field === "organization_name"
+                ) {
+                  setError(field, { message: detail.message });
+                  fieldErrorApplied = true;
+                }
+              }
+              if (fieldErrorApplied) return;
+            }
             setError("root", {
               message:
                 error instanceof Error ? error.message : "Registration failed.",

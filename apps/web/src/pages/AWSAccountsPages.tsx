@@ -50,7 +50,7 @@ function useAccountDetail() {
 
 export function AWSAccountsPage() {
   const org = useOrganization();
-  const canManage = org && ["owner", "admin"].includes(org.current_user_role);
+  const canManage = org && ["owner", "admin"].includes(org.role);
   const query = useQuery({
     queryKey: ["aws-accounts", org?.id],
     enabled: Boolean(org),
@@ -103,7 +103,7 @@ export function AddAWSAccountPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<CreateValues>({ resolver: zodResolver(createSchema) });
-  if (!org || !["owner", "admin"].includes(org.current_user_role))
+  if (!org || !["owner", "admin"].includes(org.role))
     return <Navigate to="/unauthorized" replace />;
   return (
     <section className="card max-w-2xl">
@@ -191,12 +191,10 @@ export function AWSAccountDetailsPage() {
       </p>
     );
   const { account } = query.data;
-  const canManage = org && ["owner", "admin"].includes(org.current_user_role);
+  const canManage = org && ["owner", "admin"].includes(org.role);
   const canDiscover =
     org &&
-    ["owner", "admin", "security_analyst", "cloud_engineer"].includes(
-      org.current_user_role,
-    );
+    ["owner", "admin", "security_analyst", "cloud_engineer"].includes(org.role);
   return (
     <section className="grid gap-5">
       <Link

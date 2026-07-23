@@ -19,7 +19,7 @@ const owner: Me = {
       id: "o1",
       name: "Example Org",
       slug: "example",
-      current_user_role: "owner",
+      role: "owner",
     },
   ],
 };
@@ -112,6 +112,52 @@ describe("Stage 1 application", () => {
       await screen.findByText(/use at least 12 characters/i),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/full name/i)).toBeVisible();
+  });
+  it("shows safe field-specific backend registration validation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const payload = JSON.parse(String(init?.body)) as Record<
+          string,
+          unknown
+        >;
+        expect(payload).not.toHaveProperty("organization_name");
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: "validation_error",
+              message: "Request validation failed.",
+              details: [
+                {
+                  field: "body.email",
+                  message: "Use a deliverable email domain.",
+                },
+              ],
+            },
+          }),
+          {
+            status: 422,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }),
+    );
+    renderApp("/register");
+    await userEvent.type(screen.getByLabelText("Full name"), "Test User");
+    await userEvent.type(screen.getByLabelText("Email"), "user@example.com");
+    await userEvent.type(
+      screen.getByLabelText("Password"),
+      "Strong-Password-123!",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Create account" }),
+    );
+    expect(
+      await screen.findByText("Use a deliverable email domain."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Request validation failed."),
+    ).not.toBeInTheDocument();
   });
   it("validates login", async () => {
     renderApp("/login");
@@ -294,6 +340,11 @@ describe("Stage 4 deterministic findings", () => {
     rule_version: 1,
     severity: "critical",
     category: "network",
+    service: "ec2",
+    asset_type: "ec2_security_group",
+    region: "us-east-1",
+    remediation: "Restrict SSH access.",
+    references: ["https://docs.aws.amazon.com/"],
     status: "open",
     evidence: { cidr: "<script>alert('unsafe')</script>" },
     first_seen_at: "2026-07-23T00:00:00Z",
@@ -313,7 +364,17 @@ describe("Stage 4 deterministic findings", () => {
         const data = url.includes("/summary")
           ? {
               total: 1,
-              items: [{ severity: "critical", status: "open", count: 1 }],
+              items: [
+                {
+                  severity: "critical",
+                  status: "open",
+                  service: "ec2",
+                  aws_account_id: "a1",
+                  asset_type: "ec2_security_group",
+                  region: "us-east-1",
+                  count: 1,
+                },
+              ],
             }
           : finding;
         return new Response(JSON.stringify(data), {
@@ -323,7 +384,7 @@ describe("Stage 4 deterministic findings", () => {
       }),
     );
     const dashboard = renderApp("/security", owner);
-    expect(await screen.findByText("1")).toBeInTheDocument();
+    expect((await screen.findAllByText("1")).length).toBeGreaterThanOrEqual(1);
     dashboard.unmount();
     renderApp("/findings/f1", owner);
     expect(
@@ -349,17 +410,38 @@ describe("Stage 4 deterministic findings", () => {
     renderApp("/findings", owner);
     const user = userEvent.setup();
     await screen.findByText("EC2_SG_SSH_OPEN_TO_WORLD");
+    await user.selectOptions(screen.getByLabelText("AWS account"), "a1");
+    await user.selectOptions(screen.getByLabelText("Service"), "ec2");
+    await user.selectOptions(
+      screen.getByLabelText("Asset type"),
+      "ec2_security_group",
+    );
     await user.selectOptions(screen.getByLabelText("Severity"), "critical");
+    await user.selectOptions(screen.getByLabelText("Status"), "open");
+    await user.type(screen.getByLabelText("Region"), "us-east-1");
+    await user.type(screen.getByLabelText("Rule"), "EC2_SG_SSH_OPEN_TO_WORLD");
+    await user.type(screen.getByLabelText("Asset ID"), "asset1");
     await user.type(screen.getByLabelText("Search findings"), "ssh");
     await user.click(screen.getByRole("button", { name: "Next" }));
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringMatching(
-          /severity=critical.*search=ssh.*page=2|page=2.*severity=critical.*search=ssh/,
-        ),
-        expect.anything(),
-      ),
-    );
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map(([input]) => String(input));
+      const url = urls.find((value) => value.includes("/findings?")) ?? "";
+      for (const expected of [
+        "aws_account_id=a1",
+        "service=ec2",
+        "asset_type=ec2_security_group",
+        "severity=critical",
+        "status=open",
+        "region=us-east-1",
+        "rule_key=EC2_SG_SSH_OPEN_TO_WORLD",
+        "asset_id=asset1",
+        "search=ssh",
+        "page=2",
+      ]) {
+        expect(urls.some((value) => value.includes(expected))).toBe(true);
+      }
+      expect(url).toContain("organization_id=");
+    });
   });
 
   it("requires a suppression reason and restores dialog focus", async () => {
@@ -387,6 +469,10 @@ describe("Stage 4 deterministic findings", () => {
     expect(confirm).toBeDisabled();
     await user.type(screen.getByLabelText("Suppression reason"), "Maintenance");
     expect(confirm).toBeEnabled();
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(confirm).toHaveFocus();
+    await user.tab();
+    expect(screen.getByLabelText("Suppression reason")).toHaveFocus();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(trigger).toHaveFocus());
   });
@@ -401,7 +487,7 @@ describe("Stage 4 deterministic findings", () => {
   ] as const)("applies evaluation controls for %s", async (role, allowed) => {
     const me: Me = {
       ...owner,
-      organizations: [{ ...owner.organizations[0], current_user_role: role }],
+      organizations: [{ ...owner.organizations[0], role: role }],
     };
     vi.stubGlobal(
       "fetch",
@@ -550,9 +636,7 @@ describe("Stage 2 AWS account onboarding", () => {
   it("rejects non-admin users from onboarding routes", async () => {
     const viewer: Me = {
       ...owner,
-      organizations: [
-        { ...owner.organizations[0], current_user_role: "viewer" },
-      ],
+      organizations: [{ ...owner.organizations[0], role: "viewer" }],
     };
     renderApp("/aws/accounts/new", viewer);
     expect(
@@ -914,9 +998,7 @@ describe("Stage 3 asset discovery", () => {
   it("hides discovery controls from viewers while allowing inventory access", async () => {
     const viewer: Me = {
       ...owner,
-      organizations: [
-        { ...owner.organizations[0], current_user_role: "viewer" },
-      ],
+      organizations: [{ ...owner.organizations[0], role: "viewer" }],
     };
     vi.stubGlobal(
       "fetch",
@@ -947,7 +1029,7 @@ describe("Stage 3 asset discovery", () => {
   ] as const)("applies discovery controls for %s", async (role, allowed) => {
     const me: Me = {
       ...owner,
-      organizations: [{ ...owner.organizations[0], current_user_role: role }],
+      organizations: [{ ...owner.organizations[0], role: role }],
     };
     vi.stubGlobal(
       "fetch",

@@ -16,9 +16,7 @@ export function MembersPage() {
   const { me } = useAuth();
   const org = me?.organizations[0];
   const queryClient = useQueryClient();
-  const canManage = Boolean(
-    org && ["owner", "admin"].includes(org.current_user_role),
-  );
+  const canManage = Boolean(org && ["owner", "admin"].includes(org.role));
   const query = useQuery({
     queryKey: ["members", org?.id],
     enabled: Boolean(org),
@@ -91,10 +89,7 @@ export function MembersPage() {
                   }
                 >
                   {roles
-                    .filter(
-                      (role) =>
-                        org.current_user_role === "owner" || role !== "owner",
-                    )
+                    .filter((role) => org.role === "owner" || role !== "owner")
                     .map((role) => (
                       <option key={role}>{role}</option>
                     ))}

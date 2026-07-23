@@ -19,7 +19,7 @@ export function InviteMemberPage() {
   } = useForm<{ email: string; role: Role }>({
     defaultValues: { role: "viewer" },
   });
-  if (!org || !["owner", "admin"].includes(org.current_user_role))
+  if (!org || !["owner", "admin"].includes(org.role))
     return <p role="alert">You do not have permission to invite members.</p>;
   return (
     <section className="card max-w-xl">

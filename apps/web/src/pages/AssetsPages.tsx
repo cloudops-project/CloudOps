@@ -348,7 +348,7 @@ export function DiscoveryJobsPage() {
   const canStart =
     organization &&
     ["owner", "admin", "security_analyst", "cloud_engineer"].includes(
-      organization.current_user_role,
+      organization.role,
     );
   const start = useMutation({
     mutationFn: () =>

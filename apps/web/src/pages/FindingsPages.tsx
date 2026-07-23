@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Play, Search, ShieldAlert } from "lucide-react";
-import type { ReactNode } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
@@ -12,6 +12,7 @@ import {
   SeverityBadge,
 } from "../components/FindingComponents";
 import type {
+  AssetType,
   AWSAccount,
   EvaluationJob,
   Finding,
@@ -34,6 +35,29 @@ const severities: FindingSeverity[] = [
   "informational",
 ];
 const statuses: FindingStatus[] = ["open", "resolved", "suppressed"];
+const services = [
+  "ec2",
+  "s3",
+  "iam",
+  "rds",
+  "cloudwatch",
+  "cloudwatch_logs",
+  "cloudtrail",
+];
+const assetTypes: AssetType[] = [
+  "ec2_instance",
+  "ec2_security_group",
+  "ebs_volume",
+  "s3_bucket",
+  "iam_user",
+  "iam_role",
+  "iam_group",
+  "iam_policy",
+  "rds_instance",
+  "cloudwatch_alarm",
+  "cloudwatch_log_group",
+  "cloudtrail_trail",
+];
 
 export function FindingsDashboardPage() {
   const organization = useOrganization();
@@ -74,6 +98,19 @@ export function FindingsDashboardPage() {
           </article>
         ))}
       </div>
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        {statuses.map((status) => (
+          <article className="card" key={status}>
+            <FindingStatusBadge status={status} />
+            <p className="mt-4 text-3xl font-extrabold">
+              {summary.data?.items
+                .filter((item) => item.status === status)
+                .reduce((total, item) => total + item.count, 0) ?? 0}
+            </p>
+            <p className="text-sm text-slate-400">All severities</p>
+          </article>
+        ))}
+      </div>
       <div className="mt-6 flex flex-wrap gap-3">
         <Link className="button" to="/findings">
           <ShieldAlert size={18} />
@@ -97,6 +134,11 @@ export function FindingsPage() {
     severity: "",
     status: "",
     aws_account_id: "",
+    asset_id: "",
+    service: "",
+    asset_type: "",
+    region: "",
+    rule_key: "",
     search: "",
   });
   const accounts = useQuery({
@@ -159,6 +201,71 @@ export function FindingsPage() {
           ))}
         </Filter>
         <Filter
+          label="Service"
+          value={filters.service}
+          onChange={(value) => update("service", value)}
+        >
+          {services.map((service) => (
+            <option key={service} value={service}>
+              {service.replaceAll("_", " ")}
+            </option>
+          ))}
+        </Filter>
+        <Filter
+          label="Asset type"
+          value={filters.asset_type}
+          onChange={(value) => update("asset_type", value)}
+        >
+          {assetTypes.map((type) => (
+            <option key={type} value={type}>
+              {type.replaceAll("_", " ")}
+            </option>
+          ))}
+        </Filter>
+        <label>
+          <span className="label">Region</span>
+          <input
+            className="input"
+            value={filters.region}
+            onChange={(event) => update("region", event.target.value)}
+          />
+        </label>
+        <label>
+          <span className="label">Rule</span>
+          <input
+            className="input"
+            value={filters.rule_key}
+            onChange={(event) => update("rule_key", event.target.value)}
+          />
+        </label>
+        <label>
+          <span className="label">Asset ID</span>
+          <input
+            className="input"
+            value={filters.asset_id}
+            onChange={(event) => update("asset_id", event.target.value)}
+          />
+        </label>
+        <button
+          className="button-secondary self-end"
+          onClick={() => {
+            setFilters({
+              severity: "",
+              status: "",
+              aws_account_id: "",
+              asset_id: "",
+              service: "",
+              asset_type: "",
+              region: "",
+              rule_key: "",
+              search: "",
+            });
+            setPage(1);
+          }}
+        >
+          Clear filters
+        </button>
+        <Filter
           label="Severity"
           value={filters.severity}
           onChange={(value) => update("severity", value)}
@@ -205,6 +312,20 @@ export function FindingsPage() {
                 <FindingStatusBadge status={finding.status} />
               </span>
             </div>
+            <dl className="mt-3 grid gap-2 text-sm text-slate-300 sm:grid-cols-3">
+              <div>
+                <dt className="text-slate-500">Service</dt>
+                <dd>{finding.service}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Region</dt>
+                <dd>{finding.region ?? "Account-level"}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Last seen</dt>
+                <dd>{new Date(finding.last_seen_at).toLocaleString()}</dd>
+              </div>
+            </dl>
           </article>
         ))}
       </div>
@@ -224,7 +345,9 @@ export function FindingDetailsPage() {
   const client = useQueryClient();
   const [suppressOpen, setSuppressOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [suppressedUntil, setSuppressedUntil] = useState("");
   const dialogRef = useRef<HTMLButtonElement>(null);
+  const dialogContainerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const query = useQuery({
     queryKey: ["finding", findingId, organization?.id],
@@ -234,7 +357,7 @@ export function FindingDetailsPage() {
         `/api/v1/findings/${findingId}?organization_id=${organization!.id}`,
       ),
   });
-  const role = organization?.current_user_role;
+  const role = organization?.role;
   const canSuppress = Boolean(
     role && ["owner", "admin", "security_analyst"].includes(role),
   );
@@ -242,12 +365,21 @@ export function FindingDetailsPage() {
     mutationFn: () =>
       api<Finding>(
         `/api/v1/findings/${findingId}/suppress?organization_id=${organization!.id}`,
-        { method: "POST", body: JSON.stringify({ reason }) },
+        {
+          method: "POST",
+          body: JSON.stringify({
+            reason,
+            suppressed_until: suppressedUntil
+              ? new Date(suppressedUntil).toISOString()
+              : null,
+          }),
+        },
       ),
     onSuccess: (finding) => {
       client.setQueryData(["finding", findingId, organization?.id], finding);
       setSuppressOpen(false);
       setReason("");
+      setSuppressedUntil("");
       queueMicrotask(() => triggerRef.current?.focus());
     },
   });
@@ -313,17 +445,64 @@ export function FindingDetailsPage() {
         )}
       </article>
       <article className="card">
+        <h2 className="text-xl font-bold">Finding details</h2>
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div>
+            <dt className="label">Rule version</dt>
+            <dd>{finding.rule_version}</dd>
+          </div>
+          <div>
+            <dt className="label">Service</dt>
+            <dd>{finding.service}</dd>
+          </div>
+          <div>
+            <dt className="label">Asset type</dt>
+            <dd>{finding.asset_type ?? "Account-level"}</dd>
+          </div>
+          <div>
+            <dt className="label">Region</dt>
+            <dd>{finding.region ?? "Not applicable"}</dd>
+          </div>
+          <div>
+            <dt className="label">First seen</dt>
+            <dd>{new Date(finding.first_seen_at).toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt className="label">Last seen</dt>
+            <dd>{new Date(finding.last_seen_at).toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt className="label">Suppression</dt>
+            <dd>{finding.suppression_reason ?? "Not suppressed"}</dd>
+          </div>
+        </dl>
+        <h3 className="mt-5 font-bold">Remediation</h3>
+        <p className="text-slate-300">{finding.remediation}</p>
+        {(finding.references ?? []).length > 0 && (
+          <>
+            <h3 className="mt-5 font-bold">References</h3>
+            <ul className="list-disc pl-6">
+              {(finding.references ?? []).map((reference) => (
+                <li key={reference}>{reference}</li>
+              ))}
+            </ul>
+          </>
+        )}
+      </article>
+      <article className="card">
         <h2 className="mb-3 text-xl font-bold">Evidence</h2>
         <SafeEvidence value={finding.evidence} />
       </article>
       {suppressOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/75 p-4">
           <div
+            ref={dialogContainerRef}
             aria-labelledby="suppress-title"
             aria-modal="true"
             className="card w-full max-w-lg"
             role="dialog"
             onKeyDown={(event) => {
+              trapDialogFocus(event, dialogContainerRef.current);
               if (event.key === "Escape" && !suppress.isPending) {
                 setSuppressOpen(false);
                 queueMicrotask(() => triggerRef.current?.focus());
@@ -339,6 +518,15 @@ export function FindingDetailsPage() {
                 className="input min-h-28"
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
+              />
+            </label>
+            <label className="mt-4 block">
+              <span className="label">Expiry (optional)</span>
+              <input
+                className="input"
+                type="datetime-local"
+                value={suppressedUntil}
+                onChange={(event) => setSuppressedUntil(event.target.value)}
               />
             </label>
             <div className="mt-5 flex justify-end gap-3">
@@ -402,6 +590,7 @@ export function EvaluationJobsPage() {
   const [selected, setSelected] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const confirmContainerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const accounts = useQuery({
     queryKey: ["aws-accounts", organization?.id],
@@ -422,7 +611,7 @@ export function EvaluationJobsPage() {
   const canRun = Boolean(
     organization &&
     ["owner", "admin", "security_analyst", "cloud_engineer"].includes(
-      organization.current_user_role,
+      organization.role,
     ),
   );
   const start = useMutation({
@@ -485,6 +674,10 @@ export function EvaluationJobsPage() {
               <span>Failed: {job.failed_count}</span>
               <span>Errors: {job.error_count}</span>
               <span>Created: {job.findings_created}</span>
+              <span>Updated: {job.findings_updated}</span>
+              <span>Resolved: {job.findings_resolved}</span>
+              <span>Reopened: {job.findings_reopened}</span>
+              <span>Evaluation errors: {job.evaluation_errors}</span>
             </div>
             {job.error_summary && (
               <p role="alert" className="mt-3 text-red-300">
@@ -497,11 +690,13 @@ export function EvaluationJobsPage() {
       {confirmOpen && selectedAccount && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/75 p-4">
           <div
+            ref={confirmContainerRef}
             aria-labelledby="evaluation-confirm-title"
             aria-modal="true"
             className="card max-w-lg"
             role="dialog"
             onKeyDown={(event) => {
+              trapDialogFocus(event, confirmContainerRef.current);
               if (event.key === "Escape" && !start.isPending)
                 setConfirmOpen(false);
             }}
@@ -596,4 +791,26 @@ function Pagination({
       </button>
     </div>
   );
+}
+
+function trapDialogFocus(
+  event: ReactKeyboardEvent<HTMLDivElement>,
+  container: HTMLDivElement | null,
+) {
+  if (event.key !== "Tab" || !container) return;
+  const controls = Array.from(
+    container.querySelectorAll<HTMLElement>(
+      "button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href]",
+    ),
+  );
+  if (controls.length === 0) return;
+  const first = controls[0];
+  const last = controls[controls.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }

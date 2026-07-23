@@ -16,7 +16,7 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
-  current_user_role: Role;
+  role: Role;
 }
 export interface Me {
   user: User;
@@ -127,6 +127,7 @@ export interface SecurityRule {
   description: string;
   service: string;
   asset_type: AssetType | null;
+  asset_types: AssetType[];
   category: string;
   severity: FindingSeverity;
   remediation: string;
@@ -142,6 +143,11 @@ export interface Finding {
   rule_version: number;
   severity: FindingSeverity;
   category: string;
+  service: string;
+  asset_type: AssetType | null;
+  region: string | null;
+  remediation: string;
+  references: string[];
   status: FindingStatus;
   evidence: Record<string, unknown>;
   first_seen_at: string;
@@ -169,6 +175,8 @@ export interface EvaluationJob {
   findings_created: number;
   findings_updated: number;
   findings_resolved: number;
+  findings_reopened: number;
+  evaluation_errors: number;
   error_summary: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -178,6 +186,10 @@ export interface FindingSummary {
   items: Array<{
     severity: FindingSeverity;
     status: FindingStatus;
+    service: string;
+    aws_account_id: string;
+    asset_type: AssetType | null;
+    region: string | null;
     count: number;
   }>;
 }

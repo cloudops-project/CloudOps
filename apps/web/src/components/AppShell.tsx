@@ -13,7 +13,7 @@ import { useAuth } from "../auth/AuthProvider";
 
 export function AppShell() {
   const { me, signOut } = useAuth();
-  const organizationRole = me?.organizations[0]?.current_user_role;
+  const organizationRole = me?.organizations[0]?.role;
   return (
     <div className="min-h-screen bg-canvas md:grid md:grid-cols-[240px_1fr]">
       <aside className="border-b border-border bg-sidebar p-5 md:min-h-screen md:border-b-0 md:border-r">

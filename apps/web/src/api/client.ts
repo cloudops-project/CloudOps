@@ -4,6 +4,23 @@ let refreshPromise: Promise<boolean> | null = null;
 type AuthInvalidatedHandler = () => void;
 let authInvalidatedHandler: AuthInvalidatedHandler | null = null;
 
+export interface ApiErrorDetail {
+  field: string;
+  message: string;
+}
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly code?: string,
+    readonly details: ApiErrorDetail[] = [],
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export function setAccessToken(value: string | null) {
   accessToken = value;
 }
@@ -59,9 +76,18 @@ export async function api<T>(
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as {
-      error?: { message?: string };
+      error?: {
+        code?: string;
+        message?: string;
+        details?: ApiErrorDetail[];
+      };
     } | null;
-    throw new Error(body?.error?.message || "Request failed.");
+    throw new ApiError(
+      response.status,
+      body?.error?.message || "Request failed.",
+      body?.error?.code,
+      body?.error?.details,
+    );
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
