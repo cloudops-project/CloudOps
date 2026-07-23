@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 
 from app.models.enums import (
     AssetType,
@@ -22,6 +22,7 @@ class RuleResponse(ApiModel):
     description: str
     service: str
     asset_type: AssetType | None
+    asset_types: list[AssetType]
     category: str
     severity: FindingSeverity
     remediation: str
@@ -53,6 +54,8 @@ class EvaluationJobResponse(ApiModel):
     findings_created: int
     findings_updated: int
     findings_resolved: int
+    findings_reopened: int
+    evaluation_errors: int
     error_summary: str | None
     created_at: datetime
     updated_at: datetime
@@ -74,6 +77,11 @@ class FindingResponse(ApiModel):
     rule_version: int
     severity: FindingSeverity
     category: str
+    service: str
+    asset_type: AssetType | None
+    region: str | None
+    remediation: str
+    references: list[str]
     status: FindingStatus
     evidence: dict[str, Any]
     first_seen_at: datetime
@@ -99,6 +107,10 @@ class FindingListResponse(ApiModel):
 class FindingSummaryItem(ApiModel):
     severity: FindingSeverity
     status: FindingStatus
+    service: str
+    aws_account_id: uuid.UUID
+    asset_type: AssetType | None
+    region: str | None
     count: int
 
 
@@ -110,3 +122,21 @@ class FindingSummaryResponse(ApiModel):
 class FindingSuppressRequest(ApiModel):
     reason: str = Field(min_length=3, max_length=1000)
     suppressed_until: datetime | None = None
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 3:
+            raise ValueError("Suppression reason must contain at least 3 characters.")
+        return value
+
+    @model_validator(mode="after")
+    def validate_expiry(self) -> FindingSuppressRequest:
+        if self.suppressed_until is not None:
+            value = self.suppressed_until
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=UTC)
+            if value <= datetime.now(UTC):
+                raise ValueError("Suppression expiry must be in the future.")
+        return self

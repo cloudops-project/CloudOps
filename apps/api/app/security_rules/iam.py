@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from app.models import Asset
@@ -17,6 +18,64 @@ def _predicate(required: tuple[str, ...], predicate: Any) -> Evaluator:
         return failed(**evidence) if predicate(evidence) else passed(**evidence)
 
     return evaluate
+
+
+def _access_key_age(asset: Asset | None, context: RuleContext) -> RuleResult:
+    assert asset is not None
+    values = asset.metadata_json.get("active_key_created_at")
+    if not isinstance(values, list):
+        return error()
+    ages: list[int] = []
+    for value in values:
+        if not isinstance(value, str):
+            return error("malformed_access_key_metadata")
+        try:
+            created = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return error("malformed_access_key_metadata")
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=UTC)
+        ages.append((context.evaluated_at - created).days)
+    oldest = max(ages, default=0)
+    return (
+        failed(oldest_active_key_age_days=oldest)
+        if oldest > 90
+        else passed(oldest_active_key_age_days=oldest)
+    )
+
+
+def _inline_allow_all(asset: Asset | None, _context: RuleContext) -> RuleResult:
+    assert asset is not None
+    documents = asset.metadata_json.get("inline_policy_documents")
+    if not isinstance(documents, list):
+        return error()
+    for document in documents:
+        if not isinstance(document, dict):
+            return error("malformed_inline_policy")
+        statements = document.get("Statement")
+        if isinstance(statements, dict):
+            statements = [statements]
+        if not isinstance(statements, list):
+            return error("malformed_inline_policy")
+        for statement in statements:
+            if not isinstance(statement, dict):
+                return error("malformed_inline_policy")
+            effect = statement.get("Effect")
+            actions = statement.get("Action")
+            resources = statement.get("Resource")
+            if not isinstance(effect, str):
+                return error("malformed_inline_policy")
+            if isinstance(actions, str):
+                actions = [actions]
+            if isinstance(resources, str):
+                resources = [resources]
+            if not isinstance(actions, list) or not all(isinstance(v, str) for v in actions):
+                return error("malformed_inline_policy")
+            if not isinstance(resources, list) or not all(isinstance(v, str) for v in resources):
+                return error("malformed_inline_policy")
+            if effect == "Allow" and "*" in actions and "*" in resources:
+                return failed(statement_index=statements.index(statement))
+    return passed()
 
 
 RULES = (
@@ -45,9 +104,7 @@ RULES = (
         "credential_hygiene",
         FindingSeverity.HIGH,
         "Rotate or remove the old access key.",
-        evaluator=_predicate(
-            ("oldest_active_key_age_days",), lambda e: e["oldest_active_key_age_days"] > 90
-        ),
+        evaluator=_access_key_age,
     ),
     SecurityRule(
         "IAM_ADMINISTRATOR_ACCESS_ATTACHED",
@@ -59,6 +116,7 @@ RULES = (
         "least_privilege",
         FindingSeverity.CRITICAL,
         "Replace AdministratorAccess with a least-privilege policy.",
+        additional_asset_types=(AssetType.IAM_ROLE, AssetType.IAM_GROUP),
         evaluator=_predicate(
             ("attached_policy_arns",),
             lambda e: any(
@@ -76,8 +134,7 @@ RULES = (
         "least_privilege",
         FindingSeverity.CRITICAL,
         "Replace wildcard administrative permissions with scoped actions and resources.",
-        evaluator=_predicate(
-            ("inline_policy_allow_all",), lambda e: e["inline_policy_allow_all"] is True
-        ),
+        additional_asset_types=(AssetType.IAM_ROLE, AssetType.IAM_GROUP),
+        evaluator=_inline_allow_all,
     ),
 )

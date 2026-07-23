@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import uuid
 from collections.abc import Callable, Iterable
@@ -58,6 +59,53 @@ def iam_tags(client: Any, operation: str, argument: str, value: str) -> dict[str
         pages = client.get_paginator(operation).paginate(**{argument: value})
         return tags_dict(tag for page in pages for tag in page.get("Tags", []))
     return tags_dict(getattr(client, operation)(**{argument: value}).get("Tags"))
+
+
+def bounded_policy_document(value: Any, *, max_bytes: int = 20_000) -> dict[str, Any] | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, str):
+        if len(value.encode("utf-8")) > max_bytes:
+            return {"truncated": True}
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return {"malformed": True}
+    if not isinstance(value, dict):
+        return {"malformed": True}
+    sanitized = json_safe(value)
+    encoded = json.dumps(sanitized, separators=(",", ":"), default=str)
+    return sanitized if len(encoded.encode("utf-8")) <= max_bytes else {"truncated": True}
+
+
+def paginated_items(
+    client: Any,
+    operation: str,
+    result_key: str,
+    **kwargs: Any,
+) -> list[Any]:
+    if hasattr(client, "can_paginate") and client.can_paginate(operation):
+        return [
+            item
+            for page in client.get_paginator(operation).paginate(**kwargs)
+            for item in page.get(result_key, [])
+        ]
+    method = getattr(client, operation)
+    items: list[Any] = []
+    token: str | None = None
+    seen_tokens: set[str] = set()
+    while True:
+        request = dict(kwargs)
+        if token:
+            request["NextToken"] = token
+        response = method(**request)
+        items.extend(response.get(result_key, []))
+        next_token = response.get("NextToken")
+        if not next_token or next_token in seen_tokens:
+            break
+        seen_tokens.add(next_token)
+        token = next_token
+    return items
 
 
 @dataclass(frozen=True)
@@ -263,18 +311,11 @@ class S3DiscoveryService:
                 policy_method = getattr(client, "get_bucket_policy", None)
                 if policy_method is not None:
                     try:
-                        policy_text = str(policy_method(Bucket=name).get("Policy", ""))[:20000]
-                        metadata["https_only_policy"] = (
-                            "aws:SecureTransport" in policy_text
-                            and '"false"' in policy_text.casefold()
-                        )
-                        metadata["policy_summary"] = {
-                            "size": len(policy_text),
-                            "https_only_signal": metadata["https_only_policy"],
-                        }
+                        policy = policy_method(Bucket=name).get("Policy")
+                        metadata["policy_document"] = bounded_policy_document(policy)
                     except ClientError as exc:
                         if exc.response.get("Error", {}).get("Code") == "NoSuchBucketPolicy":
-                            metadata["https_only_policy"] = False
+                            metadata["policy_document"] = None
                         else:
                             raise
                 assets.append(
@@ -324,13 +365,15 @@ class IAMDiscoveryService:
                     tag_method = {
                         AssetType.IAM_USER: "list_user_tags",
                         AssetType.IAM_ROLE: "list_role_tags",
+                        AssetType.IAM_GROUP: "list_group_tags",
                         AssetType.IAM_POLICY: "list_policy_tags",
                     }.get(asset_type)
                     tags: dict[str, str] = {}
-                    if tag_method:
+                    if tag_method and hasattr(client, tag_method):
                         argument = {
                             AssetType.IAM_USER: "UserName",
                             AssetType.IAM_ROLE: "RoleName",
+                            AssetType.IAM_GROUP: "GroupName",
                             AssetType.IAM_POLICY: "PolicyArn",
                         }[asset_type]
                         value = (
@@ -352,8 +395,11 @@ class IAMDiscoveryService:
                         principal_name = str(item[name_key])
                         attached_method = getattr(client, f"list_attached_{prefix}_policies", None)
                         if attached_method:
-                            attached = attached_method(**{argument_name: principal_name}).get(
-                                "AttachedPolicies", []
+                            attached = paginated_items(
+                                client,
+                                f"list_attached_{prefix}_policies",
+                                "AttachedPolicies",
+                                **{argument_name: principal_name},
                             )
                             metadata["attached_policy_arns"] = [
                                 policy.get("PolicyArn")
@@ -362,12 +408,17 @@ class IAMDiscoveryService:
                             ]
                         inline_method = getattr(client, f"list_{prefix}_policies", None)
                         inline_names = (
-                            inline_method(**{argument_name: principal_name}).get("PolicyNames", [])
+                            paginated_items(
+                                client,
+                                f"list_{prefix}_policies",
+                                "PolicyNames",
+                                **{argument_name: principal_name},
+                            )
                             if inline_method
                             else []
                         )
                         metadata["inline_policy_names"] = inline_names[:100]
-                        metadata["inline_policy_allow_all"] = False
+                        metadata["inline_policy_documents"] = []
                         get_inline = getattr(client, f"get_{prefix}_policy", None)
                         if get_inline:
                             for policy_name in inline_names[:100]:
@@ -377,19 +428,9 @@ class IAMDiscoveryService:
                                         "PolicyName": policy_name,
                                     }
                                 ).get("PolicyDocument", {})
-                                statements = document.get("Statement", [])
-                                if isinstance(statements, dict):
-                                    statements = [statements]
-                                if any(
-                                    statement.get("Effect") == "Allow"
-                                    and (
-                                        statement.get("Action") == "*"
-                                        or "*" in statement.get("Action", [])
-                                    )
-                                    for statement in statements
-                                    if isinstance(statement, dict)
-                                ):
-                                    metadata["inline_policy_allow_all"] = True
+                                metadata["inline_policy_documents"].append(
+                                    bounded_policy_document(document)
+                                )
                     if asset_type == AssetType.IAM_USER:
                         username = str(item[name_key])
                         login_profile = getattr(client, "get_login_profile", None)
@@ -405,21 +446,26 @@ class IAMDiscoveryService:
                         mfa_method = getattr(client, "list_mfa_devices", None)
                         if mfa_method:
                             metadata["mfa_enabled"] = bool(
-                                mfa_method(UserName=username).get("MFADevices")
+                                paginated_items(
+                                    client,
+                                    "list_mfa_devices",
+                                    "MFADevices",
+                                    UserName=username,
+                                )
                             )
                         key_method = getattr(client, "list_access_keys", None)
                         if key_method:
-                            now = now_utc()
-                            ages = []
-                            for key in key_method(UserName=username).get("AccessKeyMetadata", []):
+                            created_values = []
+                            for key in paginated_items(
+                                client,
+                                "list_access_keys",
+                                "AccessKeyMetadata",
+                                UserName=username,
+                            ):
                                 created = key.get("CreateDate")
                                 if key.get("Status") == "Active" and isinstance(created, datetime):
-                                    ages.append(
-                                        (now - created).days
-                                        if created.tzinfo
-                                        else (now.replace(tzinfo=None) - created).days
-                                    )
-                            metadata["oldest_active_key_age_days"] = max(ages, default=0)
+                                    created_values.append(created.isoformat())
+                            metadata["active_key_created_at"] = created_values
                     if asset_type == AssetType.IAM_ROLE:
                         metadata["max_session_duration"] = item.get("MaxSessionDuration")
                     if asset_type == AssetType.IAM_POLICY:
@@ -523,8 +569,15 @@ class CloudWatchDiscoveryService:
                             json_safe(
                                 {
                                     "actions_enabled": alarm.get("ActionsEnabled"),
+                                    "alarm_actions": alarm.get("AlarmActions", []),
+                                    "ok_actions": alarm.get("OKActions", []),
+                                    "insufficient_data_actions": alarm.get(
+                                        "InsufficientDataActions", []
+                                    ),
                                     "metric_name": alarm.get("MetricName"),
                                     "namespace": alarm.get("Namespace"),
+                                    "dimensions": alarm.get("Dimensions", []),
+                                    "state": alarm.get("StateValue"),
                                     "comparison_operator": alarm.get("ComparisonOperator"),
                                 }
                             ),
@@ -533,12 +586,20 @@ class CloudWatchDiscoveryService:
             for page in logs.get_paginator("describe_log_groups").paginate():
                 for group in page.get("logGroups", []):
                     name = group["logGroupName"]
-                    metric_filters = logs.describe_metric_filters(logGroupName=name, limit=50).get(
-                        "metricFilters", []
+                    metric_filters = paginated_items(
+                        logs,
+                        "describe_metric_filters",
+                        "metricFilters",
+                        logGroupName=name,
+                        limit=50,
                     )
-                    subscriptions = logs.describe_subscription_filters(
-                        logGroupName=name, limit=50
-                    ).get("subscriptionFilters", [])
+                    subscriptions = paginated_items(
+                        logs,
+                        "describe_subscription_filters",
+                        "subscriptionFilters",
+                        logGroupName=name,
+                        limit=50,
+                    )
                     assets.append(
                         NormalizedAsset(
                             AssetType.CLOUDWATCH_LOG_GROUP,
@@ -588,6 +649,18 @@ class CloudTrailDiscoveryService:
                     if insight_method
                     else []
                 )
+                tag_method = getattr(client, "list_tags", None)
+                trail_tags: dict[str, str] = {}
+                if tag_method and trail.get("TrailARN"):
+                    resources = paginated_items(
+                        client,
+                        "list_tags",
+                        "ResourceTagList",
+                        ResourceIdList=[trail["TrailARN"]],
+                    )
+                    for resource in resources:
+                        if isinstance(resource, dict):
+                            trail_tags.update(tags_dict(resource.get("TagsList")))
                 assets.append(
                     NormalizedAsset(
                         AssetType.CLOUDTRAIL_TRAIL,
@@ -596,7 +669,7 @@ class CloudTrailDiscoveryService:
                         trail.get("Name", arn),
                         trail.get("HomeRegion", region),
                         "logging" if status.get("IsLogging") else "stopped",
-                        {},
+                        trail_tags,
                         json_safe(
                             {
                                 "is_logging": status.get("IsLogging"),

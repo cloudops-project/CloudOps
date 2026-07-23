@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import builtins
 import uuid
 from collections.abc import Sequence
+from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import EvaluationJob, Finding
-from app.models.enums import EvaluationJobStatus, FindingSeverity, FindingStatus
+from app.models import Asset, EvaluationJob, Finding
+from app.models.enums import AssetType, EvaluationJobStatus, FindingSeverity, FindingStatus
 
 
 class EvaluationJobRepository:
@@ -84,36 +86,90 @@ class FindingRepository:
         organization_id: uuid.UUID,
         *,
         account_id: uuid.UUID | None,
+        asset_id: uuid.UUID | None,
+        service: str | None,
+        asset_type: AssetType | None,
         severity: FindingSeverity | None,
         status: FindingStatus | None,
         rule_key: str | None,
+        region: str | None,
         search: str | None,
+        rule_services: dict[str, str],
         page: int,
         page_size: int,
     ) -> tuple[list[Finding], int]:
-        filters = [Finding.organization_id == organization_id]
-        if account_id:
-            filters.append(Finding.aws_account_id == account_id)
-        if severity:
-            filters.append(Finding.severity == severity)
-        if status:
-            filters.append(Finding.status == status)
-        if rule_key:
-            filters.append(Finding.rule_key == rule_key)
-        if search:
-            value = f"%{search.strip()}%"
-            filters.append(or_(Finding.rule_key.ilike(value), Finding.category.ilike(value)))
-        total = int(self.db.scalar(select(func.count()).select_from(Finding).where(*filters)) or 0)
+        filters = self._filters(
+            organization_id,
+            account_id=account_id,
+            asset_id=asset_id,
+            service=service,
+            asset_type=asset_type,
+            severity=severity,
+            status=status,
+            rule_key=rule_key,
+            region=region,
+            search=search,
+            rule_services=rule_services,
+        )
+        base = select(Finding).outerjoin(Asset, Finding.asset_id == Asset.id)
+        count_query = (
+            select(func.count()).select_from(Finding).outerjoin(Asset, Finding.asset_id == Asset.id)
+        )
+        total = int(self.db.scalar(count_query.where(*filters)) or 0)
         items = list(
             self.db.scalars(
-                select(Finding)
-                .where(*filters)
+                base.where(*filters)
                 .order_by(Finding.last_seen_at.desc(), Finding.id)
                 .offset((page - 1) * page_size)
                 .limit(page_size)
             )
         )
         return items, total
+
+    @staticmethod
+    def _filters(
+        organization_id: uuid.UUID,
+        *,
+        account_id: uuid.UUID | None,
+        asset_id: uuid.UUID | None,
+        service: str | None,
+        asset_type: AssetType | None,
+        severity: FindingSeverity | None,
+        status: FindingStatus | None,
+        rule_key: str | None,
+        region: str | None,
+        search: str | None,
+        rule_services: dict[str, str],
+    ) -> builtins.list[Any]:
+        filters: builtins.list[Any] = [Finding.organization_id == organization_id]
+        if account_id:
+            filters.append(Finding.aws_account_id == account_id)
+        if asset_id:
+            filters.append(Finding.asset_id == asset_id)
+        if service:
+            keys = tuple(key for key, value in rule_services.items() if value == service)
+            filters.append(Finding.rule_key.in_(keys or ("__no_rule__",)))
+        if asset_type:
+            filters.append(Asset.asset_type == asset_type)
+        if severity:
+            filters.append(Finding.severity == severity)
+        if status:
+            filters.append(Finding.status == status)
+        if rule_key:
+            filters.append(Finding.rule_key == rule_key)
+        if region:
+            filters.append(Asset.region == region)
+        if search:
+            value = f"%{search.strip()}%"
+            filters.append(
+                or_(
+                    Finding.rule_key.ilike(value),
+                    Finding.category.ilike(value),
+                    Asset.name.ilike(value),
+                    Asset.resource_id.ilike(value),
+                )
+            )
+        return filters
 
     def get(self, organization_id: uuid.UUID, finding_id: uuid.UUID) -> Finding | None:
         return self.db.scalar(
@@ -123,13 +179,63 @@ class FindingRepository:
         )
 
     def summary(
-        self, organization_id: uuid.UUID
-    ) -> Sequence[tuple[FindingSeverity, FindingStatus, int]]:
+        self,
+        organization_id: uuid.UUID,
+        *,
+        account_id: uuid.UUID | None,
+        asset_id: uuid.UUID | None,
+        service: str | None,
+        asset_type: AssetType | None,
+        severity: FindingSeverity | None,
+        status: FindingStatus | None,
+        rule_key: str | None,
+        region: str | None,
+        search: str | None,
+        rule_services: dict[str, str],
+    ) -> Sequence[tuple[Any, ...]]:
+        filters = self._filters(
+            organization_id,
+            account_id=account_id,
+            asset_id=asset_id,
+            service=service,
+            asset_type=asset_type,
+            severity=severity,
+            status=status,
+            rule_key=rule_key,
+            region=region,
+            search=search,
+            rule_services=rule_services,
+        )
+        service_expression = case(rule_services, value=Finding.rule_key, else_="unknown")
         return (
             self.db.execute(
-                select(Finding.severity, Finding.status, func.count())
-                .where(Finding.organization_id == organization_id)
-                .group_by(Finding.severity, Finding.status)
+                select(
+                    Finding.severity,
+                    Finding.status,
+                    service_expression,
+                    Finding.aws_account_id,
+                    Asset.asset_type,
+                    Asset.region,
+                    func.count(),
+                )
+                .outerjoin(Asset, Finding.asset_id == Asset.id)
+                .where(*filters)
+                .group_by(
+                    Finding.severity,
+                    Finding.status,
+                    service_expression,
+                    Finding.aws_account_id,
+                    Asset.asset_type,
+                    Asset.region,
+                )
+                .order_by(
+                    Finding.severity,
+                    Finding.status,
+                    service_expression,
+                    Finding.aws_account_id,
+                    Asset.asset_type,
+                    Asset.region,
+                )
             )
             .tuples()
             .all()

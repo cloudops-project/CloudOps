@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from datetime import datetime
 
@@ -104,51 +105,76 @@ class EvaluationService:
                 "event_name": "security.evaluation.started",
                 "organization_id": str(job.organization_id),
                 "aws_account_id": str(job.aws_account_id),
-                "evaluation_id": str(job.id),
+                "evaluation_job_id": str(job.id),
             },
         )
-
-        assets = tuple(
-            self.db.scalars(
-                select(Asset)
-                .where(
-                    Asset.aws_account_id == job.aws_account_id,
-                    Asset.organization_id == job.organization_id,
-                    Asset.is_active.is_(True),
-                )
-                .order_by(Asset.id)
-            )
-        )
-        context = RuleContext(assets)
-        job.assets_evaluated = len(assets)
-        errors: list[str] = []
-        for rule in self.registry.all():
-            targets: tuple[Asset | None, ...] = (
-                (None,)
-                if rule.asset_type is None
-                else tuple(asset for asset in assets if asset.asset_type == rule.asset_type)
-            )
-            for asset in targets:
-                try:
-                    result = rule.evaluate(asset, context)
-                except Exception:
-                    result = RuleResult(RuleResultStatus.ERROR, {}, "rule_execution_failed")
-                self._apply_result(job, rule, asset, result)
-                if result.status == RuleResultStatus.ERROR:
-                    errors.append(f"{rule.key}:{result.error_code or 'rule_error'}")
-                    logger.warning(
-                        "security.evaluation.rule_error",
-                        extra={
-                            "event_name": "security.evaluation.rule_error",
-                            "evaluation_id": str(job.id),
-                            "rule_key": rule.key,
-                            "result": "error",
-                        },
+        started = time.perf_counter()
+        try:
+            assets = tuple(
+                self.db.scalars(
+                    select(Asset)
+                    .where(
+                        Asset.aws_account_id == job.aws_account_id,
+                        Asset.organization_id == job.organization_id,
+                        Asset.is_active.is_(True),
                     )
-        terminal = (
-            EvaluationJobStatus.PARTIALLY_COMPLETED if errors else EvaluationJobStatus.COMPLETED
-        )
-        return self._finish(job.id, actor, terminal, errors)
+                    .order_by(Asset.id)
+                )
+            )
+            context = RuleContext(assets, evaluated_at=now_utc())
+            job.assets_evaluated = len(assets)
+            errors: list[str] = []
+            for rule in self.registry.filter(enabled=True):
+                targets: tuple[Asset | None, ...] = (
+                    (None,)
+                    if rule.asset_type is None
+                    else tuple(asset for asset in assets if rule.applies_to(asset))
+                )
+                for asset in targets:
+                    try:
+                        result = rule.evaluate(asset, context)
+                    except Exception:
+                        result = RuleResult(RuleResultStatus.ERROR, {}, "rule_execution_failed")
+                    self._apply_result(job, rule, asset, result)
+                    if result.status == RuleResultStatus.ERROR:
+                        errors.append(f"{rule.key}:{result.error_code or 'rule_error'}")
+                        logger.warning(
+                            "security.evaluation.rule_error",
+                            extra={
+                                "event_name": "security.evaluation.rule_error",
+                                "organization_id": str(job.organization_id),
+                                "aws_account_id": str(job.aws_account_id),
+                                "evaluation_job_id": str(job.id),
+                                "asset_id": str(asset.id) if asset else None,
+                                "rule_key": rule.key,
+                                "result": "error",
+                                "error_code": result.error_code or "rule_error",
+                            },
+                        )
+            terminal = (
+                EvaluationJobStatus.FAILED
+                if job.rules_evaluated > 0 and job.evaluation_errors == job.rules_evaluated
+                else (
+                    EvaluationJobStatus.PARTIALLY_COMPLETED
+                    if errors
+                    else EvaluationJobStatus.COMPLETED
+                )
+            )
+            return self._finish(
+                job.id,
+                actor,
+                terminal,
+                errors,
+                duration_ms=int((time.perf_counter() - started) * 1000),
+            )
+        except Exception:
+            self.db.rollback()
+            return self._recover_failed(
+                job_id,
+                actor,
+                "evaluation_execution_failed",
+                duration_ms=int((time.perf_counter() - started) * 1000),
+            )
 
     def _apply_result(
         self,
@@ -164,6 +190,7 @@ class EvaluationService:
             job.failed_count += 1
         elif result.status == RuleResultStatus.ERROR:
             job.error_count += 1
+            job.evaluation_errors += 1
         else:
             job.not_applicable_count += 1
         finding = self.findings.for_rule(job.aws_account_id, rule.key, asset.id if asset else None)
@@ -175,8 +202,9 @@ class EvaluationService:
             return
         now = now_utc()
         if result.status == RuleResultStatus.FAILED:
+            created = False
             if finding is None:
-                finding = Finding(
+                candidate = Finding(
                     organization_id=job.organization_id,
                     aws_account_id=job.aws_account_id,
                     asset_id=asset.id if asset else None,
@@ -189,12 +217,26 @@ class EvaluationService:
                     last_seen_at=now,
                     last_evaluation_id=job.id,
                 )
-                self.db.add(finding)
-                self.db.flush()
-                job.findings_created += 1
-                event = "security.finding.created"
-            else:
+                try:
+                    with self.db.begin_nested():
+                        self.db.add(candidate)
+                        self.db.flush()
+                    finding = candidate
+                    job.findings_created += 1
+                    event = "security.finding.created"
+                    previous_status = None
+                    created = True
+                except IntegrityError:
+                    finding = self.findings.for_rule(
+                        job.aws_account_id, rule.key, asset.id if asset else None
+                    )
+                    if finding is None:
+                        raise
+            if not created:
+                assert finding is not None
                 was_resolved = finding.status == FindingStatus.RESOLVED
+                was_suppressed = finding.status == FindingStatus.SUPPRESSED
+                previous_status = finding.status.value
                 active_suppression = finding.status == FindingStatus.SUPPRESSED and (
                     finding.suppressed_until is None
                     or _timezone_safe(finding.suppressed_until) > now
@@ -211,8 +253,12 @@ class EvaluationService:
                 finding.rule_version = rule.version
                 finding.last_evaluation_id = job.id
                 finding.lifecycle_version += 1
-                job.findings_updated += 1
-                event = "security.finding.reopened" if was_resolved else "security.finding.updated"
+                if was_resolved or (was_suppressed and not active_suppression):
+                    job.findings_reopened += 1
+                    event = "security.finding.reopened"
+                else:
+                    job.findings_updated += 1
+                    event = "security.finding.updated"
             record_audit(
                 self.db,
                 event,
@@ -222,8 +268,22 @@ class EvaluationService:
                 resource_id=finding.id,
                 metadata={"rule_key": rule.key, "asset_id": str(asset.id) if asset else None},
             )
+            self._log_finding(
+                event,
+                finding,
+                job=job,
+                rule_key=rule.key,
+                previous_status=previous_status,
+            )
         elif result.status == RuleResultStatus.PASSED and finding is not None:
+            active_suppression = finding.status == FindingStatus.SUPPRESSED and (
+                finding.suppressed_until is None or _timezone_safe(finding.suppressed_until) > now
+            )
+            if active_suppression:
+                self.db.flush()
+                return
             if finding.status != FindingStatus.RESOLVED:
+                previous_status = finding.status.value
                 finding.status = FindingStatus.RESOLVED
                 finding.resolved_at = now
                 finding.suppressed_at = None
@@ -242,6 +302,13 @@ class EvaluationService:
                     resource_id=finding.id,
                     metadata={"rule_key": rule.key},
                 )
+                self._log_finding(
+                    "security.finding.resolved",
+                    finding,
+                    job=job,
+                    rule_key=rule.key,
+                    previous_status=previous_status,
+                )
         self.db.flush()
 
     def _finish(
@@ -250,6 +317,8 @@ class EvaluationService:
         actor: User,
         status: EvaluationJobStatus,
         errors: list[str],
+        *,
+        duration_ms: int = 0,
     ) -> EvaluationJob:
         job = self.db.scalar(
             select(EvaluationJob)
@@ -289,6 +358,8 @@ class EvaluationService:
                 "findings_created": job.findings_created,
                 "findings_updated": job.findings_updated,
                 "findings_resolved": job.findings_resolved,
+                "findings_reopened": job.findings_reopened,
+                "evaluation_errors": job.evaluation_errors,
             },
         )
         self.db.commit()
@@ -299,11 +370,86 @@ class EvaluationService:
                 "event_name": event,
                 "organization_id": str(job.organization_id),
                 "aws_account_id": str(job.aws_account_id),
-                "evaluation_id": str(job.id),
+                "evaluation_job_id": str(job.id),
                 "result": status.value,
+                "assets_evaluated": job.assets_evaluated,
+                "rules_evaluated": job.rules_evaluated,
+                "findings_created": job.findings_created,
+                "findings_updated": job.findings_updated,
+                "findings_resolved": job.findings_resolved,
+                "findings_reopened": job.findings_reopened,
+                "evaluation_errors": job.evaluation_errors,
+                "duration_ms": duration_ms,
             },
         )
         return job
+
+    def _recover_failed(
+        self,
+        job_id: uuid.UUID,
+        actor: User,
+        error_code: str,
+        *,
+        duration_ms: int,
+    ) -> EvaluationJob:
+        try:
+            return self._finish(
+                job_id,
+                actor,
+                EvaluationJobStatus.FAILED,
+                [error_code],
+                duration_ms=duration_ms,
+            )
+        except Exception:
+            self.db.rollback()
+            job = self.db.scalar(
+                select(EvaluationJob).where(EvaluationJob.id == job_id).with_for_update()
+            )
+            if job is None:
+                raise NotFoundError("evaluation_not_found", "Evaluation was not found.") from None
+            if job.status == EvaluationJobStatus.RUNNING:
+                job.status = EvaluationJobStatus.FAILED
+                job.finished_at = now_utc()
+                job.error_summary = error_code
+                self.db.commit()
+                self.db.refresh(job)
+            logger.error(
+                "security.evaluation.failed",
+                extra={
+                    "event_name": "security.evaluation.failed",
+                    "organization_id": str(job.organization_id),
+                    "aws_account_id": str(job.aws_account_id),
+                    "evaluation_job_id": str(job.id),
+                    "result": EvaluationJobStatus.FAILED.value,
+                    "error_code": error_code,
+                    "duration_ms": duration_ms,
+                },
+            )
+            return job
+
+    @staticmethod
+    def _log_finding(
+        event: str,
+        finding: Finding,
+        *,
+        job: EvaluationJob | None,
+        rule_key: str,
+        previous_status: str | None,
+    ) -> None:
+        logger.info(
+            event,
+            extra={
+                "event_name": event,
+                "organization_id": str(finding.organization_id),
+                "aws_account_id": str(finding.aws_account_id),
+                "evaluation_job_id": str(job.id) if job else None,
+                "finding_id": str(finding.id),
+                "asset_id": str(finding.asset_id) if finding.asset_id else None,
+                "rule_key": rule_key,
+                "previous_status": previous_status,
+                "new_status": finding.status.value,
+            },
+        )
 
     def suppress(
         self,
@@ -319,6 +465,12 @@ class EvaluationService:
         finding = self.findings.get(organization_id, finding_id)
         if finding is None:
             raise NotFoundError("finding_not_found", "Finding was not found.")
+        if until is not None and _timezone_safe(until) <= now_utc():
+            raise ConflictError(
+                "invalid_suppression_expiry",
+                "Suppression expiry must be in the future.",
+            )
+        previous_status = finding.status.value
         finding.status = FindingStatus.SUPPRESSED
         finding.resolved_at = None
         finding.suppressed_at = now_utc()
@@ -337,6 +489,13 @@ class EvaluationService:
         )
         self.db.commit()
         self.db.refresh(finding)
+        self._log_finding(
+            "security.finding.suppressed",
+            finding,
+            job=None,
+            rule_key=finding.rule_key,
+            previous_status=previous_status,
+        )
         return finding
 
     def unsuppress(self, organization_id: uuid.UUID, finding_id: uuid.UUID, actor: User) -> Finding:
@@ -347,6 +506,7 @@ class EvaluationService:
         if finding is None:
             raise NotFoundError("finding_not_found", "Finding was not found.")
         if finding.status == FindingStatus.SUPPRESSED:
+            previous_status = finding.status.value
             finding.status = FindingStatus.OPEN
             finding.suppressed_at = None
             finding.suppressed_until = None
@@ -363,6 +523,13 @@ class EvaluationService:
             )
             self.db.commit()
             self.db.refresh(finding)
+            self._log_finding(
+                "security.finding.unsuppressed",
+                finding,
+                job=None,
+                rule_key=finding.rule_key,
+                previous_status=previous_status,
+            )
         return finding
 
 

@@ -4,11 +4,18 @@ import uuid
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Query, status
+from sqlalchemy import select
 
 from app.dependencies.auth import CurrentUser, DbSession
 from app.exceptions.errors import NotFoundError
-from app.models import EvaluationJob, Finding
-from app.models.enums import FindingSeverity, FindingStatus
+from app.models import Asset, EvaluationJob, Finding
+from app.models.enums import (
+    AssetType,
+    FindingSeverity,
+    FindingStatus,
+    RuleCategory,
+    RuleService,
+)
 from app.repositories.findings import EvaluationJobRepository, FindingRepository
 from app.schemas.findings import (
     EvaluationJobListResponse,
@@ -39,6 +46,7 @@ def _rule_response(rule: SecurityRule) -> RuleResponse:
         description=rule.description,
         service=rule.service,
         asset_type=rule.asset_type,
+        asset_types=list(rule.asset_types),
         category=rule.category,
         severity=rule.severity,
         remediation=rule.remediation,
@@ -47,7 +55,11 @@ def _rule_response(rule: SecurityRule) -> RuleResponse:
     )
 
 
-def _finding_response(finding: Finding) -> FindingResponse:
+def _finding_response(
+    finding: Finding, db: DbSession, asset: Asset | None = None
+) -> FindingResponse:
+    rule = default_registry.get(finding.rule_key)
+    asset = asset or (db.get(Asset, finding.asset_id) if finding.asset_id else None)
     return FindingResponse(
         id=finding.id,
         organization_id=finding.organization_id,
@@ -57,6 +69,11 @@ def _finding_response(finding: Finding) -> FindingResponse:
         rule_version=finding.rule_version,
         severity=finding.severity,
         category=finding.category,
+        service=rule.service if rule else "unknown",
+        asset_type=asset.asset_type if asset else None,
+        region=asset.region if asset else None,
+        remediation=rule.remediation if rule else "",
+        references=list(rule.references) if rule else [],
         status=finding.status,
         evidence=cast(dict[str, Any], sanitize_evidence(finding.evidence_json)),
         first_seen_at=finding.first_seen_at,
@@ -78,9 +95,23 @@ def list_rules(
     user: CurrentUser,
     db: DbSession,
     organization_id: Annotated[uuid.UUID, Query()],
+    service: RuleService | None = None,
+    asset_type: AssetType | None = None,
+    category: RuleCategory | None = None,
+    severity: FindingSeverity | None = None,
+    enabled: bool | None = None,
 ) -> list[RuleResponse]:
     OrganizationService(db).require_capability(organization_id, user.id, Capability.RULES_READ)
-    return [_rule_response(rule) for rule in default_registry.all()]
+    return [
+        _rule_response(rule)
+        for rule in default_registry.filter(
+            service=service.value if service else None,
+            asset_type=asset_type,
+            category=category.value if category else None,
+            severity=severity,
+            enabled=enabled,
+        )
+    ]
 
 
 @router.get("/rules/{rule_key}", response_model=RuleResponse)
@@ -149,9 +180,13 @@ def list_findings(
     db: DbSession,
     organization_id: Annotated[uuid.UUID, Query()],
     aws_account_id: uuid.UUID | None = None,
+    asset_id: uuid.UUID | None = None,
+    service: RuleService | None = None,
+    asset_type: AssetType | None = None,
     severity: FindingSeverity | None = None,
     finding_status: Annotated[FindingStatus | None, Query(alias="status")] = None,
     rule_key: Annotated[str | None, Query(max_length=160)] = None,
+    region: Annotated[str | None, Query(max_length=64)] = None,
     search: Annotated[str | None, Query(max_length=200)] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
@@ -160,15 +195,33 @@ def list_findings(
     items, total = FindingRepository(db).list(
         organization_id,
         account_id=aws_account_id,
+        asset_id=asset_id,
+        service=service.value if service else None,
+        asset_type=asset_type,
         severity=severity,
         status=finding_status,
         rule_key=rule_key,
+        region=region,
         search=search,
+        rule_services={rule.key: rule.service for rule in default_registry.all()},
         page=page,
         page_size=page_size,
     )
+    asset_ids = {item.asset_id for item in items if item.asset_id is not None}
+    assets = (
+        {item.id: item for item in db.scalars(select(Asset).where(Asset.id.in_(asset_ids)))}
+        if asset_ids
+        else {}
+    )
     return FindingListResponse(
-        items=[_finding_response(item) for item in items],
+        items=[
+            _finding_response(
+                item,
+                db,
+                assets.get(item.asset_id) if item.asset_id is not None else None,
+            )
+            for item in items
+        ],
         total=total,
         page=page,
         page_size=page_size,
@@ -180,11 +233,48 @@ def findings_summary(
     user: CurrentUser,
     db: DbSession,
     organization_id: Annotated[uuid.UUID, Query()],
+    aws_account_id: uuid.UUID | None = None,
+    asset_id: uuid.UUID | None = None,
+    service: RuleService | None = None,
+    asset_type: AssetType | None = None,
+    severity: FindingSeverity | None = None,
+    finding_status: Annotated[FindingStatus | None, Query(alias="status")] = None,
+    rule_key: Annotated[str | None, Query(max_length=160)] = None,
+    region: Annotated[str | None, Query(max_length=64)] = None,
+    search: Annotated[str | None, Query(max_length=200)] = None,
 ) -> FindingSummaryResponse:
     OrganizationService(db).require_capability(organization_id, user.id, Capability.FINDINGS_READ)
     items = [
-        FindingSummaryItem(severity=severity, status=status_value, count=count)
-        for severity, status_value, count in FindingRepository(db).summary(organization_id)
+        FindingSummaryItem(
+            severity=severity_value,
+            status=status_value,
+            service=service_value,
+            aws_account_id=account_value,
+            asset_type=asset_type_value,
+            region=region_value,
+            count=count,
+        )
+        for (
+            severity_value,
+            status_value,
+            service_value,
+            account_value,
+            asset_type_value,
+            region_value,
+            count,
+        ) in FindingRepository(db).summary(
+            organization_id,
+            account_id=aws_account_id,
+            asset_id=asset_id,
+            service=service.value if service else None,
+            asset_type=asset_type,
+            severity=severity,
+            status=finding_status,
+            rule_key=rule_key,
+            region=region,
+            search=search,
+            rule_services={rule.key: rule.service for rule in default_registry.all()},
+        )
     ]
     return FindingSummaryResponse(total=sum(item.count for item in items), items=items)
 
@@ -200,7 +290,7 @@ def get_finding(
     finding = FindingRepository(db).get(organization_id, finding_id)
     if finding is None:
         raise NotFoundError("finding_not_found", "Finding was not found.")
-    return _finding_response(finding)
+    return _finding_response(finding, db)
 
 
 @router.post("/findings/{finding_id}/suppress", response_model=FindingResponse)
@@ -218,7 +308,7 @@ def suppress_finding(
         payload.reason,
         payload.suppressed_until,
     )
-    return _finding_response(finding)
+    return _finding_response(finding, db)
 
 
 @router.post("/findings/{finding_id}/unsuppress", response_model=FindingResponse)
@@ -228,4 +318,6 @@ def unsuppress_finding(
     db: DbSession,
     organization_id: Annotated[uuid.UUID, Query()],
 ) -> FindingResponse:
-    return _finding_response(EvaluationService(db).unsuppress(organization_id, finding_id, user))
+    return _finding_response(
+        EvaluationService(db).unsuppress(organization_id, finding_id, user), db
+    )

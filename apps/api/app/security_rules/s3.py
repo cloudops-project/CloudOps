@@ -28,6 +28,41 @@ def _public_confirmed(asset: Asset | None, _context: RuleContext) -> RuleResult:
     return failed(signals=signals) if confirmed else passed(signals=signals)
 
 
+def _https_only_policy(asset: Asset | None, _context: RuleContext) -> RuleResult:
+    assert asset is not None
+    if "policy_document" not in asset.metadata_json:
+        return error()
+    document = asset.metadata_json["policy_document"]
+    if document is None:
+        return failed(policy_present=False)
+    if not isinstance(document, dict):
+        return error("malformed_bucket_policy")
+    statements = document.get("Statement")
+    if isinstance(statements, dict):
+        statements = [statements]
+    if not isinstance(statements, list):
+        return error("malformed_bucket_policy")
+    for index, statement in enumerate(statements):
+        if not isinstance(statement, dict):
+            return error("malformed_bucket_policy")
+        effect = statement.get("Effect")
+        condition = statement.get("Condition", {})
+        if not isinstance(effect, str) or not isinstance(condition, dict):
+            return error("malformed_bucket_policy")
+        bool_condition = condition.get("Bool", {})
+        if bool_condition is None:
+            continue
+        if not isinstance(bool_condition, dict):
+            return error("malformed_bucket_policy")
+        secure_transport = bool_condition.get("aws:SecureTransport")
+        denies_insecure = secure_transport is False or (
+            isinstance(secure_transport, str) and secure_transport.casefold() == "false"
+        )
+        if effect == "Deny" and denies_insecure:
+            return passed(statement_index=index, policy_present=True)
+    return failed(policy_present=True)
+
+
 RULES = (
     SecurityRule(
         "S3_BUCKET_PUBLIC_ACCESS_CONFIRMED",
@@ -87,7 +122,7 @@ RULES = (
         "transport",
         FindingSeverity.HIGH,
         "Add a bucket policy denying requests when aws:SecureTransport is false.",
-        evaluator=_metadata_rule("https_only_policy", False),
+        evaluator=_https_only_policy,
     ),
     SecurityRule(
         "S3_BUCKET_LOGGING_DISABLED",

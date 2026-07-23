@@ -130,6 +130,11 @@ def test_organization_tenant_invitation_and_member_lifecycle(
         json={"email": "viewer@example.com", "role": "viewer"},
     )
     assert duplicate.status_code == 409
+    listed_invitations = client.get(
+        f"/api/v1/organizations/{org_id}/invitations", headers=owner_headers
+    )
+    assert listed_invitations.status_code == 200
+    assert all("development_token" not in item for item in listed_invitations.json())
 
     viewer_headers = register_and_login(client, "viewer@example.com")
     accepted = client.post(

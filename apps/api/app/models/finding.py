@@ -43,10 +43,13 @@ class Finding(TimestampMixin, Base):
         CheckConstraint("last_seen_at >= first_seen_at", name="finding_seen_order"),
         CheckConstraint(
             "("
-            "(status = 'open' AND resolved_at IS NULL AND suppressed_at IS NULL) OR "
-            "(status = 'resolved' AND resolved_at IS NOT NULL AND suppressed_at IS NULL) OR "
+            "(status = 'open' AND resolved_at IS NULL AND suppressed_at IS NULL "
+            "AND suppressed_by_user_id IS NULL) OR "
+            "(status = 'resolved' AND resolved_at IS NOT NULL AND suppressed_at IS NULL "
+            "AND suppressed_by_user_id IS NULL) OR "
             "(status = 'suppressed' AND resolved_at IS NULL AND suppressed_at IS NOT NULL "
-            "AND suppression_reason IS NOT NULL AND suppression_reason <> '')"
+            "AND suppression_reason IS NOT NULL AND suppression_reason <> '' "
+            "AND suppressed_by_user_id IS NOT NULL)"
             ")",
             name="finding_status_lifecycle",
         ),

@@ -174,6 +174,30 @@ def test_create_duplicate_policies_and_listing(client: TestClient) -> None:
     assert len(listed.json()) == 1
 
 
+def test_missing_trusted_principal_does_not_persist_account(
+    client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner, organization_id = create_organization(
+        client, "missing-principal@example.com", "missing-principal"
+    )
+    monkeypatch.setattr(get_settings(), "aws_trusted_principal_arn", "")
+
+    response = client.post(
+        "/api/v1/aws/accounts",
+        headers=owner,
+        json={
+            "organization_id": organization_id,
+            "name": "Must not persist",
+            "account_id": "123456789012",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "aws_principal_not_configured"
+    assert db.scalar(select(func.count()).select_from(AWSAccount)) == 0
+    assert db.scalar(select(func.count()).select_from(AWSExternalIDReservation)) == 0
+
+
 def test_role_update_validation_success_failure_mismatch_and_audit(
     client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:

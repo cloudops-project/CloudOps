@@ -103,3 +103,30 @@ class FindingSeverity(StrEnum):
     MEDIUM = "medium"
     LOW = "low"
     INFORMATIONAL = "informational"
+
+
+class RuleService(StrEnum):
+    EC2 = "ec2"
+    S3 = "s3"
+    IAM = "iam"
+    RDS = "rds"
+    CLOUDWATCH = "cloudwatch"
+    CLOUDWATCH_LOGS = "cloudwatch_logs"
+    CLOUDTRAIL = "cloudtrail"
+
+
+class RuleCategory(StrEnum):
+    COVERAGE = "coverage"
+    CREDENTIAL_HYGIENE = "credential_hygiene"
+    DATA_PROTECTION = "data_protection"
+    EXPOSURE = "exposure"
+    HARDENING = "hardening"
+    IDENTITY = "identity"
+    INTEGRITY = "integrity"
+    LEAST_PRIVILEGE = "least_privilege"
+    LOGGING = "logging"
+    MONITORING = "monitoring"
+    NETWORK = "network"
+    PATCHING = "patching"
+    RESILIENCE = "resilience"
+    TRANSPORT = "transport"

@@ -58,6 +58,8 @@ class EvaluationJob(TimestampMixin, Base):
         CheckConstraint("findings_created >= 0", name="evaluation_created_nonnegative"),
         CheckConstraint("findings_updated >= 0", name="evaluation_updated_nonnegative"),
         CheckConstraint("findings_resolved >= 0", name="evaluation_resolved_nonnegative"),
+        CheckConstraint("findings_reopened >= 0", name="evaluation_reopened_nonnegative"),
+        CheckConstraint("evaluation_errors >= 0", name="evaluation_errors_nonnegative"),
         CheckConstraint(
             "("
             "(status = 'pending' AND started_at IS NULL AND finished_at IS NULL) OR "
@@ -136,6 +138,12 @@ class EvaluationJob(TimestampMixin, Base):
         Integer, default=0, server_default="0", nullable=False
     )
     findings_resolved: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    findings_reopened: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    evaluation_errors: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )
     error_summary: Mapped[str | None] = mapped_column(String(2000))

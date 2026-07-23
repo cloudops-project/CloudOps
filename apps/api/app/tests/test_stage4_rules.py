@@ -403,9 +403,13 @@ def test_finding_api_rbac_suppression_and_safe_response(client: TestClient, db: 
         params={
             "organization_id": str(organization_id),
             "aws_account_id": str(account.id),
+            "asset_id": str(item.id),
+            "service": "cloudtrail",
+            "asset_type": "cloudtrail_trail",
             "severity": "critical",
             "status": "open",
             "rule_key": "CLOUDTRAIL_LOGGING_DISABLED",
+            "region": "us-east-1",
             "search": "cloudtrail",
             "page": 1,
             "page_size": 10,
@@ -413,6 +417,23 @@ def test_finding_api_rbac_suppression_and_safe_response(client: TestClient, db: 
     )
     assert filtered.status_code == 200
     assert filtered.json()["total"] == 1
+    summary_item = summary.json()["items"][0]
+    assert {
+        "service",
+        "aws_account_id",
+        "asset_type",
+        "region",
+    }.issubset(summary_item)
+    injection = client.get(
+        "/api/v1/findings",
+        headers=headers,
+        params={
+            "organization_id": str(organization_id),
+            "search": "' OR 1=1 --",
+        },
+    )
+    assert injection.status_code == 200
+    assert injection.json()["total"] == 0
     assert (
         client.post(
             f"/api/v1/findings/{finding_id}/suppress?organization_id={organization_id}",
@@ -601,7 +622,12 @@ class Stage4S3Client:
         return {"LoggingEnabled": {"TargetBucket": "logs"}}
 
     def get_bucket_policy(self, **_kwargs: Any) -> dict[str, Any]:
-        return {"Policy": '{"Condition":{"Bool":{"aws:SecureTransport":"false"}}}'}
+        return {
+            "Policy": (
+                '{"Statement":{"Effect":"Deny","Action":"s3:*","Resource":"*",'
+                '"Condition":{"Bool":{"aws:SecureTransport":"false"}}}}'
+            )
+        }
 
 
 def test_stage4_s3_discovery_metadata() -> None:
@@ -613,7 +639,7 @@ def test_stage4_s3_discovery_metadata() -> None:
     assert item.metadata["default_encryption_enabled"] is True
     assert item.metadata["versioning_enabled"] is True
     assert item.metadata["logging_enabled"] is True
-    assert item.metadata["https_only_policy"] is True
+    assert item.metadata["policy_document"]["Statement"]["Effect"] == "Deny"
 
 
 class Stage4IAMClient:
@@ -676,6 +702,7 @@ class Stage4IAMClient:
         return {"Tags": []}
 
     list_role_tags = list_user_tags
+    list_group_tags = list_user_tags
     list_policy_tags = list_user_tags
 
     def list_attached_user_policies(self, **_kwargs: Any) -> dict[str, Any]:
@@ -691,7 +718,9 @@ class Stage4IAMClient:
     list_group_policies = list_user_policies
 
     def get_user_policy(self, **_kwargs: Any) -> dict[str, Any]:
-        return {"PolicyDocument": {"Statement": {"Effect": "Allow", "Action": "*"}}}
+        return {
+            "PolicyDocument": {"Statement": {"Effect": "Allow", "Action": "*", "Resource": "*"}}
+        }
 
     get_role_policy = get_user_policy
     get_group_policy = get_user_policy
@@ -721,8 +750,8 @@ def test_stage4_iam_discovery_metadata() -> None:
     user = next(item for item in items if item.asset_type == AssetType.IAM_USER)
     assert user.metadata["console_access"] is True
     assert user.metadata["mfa_enabled"] is False
-    assert user.metadata["oldest_active_key_age_days"] >= 119
-    assert user.metadata["inline_policy_allow_all"] is True
+    assert user.metadata["active_key_created_at"]
+    assert user.metadata["inline_policy_documents"][0]["Statement"]["Resource"] == "*"
     assert user.metadata["attached_policy_arns"][0].endswith("AdministratorAccess")
 
 
@@ -869,7 +898,7 @@ def test_stage4_rds_cloudwatch_and_cloudtrail_discovery() -> None:
                 "public_access_block_complete": False,
                 "default_encryption_enabled": False,
                 "versioning_enabled": False,
-                "https_only_policy": False,
+                "policy_document": None,
                 "logging_enabled": False,
             },
             [
@@ -886,9 +915,17 @@ def test_stage4_rds_cloudwatch_and_cloudtrail_discovery() -> None:
             {
                 "console_access": True,
                 "mfa_enabled": False,
-                "oldest_active_key_age_days": 120,
+                "active_key_created_at": [(datetime.now(UTC) - timedelta(days=120)).isoformat()],
                 "attached_policy_arns": ["arn:aws:iam::aws:policy/AdministratorAccess"],
-                "inline_policy_allow_all": True,
+                "inline_policy_documents": [
+                    {
+                        "Statement": {
+                            "Effect": "Allow",
+                            "Action": "*",
+                            "Resource": "*",
+                        }
+                    }
+                ],
             },
             [
                 "IAM_USER_CONSOLE_ACCESS_WITHOUT_MFA",
