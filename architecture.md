@@ -1,8 +1,9 @@
 # CloudOps Current Architecture
 
 Stages 1-7 are independently clean-room verified, merged, and regression-tested in `main` at
-`882ff531af07276c11e0d25664fdca033e09c7c7`. Stage 7 AI explanations are implemented with
-migration head `0009_stage7_ai_assistant`. Stage 8 Dashboard work has not started.
+`01c3eb4bf9ed2d1770da697c158c5d08742430bd`. Stage 7 AI explanations are implemented with
+migration head `0009_stage7_ai_assistant`. Stage 8A Dashboard read-model work has started on
+`feature/8-dashboard`.
 
 ## Document role
 
@@ -273,8 +274,24 @@ valid Stage 2/3 data is preserved.
 
 Stage 4 detects findings; Stage 5 interprets persisted evidence for compliance; Stage 6 uses
 `CLOUDOPS_RISK_V1` to prioritize those findings without network calls or AI. Stage 7 may explain
-existing deterministic results but must never detect, score, or mutate them. AI, notifications,
-raw event ingestion, scheduling, remediation, and production infrastructure remain future work.
+existing deterministic results but must never detect, score, or mutate them. Stage 8A visualizes
+existing Stage 2-7 records through a read-only dashboard summary API and does not add dashboard
+persistence or recalculate authoritative posture. Notifications, raw event ingestion,
+scheduling, remediation, and production infrastructure remain future work.
+
+## Stage 8A dashboard read model
+
+`GET /api/v1/dashboard/summary` is organization scoped and guarded by the existing active
+membership/RBAC dependency. The service aggregates AWS account state, asset inventory,
+finding posture, latest completed compliance assessment, latest completed risk assessment,
+account-risk heatmap data, immutable risk trend points, and operational freshness timestamps
+from existing tables. It returns explicit empty/partial-state metadata instead of fabricated
+scores, percentages, trend points, or compliance posture.
+
+Stage 8A is read-only: it performs no writes, imports no AWS or AI provider, invokes no
+notification/Jira/remediation path, and stores no derived dashboard copies of Stage 1-7 data.
+Bounded arrays use deterministic count-descending/stable-key ordering or chronological ordering
+where documented by the response contract.
 
 ## Stage 7 AI trust boundary
 
