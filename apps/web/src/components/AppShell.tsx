@@ -11,7 +11,7 @@ import {
   Users,
   UserRound,
 } from "lucide-react";
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 
 export function AppShell() {

@@ -1,6 +1,6 @@
 import { CheckCircle2, Cloud, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import type { AWSAccount, AWSAccountStatus } from "../types";
 
 const statusClasses: Record<AWSAccountStatus, string> = {

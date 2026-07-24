@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Play, Search, ShieldAlert } from "lucide-react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { AIWorkflow } from "../components/AIWorkflow";

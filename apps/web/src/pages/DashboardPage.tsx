@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, UserPlus, Users } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import type { AuditEvent, Invitation, Member } from "../types";

@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router";
 import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { AIWorkflow } from "../components/AIWorkflow";

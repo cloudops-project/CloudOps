@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { AIWorkflow } from "../components/AIWorkflow";

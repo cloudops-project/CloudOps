@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 export function UnauthorizedPage() {
   return (
     <main className="grid min-h-screen place-items-center bg-canvas p-5">

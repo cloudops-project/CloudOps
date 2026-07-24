@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Cloud, Play, PlugZap, Unplug } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { z } from "zod";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
