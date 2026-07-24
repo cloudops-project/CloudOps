@@ -3,13 +3,15 @@ from __future__ import annotations
 import inspect
 import uuid
 from contextlib import suppress
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+import app.services.ai as ai_service_module
+from app.core.config import get_settings
 from app.db.base import Base
 from app.exceptions.errors import AppError
 from app.models import (
@@ -30,12 +32,15 @@ from app.models.enums import (
     AITaskType,
     BusinessImpact,
     DataSensitivity,
+    FindingSeverity,
+    FindingStatus,
     MembershipStatus,
     OrganizationRole,
     RiskCriticality,
     RiskEnvironment,
 )
 from app.schemas.ai import AIContent, AIGenerateRequest, AISourceInput
+from app.security.tokens import create_access_token
 from app.services.ai import AIService
 from app.services.ai_provider import MockAIProvider, ProviderExecutionControl
 from app.services.ai_safety import canonical_json, redact_text, sanitize
@@ -878,6 +883,85 @@ def test_historical_response_becomes_stale_without_being_rewritten(db: Session) 
     assert captured.value.code == "AI_IDEMPOTENCY_CONFLICT"
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    ["evidence", "severity", "status", "suppression", "resolution", "lifecycle_version"],
+)
+def test_finding_material_changes_stale_immutable_historical_output(
+    db: Session, mutation: str
+) -> None:
+    user, organization, account = _tenant(db)
+    finding, _ = _finding(db, organization, account, user)
+    _template(db)
+    payload = AIGenerateRequest(
+        organization_id=organization.id,
+        task_type=AITaskType.EXPLAIN_FINDING,
+        sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+        idempotency_key=f"finding-staleness-{mutation}",
+    )
+    original = AIService(db).generate(payload, user.id)
+    source = db.scalar(select(AIRequestSource).where(AIRequestSource.request_id == original.id))
+    assert source is not None
+    assert original.content is not None
+    original_content = canonical_json(original.content.model_dump())
+    original_snapshot = (source.source_version, source.source_hash)
+    if mutation == "evidence":
+        finding.evidence_json = {"material": "changed"}
+    elif mutation == "severity":
+        finding.severity = FindingSeverity.LOW
+    elif mutation == "status":
+        finding.status = FindingStatus.RESOLVED
+        finding.resolved_at = datetime.now(UTC)
+    elif mutation == "suppression":
+        finding.status = FindingStatus.SUPPRESSED
+        finding.suppressed_at = datetime.now(UTC)
+        finding.suppression_reason = "deterministic suppression"
+        finding.suppressed_by_user_id = user.id
+    elif mutation == "resolution":
+        finding.status = FindingStatus.RESOLVED
+        finding.resolved_at = datetime.now(UTC)
+    else:
+        finding.lifecycle_version += 1
+    db.commit()
+    request = db.get(AIRequest, original.id)
+    assert request is not None
+    historical = AIService(db).response(request)
+    assert historical.source_staleness == "stale"
+    assert historical.content is not None
+    assert canonical_json(historical.content.model_dump()) == original_content
+    db.refresh(source)
+    assert (source.source_version, source.source_hash) == original_snapshot
+    with pytest.raises(AppError) as conflict:
+        AIService(db).generate(payload, user.id)
+    assert conflict.value.code == "AI_IDEMPOTENCY_CONFLICT"
+    regenerated = AIService(db).generate(
+        payload.model_copy(update={"idempotency_key": f"finding-regenerated-{mutation}"}),
+        user.id,
+    )
+    assert regenerated.id != original.id
+    assert regenerated.source_staleness == "current"
+
+
+def test_finding_noncanonical_change_remains_current(db: Session) -> None:
+    user, organization, account = _tenant(db)
+    finding, _ = _finding(db, organization, account, user)
+    _template(db)
+    result = AIService(db).generate(
+        AIGenerateRequest(
+            organization_id=organization.id,
+            task_type=AITaskType.EXPLAIN_FINDING,
+            sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+            idempotency_key="finding-noncanonical-noop",
+        ),
+        user.id,
+    )
+    finding.last_seen_at = finding.last_seen_at + timedelta(minutes=1)
+    db.commit()
+    request = db.get(AIRequest, result.id)
+    assert request is not None
+    assert AIService(db).response(request).source_staleness == "current"
+
+
 def test_risk_and_compliance_staleness_uses_canonical_assessment_state(
     db: Session,
 ) -> None:
@@ -964,6 +1048,74 @@ def test_service_rejects_cross_tenant_source(db: Session) -> None:
         raise AssertionError("Cross-tenant AI source must not be disclosed.")
 
 
+@pytest.mark.parametrize(
+    ("source_type", "task"),
+    [
+        (AISourceType.FINDING, AITaskType.EXPLAIN_FINDING),
+        (AISourceType.RISK_ASSESSMENT, AITaskType.EXECUTIVE_SUMMARY),
+        (AISourceType.COMPLIANCE_ASSESSMENT, AITaskType.EXECUTIVE_SUMMARY),
+    ],
+)
+@pytest.mark.parametrize("probe", ["random", "cross_tenant"])
+def test_ai_source_uuid_probing_is_non_disclosing(
+    client: TestClient,
+    db: Session,
+    source_type: AISourceType,
+    task: AITaskType,
+    probe: str,
+) -> None:
+    user, organization, _ = _tenant(db)
+    other_user, other_organization, other_account = _tenant(db)
+    other_finding, asset = _finding(db, other_organization, other_account, other_user)
+    framework = _framework(db, f"probe-{source_type.value}-{probe}")
+    compliance = _assessment(db, other_organization, other_account, framework)
+    db.add(
+        AssetRiskContext(
+            organization_id=other_organization.id,
+            aws_account_id=other_account.id,
+            asset_id=asset.id,
+            criticality=RiskCriticality.HIGH,
+            environment=RiskEnvironment.PRODUCTION,
+            business_impact=BusinessImpact.HIGH,
+            data_sensitivity=DataSensitivity.CONFIDENTIAL,
+            source="tenant-probe",
+            updated_by_user_id=other_user.id,
+        )
+    )
+    db.commit()
+    risk = RiskService(db).assess(
+        other_organization.id,
+        other_user,
+        aws_account_id=other_account.id,
+        evaluation_time=datetime(2026, 7, 24, tzinfo=UTC),
+    )
+    _template(db, task)
+    db.commit()
+    cross_ids = {
+        AISourceType.FINDING: other_finding.id,
+        AISourceType.RISK_ASSESSMENT: risk.id,
+        AISourceType.COMPLIANCE_ASSESSMENT: compliance.id,
+    }
+    source_id = uuid.uuid4() if probe == "random" else cross_ids[source_type]
+    before_requests = db.scalar(select(func.count()).select_from(AIRequest))
+    before_usage = db.scalar(select(func.sum(AIUsageWindow.request_count))) or 0
+    response = client.post(
+        "/api/v1/ai/generate",
+        headers=_headers(user),
+        json={
+            "organization_id": str(organization.id),
+            "task_type": task.value,
+            "sources": [{"source_type": source_type.value, "source_id": str(source_id)}],
+            "idempotency_key": f"probe-{source_type.value}-{probe}",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "ai_source_not_found"
+    db.expire_all()
+    assert db.scalar(select(func.count()).select_from(AIRequest)) == before_requests
+    assert (db.scalar(select(func.sum(AIUsageWindow.request_count))) or 0) == before_usage
+
+
 def test_http_generation_history_and_viewer_denial(client: TestClient, db: Session) -> None:
     user, organization, account = _tenant(db)
     finding, _ = _finding(db, organization, account, user)
@@ -1015,6 +1167,101 @@ def test_ai_http_authentication_and_source_contracts(client: TestClient, db: Ses
     assert invalid.json()["error"]["code"] == "AI_UNSUPPORTED_SOURCE_TASK"
 
 
+@pytest.mark.parametrize("authentication", ["missing", "malformed", "expired"])
+def test_ai_protected_endpoint_categories_require_valid_authentication(
+    client: TestClient, db: Session, authentication: str
+) -> None:
+    user, organization, account = _tenant(db)
+    finding, asset = _finding(db, organization, account, user)
+    framework = _framework(db, f"ai-auth-{authentication}")
+    compliance = _assessment(db, organization, account, framework)
+    db.add(
+        AssetRiskContext(
+            organization_id=organization.id,
+            aws_account_id=account.id,
+            asset_id=asset.id,
+            criticality=RiskCriticality.HIGH,
+            environment=RiskEnvironment.PRODUCTION,
+            business_impact=BusinessImpact.HIGH,
+            data_sensitivity=DataSensitivity.CONFIDENTIAL,
+            source="auth-matrix",
+            updated_by_user_id=user.id,
+        )
+    )
+    db.commit()
+    risk = RiskService(db).assess(
+        organization.id,
+        user,
+        aws_account_id=account.id,
+        evaluation_time=datetime(2026, 7, 24, tzinfo=UTC),
+    )
+    for task in (AITaskType.EXPLAIN_FINDING, AITaskType.EXECUTIVE_SUMMARY):
+        _template(db, task)
+    generated = AIService(db).generate(
+        AIGenerateRequest(
+            organization_id=organization.id,
+            task_type=AITaskType.EXPLAIN_FINDING,
+            sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+            idempotency_key=f"auth-seed-{authentication}",
+        ),
+        user.id,
+    )
+    db.commit()
+    if authentication == "missing":
+        headers: dict[str, str] = {}
+    elif authentication == "malformed":
+        headers = {"Authorization": "Bearer malformed"}
+    else:
+        token = create_access_token(
+            user.id,
+            get_settings(),
+            now=datetime.now(UTC) - timedelta(days=2),
+        )
+        headers = {"Authorization": f"Bearer {token}"}
+    shortcut_payload = {
+        "organization_id": str(organization.id),
+        "idempotency_key": f"auth-denied-{authentication}",
+    }
+    cases = [
+        (
+            "post",
+            "/api/v1/ai/generate",
+            {
+                "organization_id": str(organization.id),
+                "task_type": "explain_finding",
+                "sources": [{"source_type": "finding", "source_id": str(finding.id)}],
+                "idempotency_key": f"auth-generic-{authentication}",
+            },
+        ),
+        ("get", f"/api/v1/ai/requests?organization_id={organization.id}", None),
+        (
+            "get",
+            f"/api/v1/ai/requests/{generated.id}?organization_id={organization.id}",
+            None,
+        ),
+        ("post", f"/api/v1/findings/{finding.id}/ai/explain", shortcut_payload),
+        (
+            "post",
+            f"/api/v1/risk/assessments/{risk.id}/ai/executive-summary",
+            shortcut_payload,
+        ),
+        (
+            "post",
+            f"/api/v1/compliance/assessments/{compliance.id}/ai/executive-summary",
+            shortcut_payload,
+        ),
+    ]
+    before_requests = db.scalar(select(func.count()).select_from(AIRequest))
+    before_usage = db.scalar(select(func.sum(AIUsageWindow.request_count))) or 0
+    for method, path, payload in cases:
+        response = client.request(method, path, headers=headers, json=payload)
+        assert response.status_code == 401, (path, response.text)
+        assert "error" in response.json()
+    db.expire_all()
+    assert db.scalar(select(func.count()).select_from(AIRequest)) == before_requests
+    assert (db.scalar(select(func.sum(AIUsageWindow.request_count))) or 0) == before_usage
+
+
 def test_ai_http_quota_uses_429_and_retry_after(
     client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1036,6 +1283,46 @@ def test_ai_http_quota_uses_429_and_retry_after(
     assert response.status_code == 429
     assert response.headers["retry-after"]
     assert response.json()["error"]["code"] == "AI_RATE_LIMITED"
+
+
+@pytest.mark.parametrize(
+    ("mode", "status_code", "error_code"),
+    [
+        ("permanent_failure", 502, "AI_PROVIDER_FAILED"),
+        ("invalid_json", 502, "AI_INVALID_RESPONSE"),
+        ("disabled", 503, "AI_PROVIDER_DISABLED"),
+        ("timeout", 504, "AI_PROVIDER_TIMEOUT"),
+    ],
+)
+def test_ai_http_provider_error_matrix_is_sanitized(
+    client: TestClient,
+    db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    status_code: int,
+    error_code: str,
+) -> None:
+    user, organization, account = _tenant(db)
+    finding, _ = _finding(db, organization, account, user)
+    _template(db)
+    db.commit()
+    monkeypatch.setattr(ai_service_module, "MockAIProvider", lambda: MockAIProvider(mode))
+    response = client.post(
+        "/api/v1/ai/generate",
+        headers=_headers(user),
+        json={
+            "organization_id": str(organization.id),
+            "task_type": "explain_finding",
+            "sources": [{"source_type": "finding", "source_id": str(finding.id)}],
+            "idempotency_key": f"http-provider-{mode}",
+        },
+    )
+    assert response.status_code == status_code
+    assert response.json()["error"]["code"] == error_code
+    rendered = response.text.lower()
+    assert "traceback" not in rendered
+    assert "password" not in rendered
+    assert "postgresql" not in rendered
 
 
 def test_ai_request_detail_is_non_disclosing_across_tenants(
@@ -1060,6 +1347,82 @@ def test_ai_request_detail_is_non_disclosing_across_tenants(
         headers=_headers(user_b),
     )
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "membership_state",
+    ["missing", MembershipStatus.REMOVED.value, MembershipStatus.SUSPENDED.value],
+)
+def test_inactive_membership_cannot_read_or_generate_ai(
+    client: TestClient, db: Session, membership_state: str
+) -> None:
+    user, organization, account = _tenant(db)
+    finding, _ = _finding(db, organization, account, user)
+    _template(db)
+    generated = AIService(db).generate(
+        AIGenerateRequest(
+            organization_id=organization.id,
+            task_type=AITaskType.EXPLAIN_FINDING,
+            sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+            idempotency_key=f"membership-seed-{membership_state}",
+        ),
+        user.id,
+    )
+    membership = db.scalar(
+        select(OrganizationMembership).where(
+            OrganizationMembership.organization_id == organization.id,
+            OrganizationMembership.user_id == user.id,
+        )
+    )
+    assert membership is not None
+    if membership_state == "missing":
+        db.delete(membership)
+    else:
+        membership.status = MembershipStatus(membership_state)
+    db.commit()
+    headers = _headers(user)
+    shortcut = {
+        "organization_id": str(organization.id),
+        "idempotency_key": f"membership-denied-{membership_state}",
+    }
+    cases = [
+        (
+            "post",
+            "/api/v1/ai/generate",
+            {
+                "organization_id": str(organization.id),
+                "task_type": "explain_finding",
+                "sources": [{"source_type": "finding", "source_id": str(finding.id)}],
+                "idempotency_key": f"membership-generic-{membership_state}",
+            },
+        ),
+        ("get", f"/api/v1/ai/requests?organization_id={organization.id}", None),
+        (
+            "get",
+            f"/api/v1/ai/requests/{generated.id}?organization_id={organization.id}",
+            None,
+        ),
+        ("post", f"/api/v1/findings/{finding.id}/ai/explain", shortcut),
+        (
+            "post",
+            f"/api/v1/risk/assessments/{uuid.uuid4()}/ai/executive-summary",
+            shortcut,
+        ),
+        (
+            "post",
+            f"/api/v1/compliance/assessments/{uuid.uuid4()}/ai/executive-summary",
+            shortcut,
+        ),
+    ]
+    before_requests = db.scalar(select(func.count()).select_from(AIRequest))
+    before_usage = db.scalar(select(func.sum(AIUsageWindow.request_count))) or 0
+    for method, path, payload in cases:
+        response = client.request(method, path, headers=headers, json=payload)
+        assert response.status_code == 404, (path, response.text)
+        assert response.json()["error"]["code"] == "organization_not_found"
+    db.expire_all()
+    assert db.scalar(select(func.count()).select_from(AIRequest)) == before_requests
+    assert (db.scalar(select(func.sum(AIUsageWindow.request_count))) or 0) == before_usage
 
 
 def test_finding_shortcuts_cover_each_safe_draft_type(client: TestClient, db: Session) -> None:
@@ -1087,6 +1450,124 @@ def test_finding_shortcuts_cover_each_safe_draft_type(client: TestClient, db: Se
         assert response.status_code == 200, response.text
         assert response.json()["task_type"] == task.value
         assert response.json()["content"]["draft_only"] is True
+
+
+@pytest.mark.parametrize(
+    ("source_kind", "suffix"),
+    [
+        ("risk", "executive-summary"),
+        ("risk", "email-draft"),
+        ("compliance", "executive-summary"),
+        ("compliance", "email-draft"),
+    ],
+)
+def test_assessment_shortcuts_cover_each_safe_draft_type(
+    client: TestClient, db: Session, source_kind: str, suffix: str
+) -> None:
+    user, organization, account = _tenant(db)
+    _, asset = _finding(db, organization, account, user)
+    framework = _framework(db, f"shortcut-{source_kind}-{suffix}")
+    compliance = _assessment(db, organization, account, framework)
+    db.add(
+        AssetRiskContext(
+            organization_id=organization.id,
+            aws_account_id=account.id,
+            asset_id=asset.id,
+            criticality=RiskCriticality.HIGH,
+            environment=RiskEnvironment.PRODUCTION,
+            business_impact=BusinessImpact.HIGH,
+            data_sensitivity=DataSensitivity.CONFIDENTIAL,
+            source="shortcut-matrix",
+            updated_by_user_id=user.id,
+        )
+    )
+    db.commit()
+    risk = RiskService(db).assess(
+        organization.id,
+        user,
+        aws_account_id=account.id,
+        evaluation_time=datetime(2026, 7, 24, tzinfo=UTC),
+    )
+    task = (
+        AITaskType.EXECUTIVE_SUMMARY if suffix == "executive-summary" else AITaskType.EMAIL_SUMMARY
+    )
+    _template(db, task)
+    db.commit()
+    source = risk if source_kind == "risk" else compliance
+    response = client.post(
+        f"/api/v1/{source_kind}/assessments/{source.id}/ai/{suffix}",
+        headers=_headers(user),
+        json={
+            "organization_id": str(organization.id),
+            "idempotency_key": f"{source_kind}-{suffix}-shortcut",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["task_type"] == task.value
+    assert response.json()["content"]["draft_only"] is True
+
+
+@pytest.mark.parametrize(
+    ("source_kind", "task"),
+    [
+        ("finding", AITaskType.EXECUTIVE_SUMMARY),
+        ("risk", AITaskType.SUGGEST_REMEDIATION),
+        ("compliance", AITaskType.JIRA_DESCRIPTION),
+    ],
+)
+def test_http_rejects_each_unsupported_task_source_pair_without_side_effects(
+    client: TestClient,
+    db: Session,
+    source_kind: str,
+    task: AITaskType,
+) -> None:
+    user, organization, account = _tenant(db)
+    finding, asset = _finding(db, organization, account, user)
+    framework = _framework(db, f"unsupported-{source_kind}")
+    compliance = _assessment(db, organization, account, framework)
+    db.add(
+        AssetRiskContext(
+            organization_id=organization.id,
+            aws_account_id=account.id,
+            asset_id=asset.id,
+            criticality=RiskCriticality.HIGH,
+            environment=RiskEnvironment.PRODUCTION,
+            business_impact=BusinessImpact.HIGH,
+            data_sensitivity=DataSensitivity.CONFIDENTIAL,
+            source="unsupported-matrix",
+            updated_by_user_id=user.id,
+        )
+    )
+    db.commit()
+    risk = RiskService(db).assess(
+        organization.id,
+        user,
+        aws_account_id=account.id,
+        evaluation_time=datetime(2026, 7, 24, tzinfo=UTC),
+    )
+    source_types = {
+        "finding": (AISourceType.FINDING, finding.id),
+        "risk": (AISourceType.RISK_ASSESSMENT, risk.id),
+        "compliance": (AISourceType.COMPLIANCE_ASSESSMENT, compliance.id),
+    }
+    source_type, source_id = source_types[source_kind]
+    before_requests = db.scalar(select(func.count()).select_from(AIRequest))
+    before_usage = db.scalar(select(func.sum(AIUsageWindow.request_count))) or 0
+    response = client.post(
+        "/api/v1/ai/generate",
+        headers=_headers(user),
+        json={
+            "organization_id": str(organization.id),
+            "task_type": task.value,
+            "sources": [{"source_type": source_type.value, "source_id": str(source_id)}],
+            "idempotency_key": f"unsupported-{source_kind}-{task.value}",
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "AI_UNSUPPORTED_SOURCE_TASK"
+    db.expire_all()
+    assert db.scalar(select(func.count()).select_from(AIRequest)) == before_requests
+    assert (db.scalar(select(func.sum(AIUsageWindow.request_count))) or 0) == before_usage
 
 
 def test_provider_failure_is_sanitized_and_persisted(db: Session) -> None:
@@ -1141,13 +1622,63 @@ def test_six_role_http_rbac(
     generate_status: int,
 ) -> None:
     user, organization, account = _tenant(db, role)
-    finding, _ = _finding(db, organization, account, user)
+    finding, asset = _finding(db, organization, account, user)
+    framework = _framework(db, f"rbac-{role.value}")
+    compliance = _assessment(db, organization, account, framework)
+    db.add(
+        AssetRiskContext(
+            organization_id=organization.id,
+            aws_account_id=account.id,
+            asset_id=asset.id,
+            criticality=RiskCriticality.HIGH,
+            environment=RiskEnvironment.PRODUCTION,
+            business_impact=BusinessImpact.HIGH,
+            data_sensitivity=DataSensitivity.CONFIDENTIAL,
+            source="rbac-matrix",
+            updated_by_user_id=user.id,
+        )
+    )
     _template(db)
+    _template(db, AITaskType.EXECUTIVE_SUMMARY)
+    db.commit()
+    membership = db.scalar(
+        select(OrganizationMembership).where(
+            OrganizationMembership.organization_id == organization.id,
+            OrganizationMembership.user_id == user.id,
+        )
+    )
+    assert membership is not None
+    original_role = membership.role
+    membership.role = OrganizationRole.OWNER
+    db.commit()
+    risk = RiskService(db).assess(
+        organization.id,
+        user,
+        aws_account_id=account.id,
+        evaluation_time=datetime(2026, 7, 24, tzinfo=UTC),
+    )
+    seeded = AIService(db).generate(
+        AIGenerateRequest(
+            organization_id=organization.id,
+            task_type=AITaskType.EXPLAIN_FINDING,
+            sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+            idempotency_key=f"rbac-{role.value}-read-seed",
+        ),
+        user.id,
+    )
+    membership.role = original_role
     db.commit()
     headers = _headers(user)
     assert (
         client.get(
             f"/api/v1/ai/requests?organization_id={organization.id}", headers=headers
+        ).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            f"/api/v1/ai/requests/{seeded.id}?organization_id={organization.id}",
+            headers=headers,
         ).status_code
         == 200
     )
@@ -1162,3 +1693,20 @@ def test_six_role_http_rbac(
         },
     )
     assert generated.status_code == generate_status
+    shortcut_status = 200 if generate_status == 201 else 403
+    for index, path in enumerate(
+        (
+            f"/api/v1/findings/{finding.id}/ai/explain",
+            f"/api/v1/risk/assessments/{risk.id}/ai/executive-summary",
+            f"/api/v1/compliance/assessments/{compliance.id}/ai/executive-summary",
+        )
+    ):
+        response = client.post(
+            path,
+            headers=headers,
+            json={
+                "organization_id": str(organization.id),
+                "idempotency_key": f"rbac-{role.value}-shortcut-{index}",
+            },
+        )
+        assert response.status_code == shortcut_status, (path, response.text)
