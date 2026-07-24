@@ -50,6 +50,15 @@ def test_ai_service_has_no_deterministic_mutation_or_external_execution_dependen
         "os.system",
         "requests.",
         "httpx.",
+        "asyncio.create_task",
+        "loop.create_task",
+        "run_in_executor",
+        "Thread(",
+        "ThreadPoolExecutor",
+        "ProcessPoolExecutor",
+        "BackgroundTasks",
+        ".delay(",
+        ".enqueue(",
     ):
         assert forbidden not in source
 

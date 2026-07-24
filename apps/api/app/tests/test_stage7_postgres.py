@@ -68,6 +68,41 @@ def test_ai_source_and_response_snapshots_are_database_immutable(
         db.rollback()
 
 
+def test_exactly_one_typed_source_is_database_enforced(
+    pg_sessions: sessionmaker[Session],
+) -> None:
+    with pg_sessions() as db:
+        user, organization, account = _tenant(db)
+        finding, _ = _finding(db, organization, account, user)
+        db.commit()
+        result = AIService(db).generate(
+            AIGenerateRequest(
+                organization_id=organization.id,
+                task_type=AITaskType.EXPLAIN_FINDING,
+                sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+                idempotency_key="exactly-one-source",
+            ),
+            user.id,
+        )
+        source = db.scalar(select(AIRequestSource).where(AIRequestSource.request_id == result.id))
+        assert source is not None
+        db.add(
+            AIRequestSource(
+                request_id=result.id,
+                organization_id=organization.id,
+                source_type=AISourceType.FINDING,
+                source_id=finding.id,
+                finding_id=finding.id,
+                finding_aws_account_id=finding.aws_account_id,
+                source_version=finding.lifecycle_version,
+                source_hash="a" * 64,
+            )
+        )
+        with pytest.raises(DatabaseError):
+            db.commit()
+        db.rollback()
+
+
 def test_ai_request_source_composite_tenant_constraint(
     pg_sessions: sessionmaker[Session],
 ) -> None:
