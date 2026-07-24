@@ -31,6 +31,7 @@ _INSTRUCTION_PATTERNS = (
         r"(?i)\b(?:change|alter|modify|suppress|resolve)\s+(?:the\s+)?(?:finding|severity|risk|compliance)"
     ),
     re.compile(r"(?i)\b(?:execute|run)\s+(?:an?\s+)?(?:aws|shell|tool|command)"),
+    re.compile(r"""(?i)["'](?:tool_call|function_call|command)["']\s*:"""),
 )
 _UNSAFE_CONTROLS = {
     "\u202a",

@@ -133,7 +133,7 @@ def upgrade() -> None:
             "source_type IN ('finding','risk_assessment','compliance_assessment')",
             name="ai_source_type",
         ),
-        sa.CheckConstraint("source_version > 0", name="ai_source_version_positive"),
+        sa.CheckConstraint("source_version >= 0", name="ai_source_version_nonnegative"),
         sa.CheckConstraint(
             "(source_type = 'finding' AND finding_id IS NOT NULL "
             "AND finding_aws_account_id IS NOT NULL AND risk_assessment_id IS NULL "

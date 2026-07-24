@@ -135,7 +135,7 @@ class AIRequestSource(Base):
     __tablename__ = "ai_request_sources"
     __table_args__ = (
         UniqueConstraint("request_id", name="uq_ai_request_source"),
-        CheckConstraint("source_version > 0", name="ai_source_version_positive"),
+        CheckConstraint("source_version >= 0", name="ai_source_version_nonnegative"),
         CheckConstraint(
             "(source_type = 'finding' AND finding_id IS NOT NULL "
             "AND finding_aws_account_id IS NOT NULL AND risk_assessment_id IS NULL "
