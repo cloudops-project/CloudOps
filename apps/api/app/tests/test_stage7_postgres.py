@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import os
+import uuid
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from threading import Barrier
 
 import pytest
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.exceptions.errors import AppError
 from app.models import (
     AIPromptTemplate,
     AIRequest,
@@ -431,3 +433,92 @@ def test_concurrent_quota_boundary_has_one_winner(
         results = list(pool.map(worker, range(2)))
     assert results.count("completed") == 1
     assert results.count("AI_RATE_LIMITED") == 1
+
+
+def test_quota_is_organization_scoped_and_rolls_over_at_utc_hour(
+    pg_sessions: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pg_sessions() as db:
+        user_a, organization_a, account_a = _tenant(db)
+        finding_a, _ = _finding(db, organization_a, account_a, user_a)
+        user_b, organization_b, account_b = _tenant(db)
+        finding_b, _ = _finding(db, organization_b, account_b, user_b)
+        db.commit()
+        now = [datetime(2026, 7, 24, 10, 59, 30, tzinfo=UTC)]
+        monkeypatch.setattr(AIService, "MAX_REQUESTS_PER_HOUR", 1)
+
+        def generate(
+            organization_id: uuid.UUID,
+            finding_id: uuid.UUID,
+            user_id: uuid.UUID,
+            key: str,
+        ) -> object:
+            return AIService(db, utc_now=lambda: now[0]).generate(
+                AIGenerateRequest(
+                    organization_id=organization_id,
+                    task_type=AITaskType.EXPLAIN_FINDING,
+                    sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding_id)],
+                    idempotency_key=key,
+                ),
+                user_id,
+            )
+
+        generate(organization_a.id, finding_a.id, user_a.id, "quota-org-a-first")
+        with pytest.raises(AppError) as limited:
+            generate(organization_a.id, finding_a.id, user_a.id, "quota-org-a-limited")
+        assert limited.value.code == "AI_RATE_LIMITED"
+        details = limited.value.details[0]
+        assert 1 <= details["retry_after_seconds"] <= 30
+        generate(organization_b.id, finding_b.id, user_b.id, "quota-org-b-first")
+
+        now[0] = datetime(2026, 7, 24, 11, 0, 5, tzinfo=UTC)
+        generate(organization_a.id, finding_a.id, user_a.id, "quota-org-a-next-window")
+
+        windows = db.scalars(
+            select(AIUsageWindow)
+            .where(AIUsageWindow.organization_id.in_([organization_a.id, organization_b.id]))
+            .order_by(AIUsageWindow.organization_id, AIUsageWindow.window_start)
+        ).all()
+        assert len(windows) == 3
+        assert all(window.request_count == 1 for window in windows)
+        assert len({window.organization_id for window in windows}) == 2
+        assert (
+            len(
+                {
+                    window.window_start
+                    for window in windows
+                    if window.organization_id == organization_a.id
+                }
+            )
+            == 2
+        )
+
+
+@pytest.mark.parametrize(
+    "lock_key",
+    [
+        "ai-request:00000000-0000-0000-0000-000000000001:lock-release",
+        "ai-quota:00000000-0000-0000-0000-000000000001:2026-07-24T10:00:00+00:00",
+    ],
+)
+def test_stage7_transaction_locks_are_reacquirable_after_rollback(
+    pg_sessions: sessionmaker[Session], lock_key: str
+) -> None:
+    first = pg_sessions()
+    second = pg_sessions()
+    try:
+        first.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+            {"key": lock_key},
+        )
+        first.rollback()
+        acquired = second.scalar(
+            text("SELECT pg_try_advisory_xact_lock(hashtext(:key))"),
+            {"key": lock_key},
+        )
+        assert acquired is True
+        second.rollback()
+    finally:
+        first.close()
+        second.close()

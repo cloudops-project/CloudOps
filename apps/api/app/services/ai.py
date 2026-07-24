@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
@@ -64,10 +65,12 @@ class AIService:
         provider: AIProvider | None = None,
         *,
         fault_at: str | None = None,
+        utc_now: Callable[[], datetime] | None = None,
     ) -> None:
         self.db = db
         self.provider = provider or MockAIProvider()
         self.fault_at = fault_at
+        self.utc_now = utc_now or (lambda: datetime.now(UTC))
 
     def generate(self, payload: AIGenerateRequest, user_id: uuid.UUID) -> AIRequestResponse:
         self._validate_compatibility(payload)
@@ -101,7 +104,7 @@ class AIService:
                 }
             ).encode()
         ).hexdigest()
-        now = datetime.now(UTC)
+        now = self.utc_now()
         window_start = now.replace(minute=0, second=0, microsecond=0)
         if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
             self.db.execute(

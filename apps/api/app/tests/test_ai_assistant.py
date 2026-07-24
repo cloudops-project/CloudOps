@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import inspect
+import uuid
+from contextlib import suppress
 from datetime import UTC, datetime
 
 import pytest
@@ -17,6 +19,10 @@ from app.models import (
     AIResponse,
     AIUsageWindow,
     AssetRiskContext,
+    AuditEvent,
+    AWSAccount,
+    OrganizationMembership,
+    User,
 )
 from app.models.enums import (
     AIRequestStatus,
@@ -24,6 +30,7 @@ from app.models.enums import (
     AITaskType,
     BusinessImpact,
     DataSensitivity,
+    MembershipStatus,
     OrganizationRole,
     RiskCriticality,
     RiskEnvironment,
@@ -213,6 +220,216 @@ def test_idempotency_key_rejects_changed_payload_without_provider_or_quota_charg
     assert provider.invocations == 1
     usage = db.scalar(select(AIUsageWindow))
     assert usage is not None and usage.request_count == 1
+
+
+@pytest.mark.parametrize("mutation", ["task", "source_id", "source_hash", "options", "template"])
+def test_idempotency_fingerprint_rejects_each_material_change(db: Session, mutation: str) -> None:
+    user, organization, account = _tenant(db)
+    finding, _ = _finding(db, organization, account, user)
+    other_finding = None
+    if mutation == "source_id":
+        other_account = AWSAccount(
+            organization_id=organization.id,
+            name="Second AI account",
+            account_id=str(uuid.uuid4().int % 1_000_000_000_000).zfill(12),
+            external_id=f"ai-{uuid.uuid4().hex}",
+            created_by_user_id=user.id,
+        )
+        db.add(other_account)
+        db.flush()
+        other_finding, _ = _finding(db, organization, other_account, user, rule_key="SECOND_RULE")
+    _template(db)
+    _template(db, AITaskType.EXPLAIN_BUSINESS_IMPACT)
+    provider = MockAIProvider()
+    original = AIGenerateRequest(
+        organization_id=organization.id,
+        task_type=AITaskType.EXPLAIN_FINDING,
+        sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+        idempotency_key=f"fingerprint-{mutation}",
+    )
+    first = AIService(db, provider).generate(original, user.id)
+    payload = original.model_copy(deep=True)
+    if mutation == "task":
+        payload.task_type = AITaskType.EXPLAIN_BUSINESS_IMPACT
+    elif mutation == "source_id":
+        assert other_finding is not None
+        payload.sources[0].source_id = other_finding.id
+    elif mutation == "source_hash":
+        finding.evidence_json = {"changed": True}
+        finding.lifecycle_version += 1
+        db.commit()
+    elif mutation == "options":
+        payload.options = {"tone": "brief"}
+    else:
+        current = db.scalar(
+            select(AIPromptTemplate).where(AIPromptTemplate.task_type == AITaskType.EXPLAIN_FINDING)
+        )
+        assert current is not None
+        current.active = False
+        db.add(
+            AIPromptTemplate(
+                key=current.key,
+                version=2,
+                task_type=current.task_type,
+                system_instructions=current.system_instructions,
+                schema_version=2,
+                active=True,
+            )
+        )
+        db.commit()
+    with pytest.raises(AppError) as captured:
+        AIService(db, provider).generate(payload, user.id)
+    assert (captured.value.status_code, captured.value.code) == (
+        409,
+        "AI_IDEMPOTENCY_CONFLICT",
+    )
+    assert provider.invocations == 1
+    assert db.scalar(select(func.count()).select_from(AIRequest)) == 1
+    assert db.scalar(select(func.count()).select_from(AIResponse)) == 1
+    usage = db.scalar(select(AIUsageWindow))
+    persisted = db.get(AIRequest, first.id)
+    assert usage is not None and usage.request_count == 1
+    assert persisted is not None
+    assert AIService(db).response(persisted).content == first.content
+
+
+def test_organization_scoped_idempotency_across_users_and_tenants(db: Session) -> None:
+    user_a, organization_a, account_a = _tenant(db)
+    finding_a, _ = _finding(db, organization_a, account_a, user_a)
+    marker = uuid.uuid4().hex
+    user_b = User(
+        email=f"ai-second-{marker}@example.com",
+        normalized_email=f"ai-second-{marker}@example.com",
+        password_hash="test-only-hash",
+        full_name="Second AI User",
+    )
+    db.add(user_b)
+    db.flush()
+    db.add(
+        OrganizationMembership(
+            organization_id=organization_a.id,
+            user_id=user_b.id,
+            role=OrganizationRole.SECURITY_ANALYST,
+            status=MembershipStatus.ACTIVE,
+        )
+    )
+    _template(db)
+    provider = MockAIProvider()
+    equivalent = AIGenerateRequest(
+        organization_id=organization_a.id,
+        task_type=AITaskType.EXPLAIN_FINDING,
+        sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding_a.id)],
+        idempotency_key="organization-scope-key",
+    )
+    first = AIService(db, provider).generate(equivalent, user_a.id)
+    replay = AIService(db, provider).generate(equivalent, user_b.id)
+    assert replay.id == first.id
+    with pytest.raises(AppError, match="different AI request"):
+        AIService(db, provider).generate(
+            equivalent.model_copy(update={"options": {"tone": "brief"}}), user_b.id
+        )
+    user_c, organization_b, account_b = _tenant(db)
+    finding_b, _ = _finding(db, organization_b, account_b, user_c)
+    second = AIService(db, provider).generate(
+        AIGenerateRequest(
+            organization_id=organization_b.id,
+            task_type=AITaskType.EXPLAIN_FINDING,
+            sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding_b.id)],
+            idempotency_key="organization-scope-key",
+        ),
+        user_c.id,
+    )
+    assert second.id != first.id
+    assert provider.invocations == 2
+    assert db.scalar(select(func.count()).select_from(AIRequest)) == 2
+    assert db.scalar(select(func.count()).select_from(AIResponse)) == 2
+    assert sorted(db.scalars(select(AIUsageWindow.request_count)).all()) == [1, 1]
+
+
+@pytest.mark.parametrize(
+    ("mode", "status", "code"),
+    [
+        ("permanent_failure", AIRequestStatus.FAILED, "AI_PROVIDER_FAILED"),
+        ("timeout", AIRequestStatus.TIMED_OUT, "AI_PROVIDER_TIMEOUT"),
+        ("disabled", AIRequestStatus.PROVIDER_DISABLED, "AI_PROVIDER_DISABLED"),
+        ("invalid_json", AIRequestStatus.INVALID_RESPONSE, "AI_INVALID_RESPONSE"),
+    ],
+)
+def test_failed_terminal_request_replay_is_stable(
+    db: Session, mode: str, status: AIRequestStatus, code: str
+) -> None:
+    user, organization, account = _tenant(db)
+    finding, _ = _finding(db, organization, account, user)
+    _template(db)
+    provider = MockAIProvider(mode)
+    payload = AIGenerateRequest(
+        organization_id=organization.id,
+        task_type=AITaskType.EXPLAIN_FINDING,
+        sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+        idempotency_key=f"terminal-replay-{mode}",
+    )
+    with pytest.raises(AppError) as original:
+        AIService(db, provider).generate(payload, user.id)
+    assert original.value.code == code
+    replay = AIService(db, provider).generate(payload, user.id)
+    assert replay.status == status and replay.error_code == code and replay.content is None
+    assert provider.invocations == 1
+    assert db.scalar(select(func.count()).select_from(AIRequest)) == 1
+    assert db.scalar(select(func.count()).select_from(AIResponse)) == 0
+    usage = db.scalar(select(AIUsageWindow))
+    assert usage is not None and usage.request_count == 1
+    with pytest.raises(AppError) as conflict:
+        AIService(db, provider).generate(
+            payload.model_copy(update={"options": {"regenerate": True}}), user.id
+        )
+    assert conflict.value.code == "AI_IDEMPOTENCY_CONFLICT"
+    assert provider.invocations == 1
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_status", "request_delta", "has_tokens", "invocations"),
+    [
+        ("success", AIRequestStatus.COMPLETED, 1, True, 1),
+        ("timeout", AIRequestStatus.TIMED_OUT, 1, False, 1),
+        ("disabled", AIRequestStatus.PROVIDER_DISABLED, 1, False, 1),
+        ("permanent_failure", AIRequestStatus.FAILED, 1, False, 1),
+        ("invalid_json", AIRequestStatus.INVALID_RESPONSE, 1, False, 1),
+        ("schema_invalid", AIRequestStatus.INVALID_RESPONSE, 1, False, 1),
+        ("oversized", AIRequestStatus.INVALID_RESPONSE, 1, False, 1),
+        ("transient_then_success", AIRequestStatus.COMPLETED, 1, True, 2),
+        ("transient_always", AIRequestStatus.FAILED, 1, False, 2),
+    ],
+)
+def test_provider_outcome_quota_accounting(
+    db: Session,
+    mode: str,
+    expected_status: AIRequestStatus,
+    request_delta: int,
+    has_tokens: bool,
+    invocations: int,
+) -> None:
+    user, organization, account = _tenant(db)
+    finding, _ = _finding(db, organization, account, user)
+    _template(db)
+    provider = MockAIProvider(mode)
+    payload = AIGenerateRequest(
+        organization_id=organization.id,
+        task_type=AITaskType.EXPLAIN_FINDING,
+        sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+        idempotency_key=f"quota-outcome-{mode}",
+    )
+    with suppress(AppError):
+        AIService(db, provider).generate(payload, user.id)
+    usage = db.scalar(select(AIUsageWindow))
+    request = db.scalar(select(AIRequest))
+    assert usage is not None and request is not None
+    assert usage.request_count == request_delta and (usage.token_count > 0) is has_tokens
+    assert request.status == expected_status
+    assert provider.invocations == invocations
+    replay_invocations = provider.invocations
+    AIService(db, provider).generate(payload, user.id)
+    assert provider.invocations == replay_invocations
+    assert usage.request_count == request_delta
 
 
 def test_task_source_compatibility_is_centralized(db: Session) -> None:
@@ -409,8 +626,11 @@ def test_request_finalization_faults_roll_back_atomically(db: Session, fault_at:
     user, organization, account = _tenant(db)
     finding, _ = _finding(db, organization, account, user)
     _template(db)
+    db.commit()
+    provider = MockAIProvider()
+    finding_before = (finding.status, finding.severity, finding.lifecycle_version)
     with pytest.raises(RuntimeError, match="controlled-ai-fault"):
-        AIService(db, fault_at=fault_at).generate(
+        AIService(db, provider, fault_at=fault_at).generate(
             AIGenerateRequest(
                 organization_id=organization.id,
                 task_type=AITaskType.EXPLAIN_FINDING,
@@ -428,6 +648,17 @@ def test_request_finalization_faults_roll_back_atomically(db: Session, fault_at:
         == 0
     )
     assert db.scalar(select(func.count()).select_from(AIResponse)) == 0
+    assert db.scalar(select(func.count()).select_from(AIRequestSource)) == 0
+    assert db.scalar(select(func.count()).select_from(AIUsageWindow)) == 0
+    assert (
+        db.scalar(
+            select(func.count()).select_from(AuditEvent).where(AuditEvent.event_type.like("ai.%"))
+        )
+        == 0
+    )
+    db.refresh(finding)
+    assert (finding.status, finding.severity, finding.lifecycle_version) == finding_before
+    assert provider.invocations == 1
 
 
 @pytest.mark.parametrize(
@@ -450,8 +681,11 @@ def test_pre_provider_faults_are_fully_rollback_safe(db: Session, fault_at: str)
     user, organization, account = _tenant(db)
     finding, _ = _finding(db, organization, account, user)
     _template(db)
+    db.commit()
+    provider = MockAIProvider()
+    finding_before = (finding.status, finding.severity, finding.lifecycle_version)
     with pytest.raises(RuntimeError, match="controlled-ai-fault"):
-        AIService(db, fault_at=fault_at).generate(
+        AIService(db, provider, fault_at=fault_at).generate(
             AIGenerateRequest(
                 organization_id=organization.id,
                 task_type=AITaskType.EXPLAIN_FINDING,
@@ -469,6 +703,18 @@ def test_pre_provider_faults_are_fully_rollback_safe(db: Session, fault_at: str)
         )
         == 0
     )
+    assert db.scalar(select(func.count()).select_from(AIRequestSource)) == 0
+    assert db.scalar(select(func.count()).select_from(AIResponse)) == 0
+    assert db.scalar(select(func.count()).select_from(AIUsageWindow)) == 0
+    assert (
+        db.scalar(
+            select(func.count()).select_from(AuditEvent).where(AuditEvent.event_type.like("ai.%"))
+        )
+        == 0
+    )
+    db.refresh(finding)
+    assert (finding.status, finding.severity, finding.lifecycle_version) == finding_before
+    assert provider.invocations == 0
 
 
 def test_ai_generation_does_not_mutate_authoritative_tenant_or_finding_state(
