@@ -80,3 +80,10 @@ verification passed. Automated tests use synthetic data and deterministic double
 AWS is prohibited. Release gates remain at least 95% backend coverage, zero
 mandatory PostgreSQL skips, complete frontend tests/build, dependency audits, and
 credential/security scans.
+## Stage 7 verification
+
+Stage 7 tests cover deterministic structured output, every task type, source
+references, idempotency, tenant isolation, RBAC, prompt injection, secret
+redaction, output escaping, provider failure, PostgreSQL migration lifecycle,
+immutable source/response rows, quotas, and Stage 1–6 regression. External AI
+and real AWS access are not required.

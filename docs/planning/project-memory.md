@@ -2,19 +2,18 @@
 
 ## Last updated
 
-2026-07-24 — Stage 6 deterministic risk scoring merged and regression-verified on `main`;
-documentation synchronization is isolated on `docs/stage6-merge-sync` as draft PR #7.
+2026-07-24 — Stage 7 AI explanation assistant implemented on
+`feature/7-ai-assistant` from synchronized main.
 
 ## Current implementation
 
 Stages 1–6 are independently clean-room verified, merged, and regression-tested. PR #6 merged
 verified feature SHA `b0361b8efe9060ef6c498e1cebfede4baaa9947d` at main commit
-`f23e124813b5f65a8f85957c1dce57d95b9cf038`. The current migration head is
-`0008_stage6_risk_scoring`; Stage 7 has not started.
+`f23e124813b5f65a8f85957c1dce57d95b9cf038`. The feature-branch migration head is
+`0009_stage7_ai_assistant`; Stage 7 awaits independent verification and Stage 8 has not started.
 
-The active integration branch is `main`. Documentation synchronization is isolated on
-`docs/stage6-merge-sync` and published as draft PR #7; the current PR head is authoritative
-until merge.
+The active integration branch is `main`; Stage 7 work is isolated on
+`feature/7-ai-assistant`.
 
 Alembic revision `0008_stage6_risk_scoring` follows `0007_stage5_compliance_engine` and adds
 versioned scoring policies, bounded risk context, assessment jobs, immutable finding/account/
@@ -108,3 +107,10 @@ seven root source-of-truth files: `NEW_CHAT_CONTEXT.md`, `PRD.md`, `architecture
 architecture, implementation state, known issues, and next task before editing. Contradictions
 must be resolved against current repository evidence. Automated verification uses synthetic
 data and deterministic AWS doubles; never use real customer AWS credentials or resources.
+## Stage 7 boundary
+
+Stage 7 explains persisted deterministic Stage 4–6 evidence through six
+bounded drafting tasks. It uses a deterministic offline mock provider by
+default, strict schemas, central redaction, versioned prompts, immutable source
+references/responses, tenant isolation, quota controls, and human-review
+labels. It has no authority to detect, score, mutate, remediate, or deliver.

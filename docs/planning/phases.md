@@ -33,3 +33,8 @@ The five-member team and stakeholders use this dependency-ordered roadmap for pl
 ## Governance
 
 Do not begin a stage solely because a prior draft exists. Product and architecture gates must be explicitly accepted, security-critical dependencies cannot be waived informally, and parallel stages must document their assumptions. Estimates belong in the task board after refinement, not in this document.
+## Stage 7 — AI explanation assistant
+
+Stage 7 is implemented only on `feature/7-ai-assistant` with migration
+`0009_stage7_ai_assistant`. It remains subject to full verification,
+independent review, and merge before Stage 8. Stage 8 has not started.

@@ -8,8 +8,9 @@ owners, administrators, security analysts, cloud engineers, auditors, and viewer
 Stages 1–6 are implemented, independently clean-room verified, merged, and regression-tested. Stage 4 deterministic rules
 detect findings from persisted inventory; Stage 5 interprets that deterministic evidence for
 compliance and never performs independent detection. Stage 6 prioritizes persisted findings
-using the deterministic, versioned `CLOUDOPS_RISK_V1` policy. Stage 7 has not started. AI is not
-used for finding detection, compliance decisions, or risk scoring.
+using the deterministic, versioned `CLOUDOPS_RISK_V1` policy. Stage 7 is implemented on
+`feature/7-ai-assistant` and awaits independent verification. AI is not used for finding
+detection, compliance decisions, or risk scoring.
 
 CloudOps uses read-only AWS discovery with STS temporary credentials. It never requires
 long-lived customer access keys and does not mutate customer AWS resources. Automated tests use
@@ -20,13 +21,14 @@ accounts.
 
 | Item                  | Verified value                                                             |
 | --------------------- | -------------------------------------------------------------------------- |
-| Integrated `main`     | `f23e124813b5f65a8f85957c1dce57d95b9cf038`                                 |
+| Integrated `main`     | `b3ddab02b741b76831b195a9bc42939154fb582e`                                 |
 | Stage 6 feature SHA   | `b0361b8efe9060ef6c498e1cebfede4baaa9947d`                                 |
-| Migration head        | `0008_stage6_risk_scoring`                                                 |
-| Backend               | 199 passed, 0 failed, 0 skipped                                            |
-| Backend coverage      | 95.11%                                                                     |
-| Mypy                  | 101 source files                                                           |
-| Frontend              | 64 passed, 0 failed                                                        |
+| Stage 7 branch        | `feature/7-ai-assistant`                                                   |
+| Migration head        | `0009_stage7_ai_assistant`                                                |
+| Backend               | 217 passed, 0 failed, 0 skipped                                            |
+| Backend coverage      | 95.13%                                                                     |
+| Mypy                  | 109 source files                                                           |
+| Frontend              | 66 passed, 0 failed                                                        |
 | PostgreSQL            | Migration lifecycle, integrity, and independent-session concurrency passed |
 | Dependencies/security | Audits and credential/security scans passed                                |
 
@@ -648,3 +650,18 @@ Operating rules:
 - Never begin Stage 7 before this documentation PR is reviewed and merged, local `main` is
   synchronized, the Stage 6 regression baseline remains green, and the owner explicitly directs
   Stage 7 to begin.
+## Stage 7 — AI explanation assistant
+
+Stage 7 adds a bounded, tenant-scoped drafting assistant over persisted CloudOps
+evidence. It can explain findings and business impact, suggest remediation text,
+and draft executive summaries, Jira descriptions, and email summaries. Every
+result is structured, source-referenced, versioned, redacted, labeled as a
+draft, and requires human review.
+
+The default `mock` provider is deterministic and makes no network calls.
+Provider credentials are never persisted. Evidence is treated as untrusted
+quoted data; prompt-like instructions inside evidence are neutralized. The
+assistant cannot detect or create findings, calculate or change risk, alter
+severity or compliance, execute remediation, create tickets, or send messages.
+
+Migration head: `0009_stage7_ai_assistant`. Stage 8 has not started.

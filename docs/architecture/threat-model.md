@@ -71,3 +71,10 @@ treat provider-derived content as untrusted data and may never detect findings o
   same scope.
 - Evidence is bounded to reason codes and numeric components; credentials, raw policies, and raw
   provider errors are excluded.
+## Stage 7 AI threats
+
+Controls address indirect prompt injection, cross-tenant context retrieval,
+credential leakage, oversized evidence, unstructured output, provider error
+leakage, duplicate requests, quota races, stale source ambiguity, and unsafe
+rendering. Evidence never becomes executable instructions, provider
+credentials are not stored, and outputs have no mutation or delivery path.

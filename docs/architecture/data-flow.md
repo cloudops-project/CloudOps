@@ -68,3 +68,9 @@ bounded adjustment.
 Stage 7 may later explain the already-persisted deterministic finding, compliance, and risk
 results. It must not become a detection, scoring, mutation, tool-execution, Jira-delivery, or
 email-delivery path.
+## Stage 7 data flow
+
+Persisted finding/risk/compliance record → tenant authorization → bounded
+context builder → redaction and prompt-injection neutralization → canonical
+context hash → versioned prompt → deterministic mock provider → strict schema
+validation → immutable response and audit event → escaped human-review UI.

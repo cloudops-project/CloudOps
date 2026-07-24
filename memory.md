@@ -7,12 +7,11 @@
 ## Current repository and documentation release
 
 - Integration branch: `main`
-- Documentation release branch: `docs/stage6-merge-sync`
-- Documentation PR: draft PR #7, created by this documentation release and not merged
-- Current authoritative main SHA: `f23e124813b5f65a8f85957c1dce57d95b9cf038`
+- Active feature branch: `feature/7-ai-assistant`
+- Current authoritative main SHA: `b3ddab02b741b76831b195a9bc42939154fb582e`
 - Verified Stage 6 feature SHA: `b0361b8efe9060ef6c498e1cebfede4baaa9947d`
 - Stage 6 merge commit: `f23e124813b5f65a8f85957c1dce57d95b9cf038`
-- Integrated Alembic head: `0008_stage6_risk_scoring`
+- Feature-branch Alembic head: `0009_stage7_ai_assistant`
 - PR #6 merged at `2026-07-24T06:10:19Z`.
 
 ## Current implementation status
@@ -24,7 +23,7 @@
 - Stage 5 Compliance Engine: complete, independently verified, and merged
 - Stage 6 Deterministic Risk Scoring: independently clean-room verified, merged, and
   regression-tested
-- Stage 7 AI Explanation Assistant: not started
+- Stage 7 AI Explanation Assistant: implemented and locally verified; awaiting independent review
 
 ### Stage 6
 
@@ -176,3 +175,13 @@ CODEOWNER, automated CI, or repository-policy approval.
    a clean worktree.
 4. Obtain explicit owner direction before creating `feature/7-ai-assistant`.
 5. Keep AI explanation separate from finding detection, compliance decisions, and risk scoring.
+## Current Stage 7 implementation context
+
+- Base: merged Stage 6 main `b3ddab02b741b76831b195a9bc42939154fb582e`.
+- Branch: `feature/7-ai-assistant`.
+- Migration: `0009_stage7_ai_assistant` after `0008_stage6_risk_scoring`.
+- The default provider is deterministic and offline.
+- Stage 4 detects, Stage 5 interprets compliance, Stage 6 scores risk, and
+  Stage 7 only explains or drafts from those persisted results.
+- No real AWS or external AI call is required by automated tests.
+- Stage 8 has not started and must remain gated on Stage 7 review and merge.
