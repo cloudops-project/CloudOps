@@ -1,3 +1,4 @@
+from app.models.ai import AIPromptTemplate, AIRequest, AIRequestSource, AIResponse, AIUsageWindow
 from app.models.asset import Asset
 from app.models.audit import AuditEvent
 from app.models.aws_account import AWSAccount
@@ -29,6 +30,11 @@ from app.models.risk import (
 from app.models.user import User
 
 __all__ = [
+    "AIPromptTemplate",
+    "AIRequest",
+    "AIRequestSource",
+    "AIResponse",
+    "AIUsageWindow",
     "AWSAccount",
     "AWSExternalIDReservation",
     "AccountRiskSnapshot",

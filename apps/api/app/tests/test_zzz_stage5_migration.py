@@ -312,7 +312,7 @@ def test_stage5_populated_migration_preserves_stage1_through_stage4_data() -> No
         with engine.connect() as connection:
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("0008_stage6_risk_scoring")
+            ).scalar_one() == ("0009_stage7_ai_assistant")
             assert (
                 connection.execute(
                     text(
