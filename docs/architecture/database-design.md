@@ -104,10 +104,10 @@ erDiagram
 | `audit_events`                                  | Organization, actor/service, action, target, outcome, time, correlation/idempotency IDs, previous/event hash                                                        | Security record; organization/time, target/time, correlation indexes; append-only, archived/tamper-evident, never soft-delete ordinarily    |
 | `ai_interactions`                               | Organization, purpose, provider/model, prompt template/version, input hash, redaction status, output status, token/cost metadata, related finding/report, timestamp | Sensitive metadata; indexes org/time, purpose, related IDs; raw secrets prohibited; raw prompts/outputs avoided or tightly governed/expired |
 
-## Current Stage 5 and Stage 6 physical schema
+## Current Stage 5 through Stage 7 physical schema
 
-The integrated Alembic head is `0008_stage6_risk_scoring`, following
-`0007_stage5_compliance_engine`. `evaluation_jobs` carries tenant/account
+The Stage 7 feature-branch Alembic head is `0009_stage7_ai_assistant`, following
+`0008_stage6_risk_scoring`. `evaluation_jobs` carries tenant/account
 references, a monotonic sequence, nonnegative counters, constrained lifecycle timestamps, and a
 partial unique index allowing one pending/running evaluation per account.
 
@@ -168,3 +168,21 @@ Job counters are nonnegative, and status checks enforce valid started/finished t
 combinations.
 
 Retention classes must be approved for identities, inventory snapshots, evidence, reports, AI content, operational logs, and audit archives. Legal holds and deletion propagation need design. Open decisions include RLS, partitioning thresholds, exact external-ID encryption/reference design, outbox tables, evidence normalization, and whether raw AI output is ever retained (default proposal: no).
+## Migration 0009 — AI explanation assistant
+
+`ai_prompt_templates` versions trusted task instructions. `ai_requests` stores
+tenant, actor, task, lifecycle, idempotency, provider, prompt version, and
+context hash. `ai_request_sources` stores immutable typed source identities,
+versions, and hashes. `ai_responses` stores one immutable structured response
+and output hash per request. `ai_usage_windows` enforces nonnegative,
+organization-scoped request/token accounting. Composite foreign keys prevent
+cross-tenant request/source/response relationships.
+
+The idempotency identity is `(organization_id, idempotency_key)` and stores a
+canonical request fingerprint. Typed nullable source identities are protected
+by composite foreign keys to findings, risk assessments, or compliance
+assessments, with exactly one source type per request. Used prompt templates,
+source snapshots, and responses are database-immutable. A deferred lifecycle
+constraint requires exactly one response for `completed` and forbids successful
+responses on failed, timed-out, disabled, invalid-response, or rate-limited
+requests without imposing an impossible insertion order.

@@ -44,3 +44,28 @@ class NotFoundError(AppError):
 class ConflictError(AppError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(code, message, 409)
+
+
+class RateLimitError(AppError):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        retry_after_seconds: int,
+        limit: int,
+        current_usage: int,
+    ) -> None:
+        super().__init__(
+            code,
+            message,
+            429,
+            [
+                {
+                    "retry_after_seconds": retry_after_seconds,
+                    "limit": limit,
+                    "current_usage": current_usage,
+                }
+            ],
+        )
+        self.retry_after_seconds = retry_after_seconds

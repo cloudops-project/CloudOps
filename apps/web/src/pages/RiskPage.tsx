@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { AIWorkflow } from "../components/AIWorkflow";
 import type {
   FindingRisk,
   Page,
@@ -206,6 +207,16 @@ export function RiskPage() {
           </p>
         </article>
       </div>
+      {summary.data?.assessment && (
+        <div className="mt-5">
+          <AIWorkflow
+            organization={organization}
+            sourceType="risk_assessment"
+            sourceId={summary.data.assessment.id}
+            tasks={["executive_summary", "email_summary"]}
+          />
+        </div>
+      )}
       <div className="mt-8 flex flex-wrap gap-3">
         <label>
           Priority

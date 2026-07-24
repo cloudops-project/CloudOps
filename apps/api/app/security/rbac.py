@@ -27,6 +27,8 @@ class Capability(StrEnum):
     RISK_ASSESS = "risk.assess"
     RISK_CONTEXT_MANAGE = "risk.context.manage"
     RISK_CONTROLS_MANAGE = "risk.controls.manage"
+    AI_READ = "ai.read"
+    AI_GENERATE = "ai.generate"
 
 
 ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
@@ -53,6 +55,8 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.RISK_CONTROLS_MANAGE,
             Capability.DISCOVERY_START,
             Capability.ASSETS_READ,
+            Capability.AI_READ,
+            Capability.AI_GENERATE,
         }
     ),
     OrganizationRole.SECURITY_ANALYST: frozenset(
@@ -72,6 +76,8 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.RISK_ASSESS,
             Capability.RISK_CONTEXT_MANAGE,
             Capability.RISK_CONTROLS_MANAGE,
+            Capability.AI_READ,
+            Capability.AI_GENERATE,
         }
     ),
     OrganizationRole.CLOUD_ENGINEER: frozenset(
@@ -88,6 +94,8 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.COMPLIANCE_ASSESS,
             Capability.RISK_READ,
             Capability.RISK_ASSESS,
+            Capability.AI_READ,
+            Capability.AI_GENERATE,
         }
     ),
     OrganizationRole.AUDITOR: frozenset(
@@ -100,6 +108,7 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.FINDINGS_READ,
             Capability.COMPLIANCE_READ,
             Capability.RISK_READ,
+            Capability.AI_READ,
         }
     ),
     OrganizationRole.VIEWER: frozenset(
@@ -111,6 +120,7 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.FINDINGS_READ,
             Capability.COMPLIANCE_READ,
             Capability.RISK_READ,
+            Capability.AI_READ,
         }
     ),
 }

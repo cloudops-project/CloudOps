@@ -11,7 +11,8 @@ future intent.
 CloudOps is a multi-tenant SaaS application for securely connecting AWS accounts and building a
 normalized inventory, deterministic security findings, and point-in-time compliance
 assessments and deterministic explainable risk scoring. Stages 1–6 are independently
-clean-room verified, merged, and regression-tested. Stage 7 has not started.
+clean-room verified, merged, and regression-tested. Stage 7 is implemented on its feature
+branch and awaits independent verification.
 
 ## Business goals
 
@@ -219,3 +220,12 @@ Stages 1–6 are independently clean-room verified and merged in `main` at
 `f23e124813b5f65a8f85957c1dce57d95b9cf038`. Stage 6 feature SHA
 `b0361b8efe9060ef6c498e1cebfede4baaa9947d` was merged by PR #6. The current migration head is
 `0008_stage6_risk_scoring`. Stage 7–12 functionality is not implemented.
+## Stage 7 acceptance boundary
+
+Stage 7 provides explanation and drafting assistance for deterministic
+CloudOps evidence. Supported tasks are finding explanation, business-impact
+explanation, remediation suggestion, executive summary, Jira-description
+draft, and email-summary draft. Missing evidence, provider failure, invalid
+structured output, quota exhaustion, and cross-tenant references must fail
+safely. AI is prohibited from detection, scoring, status mutation,
+authorization decisions, remediation, and external delivery.

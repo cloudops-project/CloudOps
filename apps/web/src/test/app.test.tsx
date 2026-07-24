@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { App } from "../App";
+import { aiQueryKeys } from "../ai/queryKeys";
 import { AuthProvider } from "../auth/AuthProvider";
 import type { Me } from "../types";
 
@@ -27,7 +28,7 @@ function renderApp(path: string, me: Me | null = null) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <AuthProvider initialMe={me} restoreOnMount={false}>
@@ -36,6 +37,7 @@ function renderApp(path: string, me: Me | null = null) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...view, client };
 }
 
 describe("Stage 1 application", () => {
@@ -283,11 +285,15 @@ describe("Stage 1 application", () => {
             }),
       ),
     );
-    renderApp("/dashboard", owner);
+    const { client } = renderApp("/dashboard", owner);
+    client.setQueryData(aiQueryKeys.history("o1"), {
+      items: [{ id: "protected-request" }],
+    });
     await userEvent.click(screen.getByRole("button", { name: /logout/i }));
     expect(
       await screen.findByRole("heading", { name: /welcome back/i }),
     ).toBeInTheDocument();
+    expect(client.getQueryCache().getAll()).toHaveLength(0);
   });
 
   it("submits an invitation and exposes the development token", async () => {
@@ -315,6 +321,104 @@ describe("Stage 1 application", () => {
     expect(
       await screen.findByText("one-time-development-token-value"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Stage 7 AI explanation assistant", () => {
+  it("renders safe draft history and generates from a finding", async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const generated = {
+          id: "ai-1",
+          organization_id: "o1",
+          requested_by_user_id: "u1",
+          task_type: "explain_finding",
+          status: "completed",
+          provider_key: "mock",
+          model_key: "cloudops-deterministic-mock-v1",
+          prompt_key: "CLOUDOPS_EXPLAIN_FINDING_V1",
+          prompt_version: 1,
+          context_hash: "a".repeat(64),
+          request_fingerprint: "b".repeat(64),
+          response_schema_version: 1,
+          error_code: null,
+          finished_at: "2026-07-24T00:00:00Z",
+          created_at: "2026-07-24T00:00:00Z",
+          updated_at: "2026-07-24T00:00:00Z",
+          source_type: "finding",
+          source_id: "f1",
+          source_version: 1,
+          source_staleness: "current",
+          content: {
+            title: "Finding explanation",
+            summary: "<script>alert('unsafe')</script>",
+            details: ["Persisted evidence only."],
+            caveats: ["Human review required."],
+            source_references: ["finding:f1:v1"],
+            draft_only: true,
+          },
+        };
+        return new Response(
+          JSON.stringify(
+            init?.method === "POST"
+              ? generated
+              : { items: [generated], total: 1, page: 1, page_size: 25 },
+          ),
+          { status: init?.method === "POST" ? 201 : 200 },
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderApp("/ai", owner);
+    expect(
+      await screen.findByRole("heading", { name: "AI explanation assistant" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("<script>alert('unsafe')</script>"),
+    ).toBeVisible();
+    expect(document.querySelector("script")).toBeNull();
+    expect(
+      screen.getByText(/mock \/ cloudops-deterministic-mock-v1/),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Copy AI draft" }),
+    );
+    expect(
+      await screen.findByText("AI draft copied to clipboard."),
+    ).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByLabelText("Finding ID"),
+      "00000000-0000-0000-0000-000000000001",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/ai/generate"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("hides generation controls from a viewer", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ items: [], total: 0, page: 1, page_size: 25 }),
+            { status: 200 },
+          ),
+      ),
+    );
+    renderApp("/ai", {
+      ...owner,
+      organizations: [{ ...owner.organizations[0], role: "viewer" }],
+    });
+    await screen.findByRole("heading", { name: "AI explanation assistant" });
+    expect(
+      screen.queryByRole("button", { name: "Generate draft" }),
+    ).not.toBeInTheDocument();
   });
 });
 

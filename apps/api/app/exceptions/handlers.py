@@ -30,7 +30,15 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status_code,
             content=_payload(request, exc.code, exc.message, exc.details),
-            headers={"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None,
+            headers=(
+                {"WWW-Authenticate": "Bearer"}
+                if exc.status_code == 401
+                else (
+                    {"Retry-After": str(exc.retry_after_seconds)}
+                    if exc.status_code == 429 and hasattr(exc, "retry_after_seconds")
+                    else None
+                )
+            ),
         )
 
     @app.exception_handler(RequestValidationError)

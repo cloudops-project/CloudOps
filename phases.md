@@ -3,7 +3,8 @@
 ## Current status
 
 Stages 1–6 are independently clean-room verified, merged, and regression-tested in `main` at
-`f23e124813b5f65a8f85957c1dce57d95b9cf038`. Stage 7 has not started.
+`b3ddab02b741b76831b195a9bc42939154fb582e`. Stage 7 is implemented on
+`feature/7-ai-assistant` and awaits independent verification. Stage 8 has not started.
 
 ## Stage 0 — Planning and architecture
 
@@ -127,3 +128,11 @@ absolutely immutable.
 4. Obtain explicit owner direction before creating any Stage 7 branch.
 5. Keep deterministic detection, compliance interpretation, and risk scoring separate from
    optional advisory AI.
+## Stage 7 — AI explanation assistant
+
+Implementation is isolated on `feature/7-ai-assistant` from merged Stage 6.
+Scope includes the six bounded drafting tasks, migration
+`0009_stage7_ai_assistant`, tenant-scoped APIs, centralized RBAC, immutable
+evidence/response records, deterministic mock provider, prompt-injection and
+redaction controls, request history, and accessible draft UI. Stage 8 is not
+started.

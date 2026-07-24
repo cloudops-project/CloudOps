@@ -6,14 +6,14 @@ Use this file to resume work in a fresh AI chat. Detailed documents remain autho
 
 CloudOps is an AWS-focused multi-tenant SaaS for secure AWS onboarding, normalized inventory,
 deterministic findings, evidence-based compliance snapshots, and deterministic risk scoring.
-Stages 1–6 are independently clean-room verified, merged, and regression-tested in `main` at
-`f23e124813b5f65a8f85957c1dce57d95b9cf038`. The current migration head is
-`0008_stage6_risk_scoring`. Stage 7 AI explanation, notifications, remediation, and raw event
-ingestion remain deferred.
+Stages 1–6 are independently verified, merged, and regression-tested in `main` at
+`b3ddab02b741b76831b195a9bc42939154fb582e`. Stage 7 AI explanation is implemented on
+`feature/7-ai-assistant` with migration `0009_stage7_ai_assistant` and awaits independent
+verification. Notifications, remediation, and raw-event ingestion remain deferred.
 
 - Repository: `D:\learn\cdac\cloudfix`
 - Remote: `https://github.com/cloudops-project/CloudOps.git`
-- Active integration branch: `main`
+- Active feature branch: `feature/7-ai-assistant`
 
 ## Stage 6 deterministic risk boundary
 
@@ -302,3 +302,13 @@ merged, `main` is synchronized, the verified Stage 6 baseline remains clean, and
 explicitly directs Stage 7 to begin. Stage 4 detects findings; Stage 5 interprets persisted
 deterministic evidence for compliance; Stage 6 prioritizes findings deterministically. AI may
 explain those outputs only and must not detect findings or calculate risk.
+## Stage 7 handoff
+
+Stage 7 is the bounded AI explanation assistant on
+`feature/7-ai-assistant`, based on main
+`b3ddab02b741b76831b195a9bc42939154fb582e`. Its migration is
+`0009_stage7_ai_assistant`. It uses persisted deterministic records only,
+defaults to a no-network mock provider, validates structured drafts, preserves
+source hashes/references, redacts secrets and prompt injection, and never
+detects, scores, mutates, remediates, creates tickets, or sends email. Stage 8
+is not started.

@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Play, Search, ShieldAlert } from "lucide-react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { AIWorkflow } from "../components/AIWorkflow";
 import {
   EvaluationStatusBadge,
   FindingStatusBadge,
@@ -493,6 +494,20 @@ export function FindingDetailsPage() {
         <h2 className="mb-3 text-xl font-bold">Evidence</h2>
         <SafeEvidence value={finding.evidence} />
       </article>
+      {organization && (
+        <AIWorkflow
+          organization={organization}
+          sourceType="finding"
+          sourceId={finding.id}
+          tasks={[
+            "explain_finding",
+            "explain_business_impact",
+            "suggest_remediation",
+            "jira_description",
+            "email_summary",
+          ]}
+        />
+      )}
       {suppressOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/75 p-4">
           <div

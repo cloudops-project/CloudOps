@@ -190,3 +190,11 @@ hover. Desktop layouts use a 240px sidebar and a bounded content region.
 
 The Stage 6 risk dashboard is implemented. The design system reserves future space for AI,
 notifications, and remediation; those views must not be presented as implemented.
+## Stage 7 response design
+
+All six AI tasks return the same strict envelope: title, bounded summary,
+bounded details, caveats, immutable source references, and `draft_only=true`.
+The UI renders these values as escaped text, always shows the human-review
+warning, exposes history, loading/empty/error states, and hides generation
+controls from Auditor and Viewer roles. Jira and email results are drafts only;
+there is no delivery integration.

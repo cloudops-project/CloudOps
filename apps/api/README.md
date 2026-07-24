@@ -43,10 +43,19 @@ mapping-administration API in Stage 5.
 
 ## Stage 6 deterministic risk
 
-Migration `0008_stage6_risk_scoring` is the current head. It adds the versioned
+Migration `0008_stage6_risk_scoring` adds the versioned
 `CLOUDOPS_RISK_V1` policy, bounded tenant risk context, risk assessment jobs, immutable finding,
 account, and organization snapshots, and authorized compensating controls. The engine reads
 persisted Stage 4 findings only; it performs no discovery, live AWS calls, or AI work.
+
+## Stage 7 AI explanation assistant
+
+Migration `0009_stage7_ai_assistant` is the feature-branch head. It adds
+versioned prompt templates, tenant-scoped idempotent requests, immutable source
+references and structured responses, and organization-hour usage windows. The
+default mock provider is deterministic and offline. AI consumes bounded
+persisted evidence only and cannot detect findings, score risk, mutate status,
+execute remediation, or deliver Jira/email drafts.
 
 ## Stage 2 AWS onboarding
 

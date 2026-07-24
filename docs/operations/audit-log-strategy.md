@@ -35,3 +35,10 @@ evidence are prohibited.
 Risk snapshots are database-immutable; audit records are durable transactional records but are
 not described as absolutely immutable. Future Stage 7 explanation requests require a separate
 reviewed event design and are not implemented.
+## Stage 7 AI events
+
+Durable events record accepted request completion or sanitized failure with
+bounded organization, actor, request, task, provider-key, and error-code
+metadata. Prompts, raw evidence, provider credentials, authorization headers,
+raw provider errors, and generated long-form content are excluded from logs
+and audit metadata.

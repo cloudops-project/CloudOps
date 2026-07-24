@@ -1,8 +1,9 @@
 # CloudOps Current Architecture
 
 Stages 1–6 are independently clean-room verified, merged, and regression-tested in `main` at
-`f23e124813b5f65a8f85957c1dce57d95b9cf038`. The current migration head is
-`0008_stage6_risk_scoring`. Stage 7 has not started.
+`b3ddab02b741b76831b195a9bc42939154fb582e`. Stage 7 is implemented on
+`feature/7-ai-assistant`, with migration head `0009_stage7_ai_assistant`, and awaits
+independent verification.
 
 ## Document role
 
@@ -275,3 +276,16 @@ Stage 4 detects findings; Stage 5 interprets persisted evidence for compliance; 
 `CLOUDOPS_RISK_V1` to prioritize those findings without network calls or AI. Stage 7 may explain
 existing deterministic results but must never detect, score, or mutate them. AI, notifications,
 raw event ingestion, scheduling, remediation, and production infrastructure remain future work.
+## Stage 7 AI trust boundary
+
+The AI explanation assistant consumes only bounded persisted findings, risk
+assessments, and compliance assessments. A central context builder applies
+redaction, size limits, canonical serialization, source hashing, and explicit
+source references before invoking a provider. The rule, compliance, and risk
+engines remain authoritative and deterministic. Provider output must validate
+against the task response schema before it is persisted or returned.
+
+Prompt templates are versioned. Requests are tenant scoped and idempotent;
+source snapshots and responses are immutable in PostgreSQL. Organization-hour
+usage windows and advisory transaction locks enforce bounded quotas. The
+default provider is an offline deterministic mock.

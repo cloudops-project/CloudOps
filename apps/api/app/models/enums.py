@@ -133,6 +133,32 @@ class RiskAssessmentStatus(StrEnum):
     FAILED = "failed"
 
 
+class AITaskType(StrEnum):
+    EXPLAIN_FINDING = "explain_finding"
+    EXPLAIN_BUSINESS_IMPACT = "explain_business_impact"
+    SUGGEST_REMEDIATION = "suggest_remediation"
+    EXECUTIVE_SUMMARY = "executive_summary"
+    JIRA_DESCRIPTION = "jira_description"
+    EMAIL_SUMMARY = "email_summary"
+
+
+class AIRequestStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    TIMED_OUT = "timed_out"
+    PROVIDER_DISABLED = "provider_disabled"
+    INVALID_RESPONSE = "invalid_response"
+    RATE_LIMITED = "rate_limited"
+
+
+class AISourceType(StrEnum):
+    FINDING = "finding"
+    RISK_ASSESSMENT = "risk_assessment"
+    COMPLIANCE_ASSESSMENT = "compliance_assessment"
+
+
 class RiskCriticality(StrEnum):
     CRITICAL = "critical"
     HIGH = "high"

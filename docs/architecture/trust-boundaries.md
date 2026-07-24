@@ -47,3 +47,8 @@ documents. Authorized context and compensating-control
 changes cross a user-input boundary and require capability checks, bounded schemas, tenant
 predicates, optimistic versions or row locks, reasons, and durable audit events. Stage 7 AI is
 outside the implemented boundary and must not be represented as active.
+## AI provider boundary
+
+Only sanitized bounded context crosses the provider boundary. The provider has
+no database session, AWS client, filesystem capability, authorization role, or
+mutation interface. The deterministic mock crosses no network boundary.

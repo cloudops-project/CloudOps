@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    ai,
     auth,
     aws_accounts,
     compliance,
@@ -12,6 +13,7 @@ from app.api.v1 import (
 )
 
 router = APIRouter()
+router.include_router(ai.router, tags=["ai-assistant"])
 router.include_router(auth.router, prefix="/auth", tags=["authentication"])
 router.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
 router.include_router(invitations.router, prefix="/invitations", tags=["invitations"])
