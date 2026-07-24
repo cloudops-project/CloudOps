@@ -112,6 +112,7 @@ class RuleControlMapping(TimestampMixin, Base):
 class ComplianceAssessment(TimestampMixin, Base):
     __tablename__ = "compliance_assessments"
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_compliance_assessment_id_organization"),
         ForeignKeyConstraint(
             ["aws_account_id", "organization_id"],
             ["aws_accounts.id", "aws_accounts.organization_id"],

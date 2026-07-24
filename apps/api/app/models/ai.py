@@ -66,16 +66,22 @@ class AIRequest(TimestampMixin, Base):
     __tablename__ = "ai_requests"
     __table_args__ = (
         UniqueConstraint("id", "organization_id", name="uq_ai_request_id_organization"),
+        ForeignKeyConstraint(
+            ["prompt_key", "prompt_version"],
+            ["ai_prompt_templates.key", "ai_prompt_templates.version"],
+            name="fk_ai_request_prompt_template",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint(
             "organization_id",
-            "requested_by_user_id",
             "idempotency_key",
             name="uq_ai_request_idempotency",
         ),
         CheckConstraint("prompt_version > 0", name="ai_request_prompt_version_positive"),
         CheckConstraint(
             "(status IN ('pending', 'running') AND finished_at IS NULL) OR "
-            "(status IN ('completed', 'failed') AND finished_at IS NOT NULL)",
+            "(status IN ('completed', 'failed', 'timed_out', 'provider_disabled', "
+            "'invalid_response', 'rate_limited') AND finished_at IS NOT NULL)",
             name="ai_request_terminal_timestamp",
         ),
         Index("ix_ai_request_organization", "organization_id"),
@@ -118,6 +124,9 @@ class AIRequest(TimestampMixin, Base):
     prompt_key: Mapped[str] = mapped_column(String(100), nullable=False)
     prompt_version: Mapped[int] = mapped_column(Integer, nullable=False)
     context_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    model_key: Mapped[str] = mapped_column(String(100), nullable=False)
     error_code: Mapped[str | None] = mapped_column(String(100))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -125,13 +134,43 @@ class AIRequest(TimestampMixin, Base):
 class AIRequestSource(Base):
     __tablename__ = "ai_request_sources"
     __table_args__ = (
-        UniqueConstraint("request_id", "source_type", "source_id", name="uq_ai_request_source"),
+        UniqueConstraint("request_id", name="uq_ai_request_source"),
         CheckConstraint("source_version > 0", name="ai_source_version_positive"),
+        CheckConstraint(
+            "(source_type = 'finding' AND finding_id IS NOT NULL "
+            "AND finding_aws_account_id IS NOT NULL AND risk_assessment_id IS NULL "
+            "AND compliance_assessment_id IS NULL) OR "
+            "(source_type = 'risk_assessment' AND finding_id IS NULL "
+            "AND finding_aws_account_id IS NULL AND risk_assessment_id IS NOT NULL "
+            "AND compliance_assessment_id IS NULL) OR "
+            "(source_type = 'compliance_assessment' AND finding_id IS NULL "
+            "AND finding_aws_account_id IS NULL AND risk_assessment_id IS NULL "
+            "AND compliance_assessment_id IS NOT NULL)",
+            name="ai_source_typed_identity",
+        ),
         ForeignKeyConstraint(
             ["request_id", "organization_id"],
             ["ai_requests.id", "ai_requests.organization_id"],
             name="fk_ai_source_request_organization",
             ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["finding_id", "finding_aws_account_id", "organization_id"],
+            ["findings.id", "findings.aws_account_id", "findings.organization_id"],
+            name="fk_ai_source_finding",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["risk_assessment_id", "organization_id"],
+            ["risk_assessments.id", "risk_assessments.organization_id"],
+            name="fk_ai_source_risk_assessment",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["compliance_assessment_id", "organization_id"],
+            ["compliance_assessments.id", "compliance_assessments.organization_id"],
+            name="fk_ai_source_compliance_assessment",
+            ondelete="RESTRICT",
         ),
         Index("ix_ai_source_lookup", "organization_id", "source_type", "source_id"),
     )
@@ -151,6 +190,10 @@ class AIRequestSource(Base):
         nullable=False,
     )
     source_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    finding_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    finding_aws_account_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    risk_assessment_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    compliance_assessment_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     source_version: Mapped[int] = mapped_column(Integer, nullable=False)
     source_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 

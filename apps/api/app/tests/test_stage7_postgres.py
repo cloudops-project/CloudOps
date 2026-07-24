@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from threading import Barrier
 
 import pytest
@@ -87,6 +88,9 @@ def test_ai_request_source_composite_tenant_constraint(
             prompt_key=template.key,
             prompt_version=template.version,
             context_hash="a" * 64,
+            request_fingerprint="c" * 64,
+            response_schema_version=template.schema_version,
+            model_key="mock",
         )
         db.add(request)
         db.flush()
@@ -96,6 +100,8 @@ def test_ai_request_source_composite_tenant_constraint(
                 organization_id=org_b.id,
                 source_type=AISourceType.FINDING,
                 source_id=org_b.id,
+                finding_id=org_b.id,
+                finding_aws_account_id=org_b.id,
                 source_version=1,
                 source_hash="b" * 64,
             )
@@ -146,3 +152,171 @@ def test_concurrent_duplicate_idempotency_has_one_winner(
             )
         ).all()
         assert len(rows) == 1
+
+
+def test_used_prompt_template_is_database_immutable(
+    pg_sessions: sessionmaker[Session],
+) -> None:
+    with pg_sessions() as db:
+        user, organization, account = _tenant(db)
+        finding, _ = _finding(db, organization, account, user)
+        db.commit()
+        AIService(db).generate(
+            AIGenerateRequest(
+                organization_id=organization.id,
+                task_type=AITaskType.EXPLAIN_FINDING,
+                sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+                idempotency_key="used-template-immutable",
+            ),
+            user.id,
+        )
+        template = db.scalar(
+            select(AIPromptTemplate).where(AIPromptTemplate.task_type == AITaskType.EXPLAIN_FINDING)
+        )
+        assert template is not None
+        template.system_instructions = "tampered"
+        with pytest.raises(DatabaseError, match="immutable"):
+            db.commit()
+        db.rollback()
+        db.delete(template)
+        with pytest.raises(DatabaseError, match="immutable"):
+            db.commit()
+        db.rollback()
+
+
+def test_completed_request_requires_response_at_commit(
+    pg_sessions: sessionmaker[Session],
+) -> None:
+    with pg_sessions() as db:
+        user, organization, _ = _tenant(db)
+        template = db.scalar(
+            select(AIPromptTemplate).where(AIPromptTemplate.task_type == AITaskType.EXPLAIN_FINDING)
+        )
+        assert template is not None
+        db.add(
+            AIRequest(
+                organization_id=organization.id,
+                requested_by_user_id=user.id,
+                task_type=AITaskType.EXPLAIN_FINDING,
+                status=AIRequestStatus.COMPLETED,
+                idempotency_key="completed-without-response",
+                provider_key="mock",
+                model_key="mock",
+                prompt_key=template.key,
+                prompt_version=template.version,
+                response_schema_version=template.schema_version,
+                context_hash="a" * 64,
+                request_fingerprint="b" * 64,
+                finished_at=datetime.now(UTC),
+            )
+        )
+        with pytest.raises(DatabaseError, match="requires exactly one response"):
+            db.commit()
+        db.rollback()
+
+
+def test_failed_request_cannot_retain_successful_response(
+    pg_sessions: sessionmaker[Session],
+) -> None:
+    with pg_sessions() as db:
+        user, organization, account = _tenant(db)
+        finding, _ = _finding(db, organization, account, user)
+        db.commit()
+        generated = AIService(db).generate(
+            AIGenerateRequest(
+                organization_id=organization.id,
+                task_type=AITaskType.EXPLAIN_FINDING,
+                sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+                idempotency_key="failed-cannot-have-response",
+            ),
+            user.id,
+        )
+        request = db.get(AIRequest, generated.id)
+        assert request is not None
+        request.status = AIRequestStatus.FAILED
+        request.error_code = "AI_PROVIDER_FAILED"
+        request.finished_at = datetime.now(UTC)
+        with pytest.raises(DatabaseError, match="cannot retain a response"):
+            db.commit()
+        db.rollback()
+
+
+def test_concurrent_conflicting_idempotency_has_one_winner_and_one_conflict(
+    pg_sessions: sessionmaker[Session],
+) -> None:
+    with pg_sessions() as seed:
+        user, organization, account = _tenant(seed)
+        finding, _ = _finding(seed, organization, account, user)
+        seed.commit()
+        user_id, organization_id, finding_id = user.id, organization.id, finding.id
+    barrier = Barrier(2)
+    tasks = [AITaskType.EXPLAIN_FINDING, AITaskType.EXPLAIN_BUSINESS_IMPACT]
+
+    def worker(task: AITaskType) -> str:
+        with pg_sessions() as db:
+            barrier.wait(timeout=10)
+            try:
+                AIService(db).generate(
+                    AIGenerateRequest(
+                        organization_id=organization_id,
+                        task_type=task,
+                        sources=[
+                            AISourceInput(
+                                source_type=AISourceType.FINDING,
+                                source_id=finding_id,
+                            )
+                        ],
+                        idempotency_key="concurrent-conflicting-idempotency",
+                    ),
+                    user_id,
+                )
+                return "completed"
+            except Exception as exc:
+                db.rollback()
+                return str(getattr(exc, "code", "unexpected"))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(worker, tasks))
+    assert results.count("completed") == 1
+    assert results.count("AI_IDEMPOTENCY_CONFLICT") == 1
+
+
+def test_concurrent_quota_boundary_has_one_winner(
+    pg_sessions: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pg_sessions() as seed:
+        user, organization, account = _tenant(seed)
+        finding, _ = _finding(seed, organization, account, user)
+        seed.commit()
+        user_id, organization_id, finding_id = user.id, organization.id, finding.id
+    monkeypatch.setattr(AIService, "MAX_REQUESTS_PER_HOUR", 1)
+    barrier = Barrier(2)
+
+    def worker(index: int) -> str:
+        with pg_sessions() as db:
+            barrier.wait(timeout=10)
+            try:
+                AIService(db).generate(
+                    AIGenerateRequest(
+                        organization_id=organization_id,
+                        task_type=AITaskType.EXPLAIN_FINDING,
+                        sources=[
+                            AISourceInput(
+                                source_type=AISourceType.FINDING,
+                                source_id=finding_id,
+                            )
+                        ],
+                        idempotency_key=f"quota-boundary-{index}",
+                    ),
+                    user_id,
+                )
+                return "completed"
+            except Exception as exc:
+                db.rollback()
+                return str(getattr(exc, "code", "unexpected"))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(worker, range(2)))
+    assert results.count("completed") == 1
+    assert results.count("AI_RATE_LIMITED") == 1

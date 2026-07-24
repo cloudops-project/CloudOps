@@ -147,6 +147,10 @@ class AIRequestStatus(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    TIMED_OUT = "timed_out"
+    PROVIDER_DISABLED = "provider_disabled"
+    INVALID_RESPONSE = "invalid_response"
+    RATE_LIMITED = "rate_limited"
 
 
 class AISourceType(StrEnum):

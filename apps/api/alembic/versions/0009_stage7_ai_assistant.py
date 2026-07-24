@@ -66,6 +66,9 @@ def upgrade() -> None:
         sa.Column("prompt_key", sa.String(100), nullable=False),
         sa.Column("prompt_version", sa.Integer(), nullable=False),
         sa.Column("context_hash", sa.String(64), nullable=False),
+        sa.Column("request_fingerprint", sa.String(64), nullable=False),
+        sa.Column("response_schema_version", sa.Integer(), nullable=False),
+        sa.Column("model_key", sa.String(100), nullable=False),
         sa.Column("error_code", sa.String(100)),
         sa.Column("finished_at", sa.DateTime(timezone=True)),
         sa.Column(
@@ -79,20 +82,28 @@ def upgrade() -> None:
             name="ai_request_task_type",
         ),
         sa.CheckConstraint(
-            "status IN ('pending','running','completed','failed')", name="ai_request_status"
+            "status IN ('pending','running','completed','failed','timed_out',"
+            "'provider_disabled','invalid_response','rate_limited')",
+            name="ai_request_status",
         ),
         sa.CheckConstraint("prompt_version > 0", name="ai_request_prompt_version_positive"),
         sa.CheckConstraint(
             "(status IN ('pending','running') AND finished_at IS NULL) OR "
-            "(status IN ('completed','failed') AND finished_at IS NOT NULL)",
+            "(status IN ('completed','failed','timed_out','provider_disabled',"
+            "'invalid_response','rate_limited') AND finished_at IS NOT NULL)",
             name="ai_request_terminal_timestamp",
         ),
         sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["requested_by_user_id"], ["users.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(
+            ["prompt_key", "prompt_version"],
+            ["ai_prompt_templates.key", "ai_prompt_templates.version"],
+            name="fk_ai_request_prompt_template",
+            ondelete="RESTRICT",
+        ),
         sa.UniqueConstraint("id", "organization_id", name="uq_ai_request_id_organization"),
         sa.UniqueConstraint(
             "organization_id",
-            "requested_by_user_id",
             "idempotency_key",
             name="uq_ai_request_idempotency",
         ),
@@ -100,6 +111,11 @@ def upgrade() -> None:
     op.create_index("ix_ai_request_organization", "ai_requests", ["organization_id"])
     op.create_index("ix_ai_request_status", "ai_requests", ["status"])
     op.create_index("ix_ai_request_created", "ai_requests", ["created_at"])
+    op.create_unique_constraint(
+        "uq_compliance_assessment_id_organization",
+        "compliance_assessments",
+        ["id", "organization_id"],
+    )
     op.create_table(
         "ai_request_sources",
         sa.Column("id", sa.Uuid(), primary_key=True),
@@ -107,6 +123,10 @@ def upgrade() -> None:
         sa.Column("organization_id", sa.Uuid(), nullable=False),
         sa.Column("source_type", sa.String(40), nullable=False),
         sa.Column("source_id", sa.Uuid(), nullable=False),
+        sa.Column("finding_id", sa.Uuid()),
+        sa.Column("finding_aws_account_id", sa.Uuid()),
+        sa.Column("risk_assessment_id", sa.Uuid()),
+        sa.Column("compliance_assessment_id", sa.Uuid()),
         sa.Column("source_version", sa.Integer(), nullable=False),
         sa.Column("source_hash", sa.String(64), nullable=False),
         sa.CheckConstraint(
@@ -114,13 +134,43 @@ def upgrade() -> None:
             name="ai_source_type",
         ),
         sa.CheckConstraint("source_version > 0", name="ai_source_version_positive"),
+        sa.CheckConstraint(
+            "(source_type = 'finding' AND finding_id IS NOT NULL "
+            "AND finding_aws_account_id IS NOT NULL AND risk_assessment_id IS NULL "
+            "AND compliance_assessment_id IS NULL) OR "
+            "(source_type = 'risk_assessment' AND finding_id IS NULL "
+            "AND finding_aws_account_id IS NULL AND risk_assessment_id IS NOT NULL "
+            "AND compliance_assessment_id IS NULL) OR "
+            "(source_type = 'compliance_assessment' AND finding_id IS NULL "
+            "AND finding_aws_account_id IS NULL AND risk_assessment_id IS NULL "
+            "AND compliance_assessment_id IS NOT NULL)",
+            name="ai_source_typed_identity",
+        ),
         sa.ForeignKeyConstraint(
             ["request_id", "organization_id"],
             ["ai_requests.id", "ai_requests.organization_id"],
             name="fk_ai_source_request_organization",
             ondelete="CASCADE",
         ),
-        sa.UniqueConstraint("request_id", "source_type", "source_id", name="uq_ai_request_source"),
+        sa.ForeignKeyConstraint(
+            ["finding_id", "finding_aws_account_id", "organization_id"],
+            ["findings.id", "findings.aws_account_id", "findings.organization_id"],
+            name="fk_ai_source_finding",
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["risk_assessment_id", "organization_id"],
+            ["risk_assessments.id", "risk_assessments.organization_id"],
+            name="fk_ai_source_risk_assessment",
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["compliance_assessment_id", "organization_id"],
+            ["compliance_assessments.id", "compliance_assessments.organization_id"],
+            name="fk_ai_source_compliance_assessment",
+            ondelete="RESTRICT",
+        ),
+        sa.UniqueConstraint("request_id", name="uq_ai_request_source"),
     )
     op.create_index(
         "ix_ai_source_lookup", "ai_request_sources", ["organization_id", "source_type", "source_id"]
@@ -189,9 +239,59 @@ def upgrade() -> None:
             f"CREATE TRIGGER trg_{table}_immutable BEFORE UPDATE OR DELETE ON {table} "
             "FOR EACH ROW EXECUTE FUNCTION cloudops_prevent_ai_snapshot_mutation()"
         )
+    op.execute(
+        """
+        CREATE FUNCTION cloudops_prevent_used_ai_template_mutation() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM ai_requests
+            WHERE prompt_key = OLD.key AND prompt_version = OLD.version
+          ) THEN
+            RAISE EXCEPTION 'used AI prompt templates are immutable';
+          END IF;
+          RETURN COALESCE(NEW, OLD);
+        END;
+        $$;
+        """
+    )
+    op.execute(
+        "CREATE TRIGGER trg_ai_prompt_template_immutable "
+        "BEFORE UPDATE OR DELETE ON ai_prompt_templates FOR EACH ROW "
+        "EXECUTE FUNCTION cloudops_prevent_used_ai_template_mutation()"
+    )
+    op.execute(
+        """
+        CREATE FUNCTION cloudops_validate_ai_request_terminal() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        DECLARE response_count integer;
+        BEGIN
+          SELECT count(*) INTO response_count FROM ai_responses WHERE request_id = NEW.id;
+          IF NEW.status = 'completed' AND response_count <> 1 THEN
+            RAISE EXCEPTION 'completed AI request requires exactly one response';
+          END IF;
+          IF NEW.status IN (
+            'failed','timed_out','provider_disabled','invalid_response','rate_limited'
+          ) AND response_count <> 0 THEN
+            RAISE EXCEPTION 'unsuccessful AI request cannot retain a response';
+          END IF;
+          RETURN NEW;
+        END;
+        $$;
+        """
+    )
+    op.execute(
+        "CREATE CONSTRAINT TRIGGER trg_ai_request_terminal_response "
+        "AFTER INSERT OR UPDATE ON ai_requests DEFERRABLE INITIALLY DEFERRED "
+        "FOR EACH ROW EXECUTE FUNCTION cloudops_validate_ai_request_terminal()"
+    )
 
 
 def downgrade() -> None:
+    op.execute("DROP TRIGGER IF EXISTS trg_ai_request_terminal_response ON ai_requests")
+    op.execute("DROP FUNCTION IF EXISTS cloudops_validate_ai_request_terminal()")
+    op.execute("DROP TRIGGER IF EXISTS trg_ai_prompt_template_immutable ON ai_prompt_templates")
+    op.execute("DROP FUNCTION IF EXISTS cloudops_prevent_used_ai_template_mutation()")
     for table in ("ai_responses", "ai_request_sources"):
         op.execute(f"DROP TRIGGER IF EXISTS trg_{table}_immutable ON {table}")
     op.execute("DROP FUNCTION IF EXISTS cloudops_prevent_ai_snapshot_mutation()")
@@ -199,6 +299,11 @@ def downgrade() -> None:
     op.drop_table("ai_responses")
     op.drop_index("ix_ai_source_lookup", table_name="ai_request_sources")
     op.drop_table("ai_request_sources")
+    op.drop_constraint(
+        "uq_compliance_assessment_id_organization",
+        "compliance_assessments",
+        type_="unique",
+    )
     op.drop_index("ix_ai_request_created", table_name="ai_requests")
     op.drop_index("ix_ai_request_status", table_name="ai_requests")
     op.drop_index("ix_ai_request_organization", table_name="ai_requests")

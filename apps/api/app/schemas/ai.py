@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Annotated, Literal
 
 from pydantic import Field
 
@@ -19,6 +20,7 @@ class AIGenerateRequest(ApiModel):
     task_type: AITaskType
     sources: list[AISourceInput] = Field(min_length=1, max_length=20)
     idempotency_key: str = Field(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")
+    options: dict[str, str | int | bool] = Field(default_factory=dict, max_length=10)
 
 
 class AIShortcutRequest(ApiModel):
@@ -26,12 +28,15 @@ class AIShortcutRequest(ApiModel):
     idempotency_key: str = Field(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")
 
 
+BoundedText = Annotated[str, Field(max_length=1000)]
+
+
 class AIContent(ApiModel):
     title: str = Field(max_length=200)
     summary: str = Field(max_length=2000)
-    details: list[str] = Field(max_length=20)
-    caveats: list[str] = Field(max_length=10)
-    source_references: list[str] = Field(max_length=20)
+    details: list[BoundedText] = Field(max_length=20)
+    caveats: list[BoundedText] = Field(max_length=10)
+    source_references: list[Annotated[str, Field(max_length=300)]] = Field(max_length=20)
     draft_only: bool = True
 
 
@@ -46,10 +51,17 @@ class AIRequestResponse(ApiModel):
     prompt_key: str
     prompt_version: int
     context_hash: str
+    request_fingerprint: str
+    response_schema_version: int
+    model_key: str
     error_code: str | None
     finished_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    source_type: AISourceType
+    source_id: uuid.UUID
+    source_version: int
+    source_staleness: Literal["current", "stale", "source_missing"]
     content: AIContent | None = None
 
 

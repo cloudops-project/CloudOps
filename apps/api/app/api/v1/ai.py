@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from app.dependencies.auth import CurrentUser, DbSession
 from app.exceptions.errors import NotFoundError
-from app.models import AIRequest
+from app.models import AIRequest, AIRequestSource
 from app.models.enums import AIRequestStatus, AISourceType, AITaskType
 from app.schemas.ai import (
     AIGenerateRequest,
@@ -65,6 +65,8 @@ def requests(
     organization_id: Annotated[uuid.UUID, Query()],
     task_type: AITaskType | None = None,
     request_status: AIRequestStatus | None = None,
+    source_type: AISourceType | None = None,
+    source_id: uuid.UUID | None = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> AIRequestListResponse:
@@ -74,6 +76,12 @@ def requests(
         statement = statement.where(AIRequest.task_type == task_type)
     if request_status:
         statement = statement.where(AIRequest.status == request_status)
+    if source_type is not None or source_id is not None:
+        statement = statement.join(AIRequestSource, AIRequestSource.request_id == AIRequest.id)
+    if source_type is not None:
+        statement = statement.where(AIRequestSource.source_type == source_type)
+    if source_id is not None:
+        statement = statement.where(AIRequestSource.source_id == source_id)
     total = int(db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
     items = db.scalars(
         statement.order_by(AIRequest.created_at.desc(), AIRequest.id)
@@ -198,6 +206,69 @@ def executive_summary(
         source_id=assessment_id,
         source_type=AISourceType.RISK_ASSESSMENT,
         task_type=AITaskType.EXECUTIVE_SUMMARY,
+        idempotency_key=payload.idempotency_key,
+        user=user,
+        db=db,
+    )
+
+
+@router.post(
+    "/risk/assessments/{assessment_id}/ai/email-draft",
+    response_model=AIRequestResponse,
+)
+def risk_email_summary(
+    assessment_id: uuid.UUID,
+    payload: AIShortcutRequest,
+    user: CurrentUser,
+    db: DbSession,
+) -> AIRequestResponse:
+    return _shortcut(
+        organization_id=payload.organization_id,
+        source_id=assessment_id,
+        source_type=AISourceType.RISK_ASSESSMENT,
+        task_type=AITaskType.EMAIL_SUMMARY,
+        idempotency_key=payload.idempotency_key,
+        user=user,
+        db=db,
+    )
+
+
+@router.post(
+    "/compliance/assessments/{assessment_id}/ai/executive-summary",
+    response_model=AIRequestResponse,
+)
+def compliance_executive_summary(
+    assessment_id: uuid.UUID,
+    payload: AIShortcutRequest,
+    user: CurrentUser,
+    db: DbSession,
+) -> AIRequestResponse:
+    return _shortcut(
+        organization_id=payload.organization_id,
+        source_id=assessment_id,
+        source_type=AISourceType.COMPLIANCE_ASSESSMENT,
+        task_type=AITaskType.EXECUTIVE_SUMMARY,
+        idempotency_key=payload.idempotency_key,
+        user=user,
+        db=db,
+    )
+
+
+@router.post(
+    "/compliance/assessments/{assessment_id}/ai/email-draft",
+    response_model=AIRequestResponse,
+)
+def compliance_email_summary(
+    assessment_id: uuid.UUID,
+    payload: AIShortcutRequest,
+    user: CurrentUser,
+    db: DbSession,
+) -> AIRequestResponse:
+    return _shortcut(
+        organization_id=payload.organization_id,
+        source_id=assessment_id,
+        source_type=AISourceType.COMPLIANCE_ASSESSMENT,
+        task_type=AITaskType.EMAIL_SUMMARY,
         idempotency_key=payload.idempotency_key,
         user=user,
         db=db,
