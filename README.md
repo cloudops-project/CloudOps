@@ -26,7 +26,7 @@ accounts.
 | Stage 7 branch        | `feature/7-ai-assistant`                                                   |
 | Migration head        | `0009_stage7_ai_assistant`                                                |
 | Backend               | 217 passed, 0 failed, 0 skipped                                            |
-| Backend coverage      | 95.13%                                                                     |
+| Backend coverage      | 95.10%                                                                     |
 | Mypy                  | 109 source files                                                           |
 | Frontend              | 66 passed, 0 failed                                                        |
 | PostgreSQL            | Migration lifecycle, integrity, and independent-session concurrency passed |
