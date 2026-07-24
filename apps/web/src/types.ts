@@ -352,14 +352,29 @@ export interface AIRequestRecord {
   organization_id: string;
   requested_by_user_id: string;
   task_type: AITaskType;
-  status: "pending" | "running" | "completed" | "failed";
+  status:
+    | "pending"
+    | "running"
+    | "completed"
+    | "failed"
+    | "timed_out"
+    | "provider_disabled"
+    | "invalid_response"
+    | "rate_limited";
   provider_key: string;
+  model_key: string;
   prompt_key: string;
   prompt_version: number;
   context_hash: string;
+  request_fingerprint: string;
+  response_schema_version: number;
   error_code: string | null;
   finished_at: string | null;
   created_at: string;
   updated_at: string;
+  source_type: "finding" | "risk_assessment" | "compliance_assessment";
+  source_id: string;
+  source_version: number;
+  source_staleness: "current" | "stale" | "source_missing";
   content: AIContent | null;
 }

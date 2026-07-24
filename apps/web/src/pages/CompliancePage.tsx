@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { AIWorkflow } from "../components/AIWorkflow";
 import type {
   AWSAccount,
   ComplianceAssessment,
@@ -756,6 +757,14 @@ export function ComplianceAssessmentPage() {
               controls_error: assessment.data.controls_error,
             }}
           />
+          <div className="mt-5">
+            <AIWorkflow
+              organization={organization}
+              sourceType="compliance_assessment"
+              sourceId={assessment.data.id}
+              tasks={["executive_summary", "email_summary"]}
+            />
+          </div>
           <Select label="Control status" value={status} onChange={setStatus}>
             {controlStatuses.map((item) => (
               <option key={item} value={item}>

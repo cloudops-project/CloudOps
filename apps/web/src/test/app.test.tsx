@@ -329,13 +329,20 @@ describe("Stage 7 AI explanation assistant", () => {
           task_type: "explain_finding",
           status: "completed",
           provider_key: "mock",
+          model_key: "cloudops-deterministic-mock-v1",
           prompt_key: "CLOUDOPS_EXPLAIN_FINDING_V1",
           prompt_version: 1,
           context_hash: "a".repeat(64),
+          request_fingerprint: "b".repeat(64),
+          response_schema_version: 1,
           error_code: null,
           finished_at: "2026-07-24T00:00:00Z",
           created_at: "2026-07-24T00:00:00Z",
           updated_at: "2026-07-24T00:00:00Z",
+          source_type: "finding",
+          source_id: "f1",
+          source_version: 1,
+          source_staleness: "current",
           content: {
             title: "Finding explanation",
             summary: "<script>alert('unsafe')</script>",
@@ -364,6 +371,15 @@ describe("Stage 7 AI explanation assistant", () => {
       await screen.findByText("<script>alert('unsafe')</script>"),
     ).toBeVisible();
     expect(document.querySelector("script")).toBeNull();
+    expect(
+      screen.getByText(/mock \/ cloudops-deterministic-mock-v1/),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Copy AI draft" }),
+    );
+    expect(
+      await screen.findByText("AI draft copied to clipboard."),
+    ).toBeInTheDocument();
     const user = userEvent.setup();
     await user.type(
       screen.getByLabelText("Finding ID"),

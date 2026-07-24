@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "../api/client";
+import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import type { AIRequestRecord, AITaskType, Page } from "../types";
 
@@ -18,11 +18,26 @@ const tasks: Array<{ value: AITaskType; label: string }> = [
   { value: "jira_description", label: "Draft Jira description" },
   { value: "email_summary", label: "Draft email summary" },
 ];
+const errorMessages: Record<string, string> = {
+  AI_IDEMPOTENCY_CONFLICT:
+    "This request key was already used with different evidence. Start a new request.",
+  AI_RATE_LIMITED:
+    "AI generation is rate limited. Wait for the quota window to reset.",
+  AI_PROVIDER_DISABLED: "AI generation is currently disabled.",
+  AI_PROVIDER_TIMEOUT: "The AI provider timed out. No draft was saved.",
+  AI_PROVIDER_FAILED: "The AI provider is temporarily unavailable.",
+  AI_INVALID_RESPONSE:
+    "The provider returned an invalid draft that was rejected.",
+  AI_UNSUPPORTED_SOURCE_TASK:
+    "That task is not supported for the selected source.",
+  AI_SOURCE_NOT_FOUND: "The selected source is unavailable.",
+};
 
 export function AIAssistantPage() {
   const organization = useAuth().me?.organizations[0];
   const [sourceId, setSourceId] = useState("");
   const [task, setTask] = useState<AITaskType>("explain_finding");
+  const [announcement, setAnnouncement] = useState("");
   const queryClient = useQueryClient();
   const history = useQuery({
     queryKey: ["ai-requests", organization?.id],
@@ -50,11 +65,19 @@ export function AIAssistantPage() {
         }),
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["ai-requests"] });
+      setAnnouncement("AI draft generated. Human review is required.");
+      await queryClient.invalidateQueries({
+        queryKey: ["ai-requests", organization?.id],
+      });
     },
   });
   if (!organization) return <p>No organization selected.</p>;
   const mayGenerate = generationRoles.includes(organization.role);
+  const generationError =
+    generation.error instanceof ApiError
+      ? (errorMessages[generation.error.code ?? ""] ??
+        "The draft could not be generated safely.")
+      : "The draft could not be generated safely.";
   return (
     <section aria-labelledby="ai-title">
       <h1 id="ai-title" className="text-3xl font-bold">
@@ -69,6 +92,9 @@ export function AIAssistantPage() {
         <strong>Human review required.</strong> Outputs may be incomplete or
         inaccurate and are never sent or executed automatically.
       </div>
+      <p className="sr-only" aria-live="polite">
+        {generation.isPending ? "Generating AI draft." : announcement}
+      </p>
       {mayGenerate && (
         <form
           className="card mt-6 grid gap-4"
@@ -105,7 +131,7 @@ export function AIAssistantPage() {
           </label>
           {generation.isError && (
             <p role="alert" className="text-red-300">
-              The draft could not be generated safely.
+              {generationError}
             </p>
           )}
           <button
@@ -133,7 +159,7 @@ export function AIAssistantPage() {
               <h3 className="font-bold">
                 {item.content?.title ?? item.task_type.replaceAll("_", " ")}
               </h3>
-              <span>{item.status}</span>
+              <span>{item.status.replaceAll("_", " ")}</span>
             </div>
             {item.content && (
               <>
@@ -146,8 +172,68 @@ export function AIAssistantPage() {
                   ))}
                 </ul>
                 <p className="mt-3 text-sm text-amber-200">
-                  Draft only — validate against source evidence.
+                  AI-generated draft only — validate against source evidence.
                 </p>
+                <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="font-semibold">Generated</dt>
+                    <dd>{new Date(item.created_at).toLocaleString()}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Provider and model</dt>
+                    <dd>
+                      {item.provider_key} / {item.model_key}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Prompt version</dt>
+                    <dd>
+                      {item.prompt_key} v{item.prompt_version}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Source references</dt>
+                    <dd>{item.content.source_references.join(", ")}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Source status</dt>
+                    <dd>
+                      Version {item.source_version}:{" "}
+                      {item.source_staleness === "current"
+                        ? "current"
+                        : item.source_staleness === "stale"
+                          ? "stale — regenerate to use current evidence"
+                          : "source unavailable"}
+                    </dd>
+                  </div>
+                </dl>
+                <button
+                  className="button-secondary mt-3"
+                  type="button"
+                  onClick={() => {
+                    if (!navigator.clipboard?.writeText) {
+                      setAnnouncement("AI draft could not be copied.");
+                      return;
+                    }
+                    void navigator.clipboard
+                      .writeText(
+                        [
+                          item.content!.title,
+                          item.content!.summary,
+                          ...item.content!.details,
+                          ...item.content!.caveats,
+                        ].join("\n"),
+                      )
+                      .then(() =>
+                        setAnnouncement("AI draft copied to clipboard."),
+                      )
+                      .catch(() =>
+                        setAnnouncement("AI draft could not be copied."),
+                      );
+                  }}
+                >
+                  Copy AI draft
+                </button>
               </>
             )}
           </article>
