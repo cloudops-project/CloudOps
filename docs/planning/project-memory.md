@@ -2,22 +2,23 @@
 
 ## Last updated
 
-2026-07-24 — Stage 5 compliance merged and regression-verified on `main`; documentation
-synchronization is open as PR #5.
+2026-07-24 — Stage 6 deterministic risk scoring merged and regression-verified on `main`;
+documentation synchronization is isolated on `docs/stage6-merge-sync` as draft PR #7.
 
 ## Current implementation
 
-Stages 1–5 are independently verified, merged, and regression-tested. PR #4 merged verified
-feature SHA `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` at main commit
-`9811aeb881a1386c1dfba7e3e1641a2b765430f2`. Stage 6 is implemented on
-`feature/6-risk-scoring` with migration `0008_stage6_risk_scoring`; independent verification is
-pending.
+Stages 1–6 are independently clean-room verified, merged, and regression-tested. PR #6 merged
+verified feature SHA `b0361b8efe9060ef6c498e1cebfede4baaa9947d` at main commit
+`f23e124813b5f65a8f85957c1dce57d95b9cf038`. The current migration head is
+`0008_stage6_risk_scoring`; Stage 7 has not started.
 
 The active integration branch is `main`. Documentation synchronization is isolated on
-`docs/stage5-merge-sync` and published as PR #5. Its initial synchronization commit is
-`65d95a6d717556c70ede25900e9daf01dcb90dd4`; the current PR head is authoritative until merge.
+`docs/stage6-merge-sync` and published as draft PR #7; the current PR head is authoritative
+until merge.
 
-Alembic revision `0007_stage5_compliance_engine` follows
+Alembic revision `0008_stage6_risk_scoring` follows `0007_stage5_compliance_engine` and adds
+versioned scoring policies, bounded risk context, assessment jobs, immutable finding/account/
+organization snapshots, and authorized compensating controls. Revision `0007_stage5_compliance_engine` follows
 `0006_stage4_verification_repairs` and adds versioned frameworks and controls, rule mappings,
 per-rule evaluation summaries, assessments, and immutable control snapshots.
 Revision `0004_verification_repairs` adds immutable
@@ -40,10 +41,10 @@ backfilled without change.
 - Frontend discovery requires an accessible confirmation and covers filters, pagination,
   states, RBAC, focus behavior, and escaped metadata.
 
-Current release evidence is 162 backend tests passed with 0 failures and 0 skips at 95.88%
-coverage, plus 56 frontend tests passed with 0 failures. Migration lifecycle, populated
-`0006 -> 0007` upgrade, PostgreSQL integrity/concurrency, dependency audits, security scans, and
-merged-main regression verification passed.
+Current release evidence is 199 backend tests passed with 0 failures and 0 skips at 95.11%
+coverage, Mypy over 101 source files, and 64 frontend tests passed with 0 failures. Migration
+lifecycle, populated `0007 -> 0008` upgrade, PostgreSQL integrity/concurrency, dependency audits,
+security scans, and merged-main regression verification passed.
 
 ## Decisions
 
@@ -60,10 +61,10 @@ tests use deterministic AWS doubles; controlled live-AWS validation remains oper
 
 ## Next task
 
-Review and explicitly authorize PR #5 where required, merge it, synchronize `main`, reconfirm
-the Stage 1–5 baseline and clean worktree, then obtain separate authorization for Stage 6 —
-deterministic risk scoring. Do not create Stage 6 code before that gate; AI must not perform
-detection or risk scoring.
+Review and explicitly authorize draft PR #7 where required, merge it, synchronize `main`,
+reconfirm migration head `0008_stage6_risk_scoring`, the Stage 1–6 baseline, and a clean
+worktree, then obtain explicit owner direction for Stage 7. Do not create Stage 7 code before
+that gate; AI may explain existing results but must not detect or score.
 
 ## Stage 3 implementation snapshot
 
@@ -85,6 +86,11 @@ authorized Stage 4. This is not a claim that an independent GitHub approval occu
 PR #4 had zero recorded GitHub reviews/approvals and no automated check rollup. The exact feature
 SHA passed independent technical clean-room verification, after which the owner recorded an
 **Owner-authorized governance exception for PR #4**. This is not an independent GitHub,
+CODEOWNER, automated CI, or repository-policy approval.
+
+PR #6 also had zero recorded reviews/approvals and no automated check rollup. Its exact feature
+SHA passed technical clean-room verification, after which the owner recorded:
+**Owner-authorized governance exception for PR #6.** This is not an independent GitHub,
 CODEOWNER, automated CI, or repository-policy approval.
 
 ## Stage 5 limitations

@@ -67,47 +67,47 @@ erDiagram
 
 ## Identity, tenancy, and AWS
 
-| Entity | Purpose, important fields, relationships | Retention, sensitivity, indexes, deletion |
-|---|---|---|
-| `organizations` | Tenant root: `id`, name, status, settings version, timestamps | Sensitive business identity; unique normalized name as policy allows; deactivate/soft-delete, retain governed audit references |
-| `users` | Identity subject: `id`, issuer, subject, display/email, status, last_login | PII; unique `(issuer, subject)`, email lookup if needed; soft-delete/anonymize under policy |
-| `organization_members` | User membership and role: organization/user/role, status, version | Tenant-sensitive; unique `(organization_id,user_id)`, indexes by user and active org; soft-delete/history |
-| `roles` / `permissions` | Named organization/system role and atomic permission codes; join table implied | Permission-sensitive; unique names/codes; version/deactivate rather than destructive delete |
-| `aws_accounts` | Implemented Stage 2 account and connection: organization, name, 12-digit account ID, role ARN, unique external ID, status/connection status, safe failure reason, validation/creator timestamps | Account metadata sensitive; unique `(organization_id,account_id)`, `(organization_id,role_arn)`, and `external_id`; organization/status indexes; never credentials |
-| `cloud_assets` | Normalized asset snapshot: organization, account, scan run, service/type, provider ID/ARN, region, config hash, sanitized metadata | Configuration-sensitive; indexes `(org,service,type)`, `(org,account,provider_id)`, run; retention/partitioning TBD; soft-delete current projection, retain snapshots per policy |
+| Entity                  | Purpose, important fields, relationships                                                                                                                                                        | Retention, sensitivity, indexes, deletion                                                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizations`         | Tenant root: `id`, name, status, settings version, timestamps                                                                                                                                   | Sensitive business identity; unique normalized name as policy allows; deactivate/soft-delete, retain governed audit references                                                   |
+| `users`                 | Identity subject: `id`, issuer, subject, display/email, status, last_login                                                                                                                      | PII; unique `(issuer, subject)`, email lookup if needed; soft-delete/anonymize under policy                                                                                      |
+| `organization_members`  | User membership and role: organization/user/role, status, version                                                                                                                               | Tenant-sensitive; unique `(organization_id,user_id)`, indexes by user and active org; soft-delete/history                                                                        |
+| `roles` / `permissions` | Named organization/system role and atomic permission codes; join table implied                                                                                                                  | Permission-sensitive; unique names/codes; version/deactivate rather than destructive delete                                                                                      |
+| `aws_accounts`          | Implemented Stage 2 account and connection: organization, name, 12-digit account ID, role ARN, unique external ID, status/connection status, safe failure reason, validation/creator timestamps | Account metadata sensitive; unique `(organization_id,account_id)`, `(organization_id,role_arn)`, and `external_id`; organization/status indexes; never credentials               |
+| `cloud_assets`          | Normalized asset snapshot: organization, account, scan run, service/type, provider ID/ARN, region, config hash, sanitized metadata                                                              | Configuration-sensitive; indexes `(org,service,type)`, `(org,account,provider_id)`, run; retention/partitioning TBD; soft-delete current projection, retain snapshots per policy |
 
 ## Scanning, rules, and findings
 
-| Entity | Purpose, important fields, relationships | Retention, sensitivity, indexes, deletion |
-|---|---|---|
-| `scan_jobs` | User/schedule request: organization, account scope, services, status, idempotency key, requester | Operational/sensitive; unique `(org,idempotency_key)`, status/created index; retain and cancel, no hard delete during audit term |
-| `scan_runs` | Execution attempt: job, attempt, lease, start/end, coverage, error class | Operational; unique `(job,attempt)`, status/lease indexes; retention aligned with evidence |
-| `security_rules` | Stable ID (`EC2-001`), service, title, lifecycle | Global curated content; unique rule ID; deactivate, never reuse ID |
-| `rule_versions` | Immutable version, detection spec/hash, severity, guidance, activation | Integrity-sensitive; unique `(rule_id,version)`, active index; never update semantics or delete referenced versions |
-| `findings` | Organization, asset, rule version, fingerprint, severity, status, first/last seen, version | Tenant security data; unique active fingerprint by org; indexes `(org,status,severity)`, asset/rule; soft-delete inappropriate—close/suppress with history |
-| `finding_evidence` | Finding/run, schema version, minimized evidence JSON/hash, observed time | Highly sensitive; finding/run indexes; immutable, redact, retention policy; no secrets |
-| `finding_status_history` | From/to status, actor, reason, timestamp, version | Audit-relevant; index finding/time; append-only |
-| `risk_acceptances` | Finding, organization, owner/approver, justification, expiry, status | Sensitive governance record; expiry/status indexes; never erase during required retention |
+| Entity                   | Purpose, important fields, relationships                                                         | Retention, sensitivity, indexes, deletion                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scan_jobs`              | User/schedule request: organization, account scope, services, status, idempotency key, requester | Operational/sensitive; unique `(org,idempotency_key)`, status/created index; retain and cancel, no hard delete during audit term                           |
+| `scan_runs`              | Execution attempt: job, attempt, lease, start/end, coverage, error class                         | Operational; unique `(job,attempt)`, status/lease indexes; retention aligned with evidence                                                                 |
+| `security_rules`         | Stable ID (`EC2-001`), service, title, lifecycle                                                 | Global curated content; unique rule ID; deactivate, never reuse ID                                                                                         |
+| `rule_versions`          | Immutable version, detection spec/hash, severity, guidance, activation                           | Integrity-sensitive; unique `(rule_id,version)`, active index; never update semantics or delete referenced versions                                        |
+| `findings`               | Organization, asset, rule version, fingerprint, severity, status, first/last seen, version       | Tenant security data; unique active fingerprint by org; indexes `(org,status,severity)`, asset/rule; soft-delete inappropriate—close/suppress with history |
+| `finding_evidence`       | Finding/run, schema version, minimized evidence JSON/hash, observed time                         | Highly sensitive; finding/run indexes; immutable, redact, retention policy; no secrets                                                                     |
+| `finding_status_history` | From/to status, actor, reason, timestamp, version                                                | Audit-relevant; index finding/time; append-only                                                                                                            |
+| `risk_acceptances`       | Finding, organization, owner/approver, justification, expiry, status                             | Sensitive governance record; expiry/status indexes; never erase during required retention                                                                  |
 
 ## Compliance, response, integrations, and audit
 
-| Entity | Purpose, important fields, relationships | Retention, sensitivity, indexes, deletion |
-|---|---|---|
-| `compliance_frameworks` / `compliance_controls` | Framework version/source and hierarchical control identifiers/text | Licensing-sensitive; unique `(framework,version)` and control code; retire/version, do not rewrite mappings historically |
-| `rule_compliance_mappings` | Rule version ↔ control with rationale/coverage qualifier/reviewer | Governance-sensitive; composite unique pair, control/rule indexes; version/deactivate |
-| `remediation_recommendations` | Finding, source (deterministic/AI), playbook candidate, text/schema, review state | Tenant-sensitive; finding/source index; retain with finding, sanitize AI output |
-| `remediation_requests` | Finding, requested playbook/version, requester, scope, approval state, idempotency key, evidence version | High impact; unique `(org,idempotency_key)`, approval/status indexes; immutable intent plus state history |
-| `remediation_executions` | Request attempt, executor, target, preconditions, outcome, timestamps, verification run | Highly sensitive; unique request/attempt, outcome/time indexes; retain; never store credentials |
-| `jira_tickets` | Finding, external project/key/URL, sync state, last event | Integration/customer-sensitive; unique external identity per org; redact tokens; unlink/retain audit history |
-| `notification_events` | Organization, channel, template, destination reference, payload hash, state/attempts | Recipient-sensitive; status/schedule indexes; minimized retention, never raw webhook secrets |
-| `reports` | Organization, type, parameters, generated artifact reference/hash, status | May contain sensitive posture data; `(org,status,created)` index; expire artifact per policy, keep audit metadata |
-| `audit_events` | Organization, actor/service, action, target, outcome, time, correlation/idempotency IDs, previous/event hash | Security record; organization/time, target/time, correlation indexes; append-only, archived/tamper-evident, never soft-delete ordinarily |
-| `ai_interactions` | Organization, purpose, provider/model, prompt template/version, input hash, redaction status, output status, token/cost metadata, related finding/report, timestamp | Sensitive metadata; indexes org/time, purpose, related IDs; raw secrets prohibited; raw prompts/outputs avoided or tightly governed/expired |
+| Entity                                          | Purpose, important fields, relationships                                                                                                                            | Retention, sensitivity, indexes, deletion                                                                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compliance_frameworks` / `compliance_controls` | Framework version/source and hierarchical control identifiers/text                                                                                                  | Licensing-sensitive; unique `(framework,version)` and control code; retire/version, do not rewrite mappings historically                    |
+| `rule_compliance_mappings`                      | Rule version ↔ control with rationale/coverage qualifier/reviewer                                                                                                   | Governance-sensitive; composite unique pair, control/rule indexes; version/deactivate                                                       |
+| `remediation_recommendations`                   | Finding, source (deterministic/AI), playbook candidate, text/schema, review state                                                                                   | Tenant-sensitive; finding/source index; retain with finding, sanitize AI output                                                             |
+| `remediation_requests`                          | Finding, requested playbook/version, requester, scope, approval state, idempotency key, evidence version                                                            | High impact; unique `(org,idempotency_key)`, approval/status indexes; immutable intent plus state history                                   |
+| `remediation_executions`                        | Request attempt, executor, target, preconditions, outcome, timestamps, verification run                                                                             | Highly sensitive; unique request/attempt, outcome/time indexes; retain; never store credentials                                             |
+| `jira_tickets`                                  | Finding, external project/key/URL, sync state, last event                                                                                                           | Integration/customer-sensitive; unique external identity per org; redact tokens; unlink/retain audit history                                |
+| `notification_events`                           | Organization, channel, template, destination reference, payload hash, state/attempts                                                                                | Recipient-sensitive; status/schedule indexes; minimized retention, never raw webhook secrets                                                |
+| `reports`                                       | Organization, type, parameters, generated artifact reference/hash, status                                                                                           | May contain sensitive posture data; `(org,status,created)` index; expire artifact per policy, keep audit metadata                           |
+| `audit_events`                                  | Organization, actor/service, action, target, outcome, time, correlation/idempotency IDs, previous/event hash                                                        | Security record; organization/time, target/time, correlation indexes; append-only, archived/tamper-evident, never soft-delete ordinarily    |
+| `ai_interactions`                               | Organization, purpose, provider/model, prompt template/version, input hash, redaction status, output status, token/cost metadata, related finding/report, timestamp | Sensitive metadata; indexes org/time, purpose, related IDs; raw secrets prohibited; raw prompts/outputs avoided or tightly governed/expired |
 
-## Current Stage 5 physical schema
+## Current Stage 5 and Stage 6 physical schema
 
-The integrated Alembic head is `0007_stage5_compliance_engine`; Stage 6 feature migration
-`0008_stage6_risk_scoring` follows it. `evaluation_jobs` carries tenant/account
+The integrated Alembic head is `0008_stage6_risk_scoring`, following
+`0007_stage5_compliance_engine`. `evaluation_jobs` carries tenant/account
 references, a monotonic sequence, nonnegative counters, constrained lifecycle timestamps, and a
 partial unique index allowing one pending/running evaluation per account.
 
@@ -136,6 +136,12 @@ counters, valid lifecycle timestamps, and one active assessment per scope and po
 source identifiers and aggregates. `compensating_controls` requires a bounded negative
 adjustment and permits only one active record per finding. Composite foreign keys prevent
 cross-tenant account, asset, finding, assessment, and snapshot relationships.
+
+The migration was verified from an empty database and a populated `0007` database, then through
+`0008 -> 0007 -> 0008`. PostgreSQL transactional DDL, rollback tests, independent-session
+locking, one-active-assessment constraints, and database-enforced snapshot immutability passed
+without model/migration drift. Audit records are access-controlled and transactionally written;
+absolute audit immutability is not claimed.
 
 ## Relational rules
 

@@ -10,8 +10,8 @@ future intent.
 
 CloudOps is a multi-tenant SaaS application for securely connecting AWS accounts and building a
 normalized inventory, deterministic security findings, and point-in-time compliance
-assessments and deterministic explainable risk scoring. Stages 1–5 are independently verified
-and merged; Stage 6 is implemented on its feature branch and awaits independent verification.
+assessments and deterministic explainable risk scoring. Stages 1–6 are independently
+clean-room verified, merged, and regression-tested. Stage 7 has not started.
 
 ## Business goals
 
@@ -93,8 +93,22 @@ other platforms are out of scope.
 - Framework, control, finding-traceability, summary, and assessment APIs
 - Tenant-scoped RBAC and compliance UI
 
-Stage 5 does not detect findings and does not claim independent certification. Risk scoring,
-recommendations, remediation, and Stage 6 functionality remain out of scope.
+Stage 5 does not detect findings and does not claim independent certification.
+
+### Stage 6 — Deterministic Risk Scoring
+
+- Versioned `CLOUDOPS_RISK_V1` policy with 0–100 CloudOps-specific, CVSS-inspired scores
+- Explicit component points, reason codes, and persisted unknown-input indicators
+- Deterministic LOW (0–29), MEDIUM (30–59), HIGH (60–79), and CRITICAL (80–100) priorities
+- Finding, account, and organization point-in-time snapshots with stable ordering
+- Account aggregation: 50% maximum, 30% mean of the top ten, and 20% mean of all active findings
+- Organization aggregation: 60% maximum account score and 40% mean account score
+- Explicit asset/account context for business impact, data sensitivity, and environment
+- Authorized, reasoned compensating controls bounded from -15 through -1
+- Tenant-scoped APIs, six-role RBAC, PostgreSQL integrity/concurrency controls, and risk dashboard
+
+Stage 6 prioritizes existing Stage 4 findings. It performs no detection, live AWS access, or AI
+work. Suppressed findings remain risk evidence, and historical snapshots are not recalculated.
 
 Stage 3 remains the inventory foundation. Stage 4 expands bounded configuration metadata needed
 for deterministic checks; it does not ingest raw logs/events or perform full IAM simulation.
@@ -121,6 +135,11 @@ for deterministic checks; it does not ingest raw logs/events or perform full IAM
 10. Run a deterministic evaluation and review findings.
 11. Run a compliance assessment backed by the completed evaluation.
 12. Review framework, control, mapped-finding, and immutable historical assessment details.
+13. Configure bounded risk context and run a deterministic risk assessment.
+14. Review score, textual priority, component reasons, unknown-input indicators, ranked
+    findings, account/organization aggregates, and immutable history.
+15. Where authorized, add a reasoned compensating control and compare a new assessment with the
+    unchanged prior snapshot.
 
 ## Current API capabilities
 
@@ -138,6 +157,8 @@ All application APIs are versioned under `/api/v1`.
   authorized suppression
 - Compliance: frameworks, controls, rule mappings, mapped findings, summaries, assessment
   execution, history, and immutable snapshot details
+- Risk: policies, assessment execution/history/details, summaries, ranked findings,
+  account/asset views, context read/update, and compensating-control lifecycle
 - Operations: `/health` and database-backed `/ready`
 
 ## Current dashboard capabilities
@@ -145,12 +166,12 @@ All application APIs are versioned under `/api/v1`.
 The frontend provides organization identity and role context, member and invitation counts,
 recent authentication/membership activity, member administration, AWS onboarding, asset
 inventory, discovery jobs, findings, rule catalog, evaluation jobs, compliance frameworks,
-control details, and assessment history. It does not display deterministic risk scores, AI
-content, or remediation controls.
+control details, assessment history, deterministic risk summaries, component explanations,
+ranked findings, contexts, compensating controls, and historical risk snapshots. It does not
+display AI-generated content or remediation controls.
 
 ## Out of scope and not implemented
 
-- Risk scoring
 - Complete framework coverage or compliance certification
 - Security recommendations
 - AI assistance
@@ -159,7 +180,7 @@ content, or remediation controls.
 - Scheduled/background discovery
 - Raw CloudWatch log or CloudTrail event ingestion, EventBridge, or deployment infrastructure
 - MFA, SSO/OIDC, password reset, and production invitation email delivery
-- Stage 6 deterministic risk scoring; Stage 7 AI explanations; Stage 8 expanded
+- Stage 7 AI explanations; Stage 8 expanded
   dashboards/reports; Stage 9 notifications; Stage 10 remediation; Stage 11 scheduling; and
   Stage 12 extended tamper-evident audit timeline
 
@@ -189,10 +210,12 @@ content, or remediation controls.
 - No credentials are persisted or exposed.
 - Rule errors cannot falsely pass or resolve findings.
 - Stage 5 assessments require affirmative Stage 4 evidence and preserve immutable snapshots.
+- Stage 6 scores are deterministic, versioned, bounded from 0–100, and preserve immutable
+  historical snapshots; unknown inputs are explicit and suppression alone never lowers risk.
 
 ## Delivery status
 
-Stages 1–5 are independently verified and merged in `main`. Stage 6 is implemented on
-`feature/6-risk-scoring` from baseline `9811aeb881a1386c1dfba7e3e1641a2b765430f2`; migration
-`0008_stage6_risk_scoring` follows `0007_stage5_compliance_engine`. Independent Stage 6
-verification and merge remain pending.
+Stages 1–6 are independently clean-room verified and merged in `main` at
+`f23e124813b5f65a8f85957c1dce57d95b9cf038`. Stage 6 feature SHA
+`b0361b8efe9060ef6c498e1cebfede4baaa9947d` was merged by PR #6. The current migration head is
+`0008_stage6_risk_scoring`. Stage 7–12 functionality is not implemented.

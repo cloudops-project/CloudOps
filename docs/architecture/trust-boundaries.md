@@ -20,25 +20,30 @@ durable audit events record accepted assessment lifecycle transitions without ra
 
 Security architects and implementers use this catalogue to place authentication, validation, minimization, and audit controls at each crossing.
 
-| Boundary | Primary risks | Required controls |
-|---|---|---|
-| Browser ↔ frontend | XSS, stolen token, malicious extension | CSP, output encoding, dependency hygiene, short sessions, no secrets in client storage |
-| Frontend ↔ backend | broken access, CSRF, abuse, IDOR | TLS, local JWT/session validation, organization RBAC, CSRF defenses where needed, rate/size limits, correlation IDs |
-| Backend ↔ database | injection, cross-tenant query, credential theft | parameterized SQLAlchemy, scoped repositories, constraints, least-privilege DB role, TLS/encryption |
-| API ↔ worker/queue | forged/replayed/flooded jobs | private authenticated channel, minimal messages, idempotency, leases, reauthorization, quotas |
-| CloudOps AWS ↔ customer AWS | confused deputy, role excess, credential leakage | exact principal, external ID, STS, least privilege, CloudTrail, separate scan/remediation roles |
-| Application ↔ AI provider | prompt injection, sensitive disclosure, untrusted output | minimization/redaction, provider policy, timeout/budget, schema validation, sanitization, audit metadata |
-| Application ↔ Jira | token theft, webhook forgery, data oversharing | scoped OAuth/token secret, allowlisted fields, signature verification, replay protection |
-| Application ↔ email/Teams | notification abuse, leakage, forged callback | destination authorization, templates, throttling, secret store, safe links, audit |
-| Remediation ↔ customer resources | unintended mutation, duplicate action, compromise | approved playbook/version, separation of duties, action-specific IAM, idempotency, preconditions, verification |
+| Boundary                         | Primary risks                                            | Required controls                                                                                                   |
+| -------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Browser ↔ frontend               | XSS, stolen token, malicious extension                   | CSP, output encoding, dependency hygiene, short sessions, no secrets in client storage                              |
+| Frontend ↔ backend               | broken access, CSRF, abuse, IDOR                         | TLS, local JWT/session validation, organization RBAC, CSRF defenses where needed, rate/size limits, correlation IDs |
+| Backend ↔ database               | injection, cross-tenant query, credential theft          | parameterized SQLAlchemy, scoped repositories, constraints, least-privilege DB role, TLS/encryption                 |
+| API ↔ worker/queue               | forged/replayed/flooded jobs                             | private authenticated channel, minimal messages, idempotency, leases, reauthorization, quotas                       |
+| CloudOps AWS ↔ customer AWS      | confused deputy, role excess, credential leakage         | exact principal, external ID, STS, least privilege, CloudTrail, separate scan/remediation roles                     |
+| Application ↔ AI provider        | prompt injection, sensitive disclosure, untrusted output | minimization/redaction, provider policy, timeout/budget, schema validation, sanitization, audit metadata            |
+| Application ↔ Jira               | token theft, webhook forgery, data oversharing           | scoped OAuth/token secret, allowlisted fields, signature verification, replay protection                            |
+| Application ↔ email/Teams        | notification abuse, leakage, forged callback             | destination authorization, templates, throttling, secret store, safe links, audit                                   |
+| Remediation ↔ customer resources | unintended mutation, duplicate action, compromise        | approved playbook/version, separation of duties, action-specific IAM, idempotency, preconditions, verification      |
 
 ## Administrative boundary
 
-Platform administration crosses all tenant boundaries and therefore requires separate identity, MFA readiness, just-in-time access where feasible, two-person review for sensitive operations, and immutable audit evidence. Exact vendors and network topology are proposals for later stages.
+Platform administration crosses all tenant boundaries and therefore requires separate identity, MFA readiness, just-in-time access where feasible, two-person review for sensitive operations, and durable audit evidence. Exact vendors and network topology are proposals for later stages.
+
 ## Stage 6 scoring boundary
 
 The risk engine is inside the trusted application boundary but has no AWS, network, filesystem,
 plugin, or dynamic-code capability. Its inputs are persisted tenant-scoped findings and bounded
 operator context. PostgreSQL is authoritative for identity, tenant relationships, concurrency,
-and historical immutability. The browser receives sanitized numeric components and reason codes,
-never credentials or unbounded provider documents.
+bounded score state, historical immutability, and immutable snapshots. The browser receives
+sanitized numeric components and reason codes, never credentials or unbounded provider
+documents. Authorized context and compensating-control
+changes cross a user-input boundary and require capability checks, bounded schemas, tenant
+predicates, optimistic versions or row locks, reasons, and durable audit events. Stage 7 AI is
+outside the implemented boundary and must not be represented as active.

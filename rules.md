@@ -6,9 +6,8 @@ These rules govern current CloudOps development. More detailed policies remain u
 `docs/engineering/`. When documents conflict, stop and resolve the contradiction before changing
 code.
 
-The governed baseline contains independently verified, merged Stages 1–5 at main commit
-`9811aeb881a1386c1dfba7e3e1641a2b765430f2`. Stage 6 deterministic risk scoring is implemented
-on `feature/6-risk-scoring` and requires independent verification, review, and merge.
+The governed baseline contains independently clean-room verified, merged Stages 1–6 at main
+commit `f23e124813b5f65a8f85957c1dce57d95b9cf038`. Stage 7 has not started.
 
 ## Technology stack
 
@@ -50,7 +49,7 @@ partial indexes, composite foreign keys, or concurrency.
 - Frontend visibility is usability only; backend authorization is authoritative.
 - Rules evaluate persisted normalized data only; boto3 stays in discovery.
 - Compliance consumes persisted Stage 4 results; it never performs detection or live AWS calls.
-- Do not introduce risk, AI, remediation, raw event ingestion, customer AWS mutation, or Stage 6
+- Do not introduce AI, remediation, raw event ingestion, customer AWS mutation, or Stage 7
   functionality.
 
 ## Security rules
@@ -195,9 +194,9 @@ A stage is done only when its scoped behavior, migrations, tests, security contr
 documentation, dependency audits, and independent verification pass; no later-stage executable
 scope is present; and no secrets or generated artifacts are committed.
 
-No stage may begin until its predecessor is independently verified and merged. Stage 7 remains
-blocked until Stage 6 is independently verified and merged; AI must not perform finding
-detection or deterministic risk scoring.
+No stage may begin until its predecessor is independently verified, merged, regression-tested,
+and documentation-synchronized. Stage 7 remains blocked until this documentation PR is merged,
+local `main` is synchronized, and the owner explicitly directs Stage 7 to begin.
 
 ## Deterministic risk policy
 
@@ -211,3 +210,6 @@ detection or deterministic risk scoring.
   row locking, and optimistic versions; process-local locking is insufficient.
 - AI may later explain an already-computed score, but may never choose component values, alter
   the formula, or determine a score.
+- AI may never detect or create findings, change finding state or severity, change compliance
+  status, execute remediation, send email, or create Jira tickets.
+- Automated tests use synthetic data and deterministic doubles, never real customer AWS.

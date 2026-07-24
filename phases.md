@@ -2,9 +2,8 @@
 
 ## Current status
 
-Stages 1–5 are independently verified, merged, and regression-tested in `main` at
-`9811aeb881a1386c1dfba7e3e1641a2b765430f2`. Stage 6 is implemented on its feature branch and
-awaits independent verification and merge.
+Stages 1–6 are independently clean-room verified, merged, and regression-tested in `main` at
+`f23e124813b5f65a8f85957c1dce57d95b9cf038`. Stage 7 has not started.
 
 ## Stage 0 — Planning and architecture
 
@@ -69,7 +68,7 @@ complete framework coverage nor certification.
 
 ## Stage 6 — Deterministic Risk Scoring
 
-**Status: IMPLEMENTED — AWAITING INDEPENDENT VERIFICATION**
+**Status: COMPLETE — INDEPENDENTLY VERIFIED, MERGED, AND REGRESSION-TESTED**
 
 Delivered a versioned deterministic scoring policy, immutable finding/account/organization
 snapshots, explicit unknown-context handling, tenant-scoped context overrides, compensating
@@ -82,6 +81,11 @@ accessible risk dashboard. Scores are derived only from persisted Stage 4 findin
 **Status: NOT STARTED**
 
 Optional advisory explanations only. AI must not detect findings or determine risk scores.
+
+Planned outputs are explanations of existing findings and business impact, remediation text,
+and drafts for executive summaries, Jira descriptions, and email summaries. AI must not create
+findings, calculate or change risk, change severity/compliance state, execute remediation, send
+email, or create Jira tickets.
 
 ## Stage 8 — Dashboard and Reports
 
@@ -116,8 +120,10 @@ absolutely immutable.
 
 ## Immediate gate
 
-1. Review and explicitly authorize documentation PR #5 where required.
-2. Merge PR #5 and synchronize local `main`.
-3. Confirm a clean worktree and preserved Stage 5 regression baseline.
-4. Authorize and create a separate Stage 6 branch from updated `main`.
-5. Keep deterministic risk scoring separate from optional advisory AI.
+1. Review and explicitly authorize the Stage 6 documentation PR where governance requires it.
+2. Merge that documentation-only PR and synchronize local `main`.
+3. Confirm migration head `0008_stage6_risk_scoring`, the Stage 6 regression baseline, and a
+   clean worktree.
+4. Obtain explicit owner direction before creating any Stage 7 branch.
+5. Keep deterministic detection, compliance interpretation, and risk scoring separate from
+   optional advisory AI.

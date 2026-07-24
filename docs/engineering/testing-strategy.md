@@ -65,12 +65,18 @@ races, and rollback behavior with independent sessions. Frontend tests cover inv
 combined filters, pagination, details, accessible discovery confirmation, duplicate-click
 prevention, job states, escaped metadata, and role visibility. Live AWS remains a
 controlled-sandbox verification step.
+
 ## Stage 6 verification
 
 Stage 6 tests cover every component and priority boundary, exact maximum, age buckets,
 unknown-input behavior, suppression, compensating controls, aggregate formulas, stable API
 ordering, all-role authorization, tenant isolation, PostgreSQL constraints, immutable snapshots,
 independent-session uniqueness races, migration lifecycle, escaped frontend rendering, dialog
-focus, and Stage 1–5 regression. Release gates remain at least 95% backend coverage, zero
+focus behavior, and role visibility. The clean-room and merged-main baselines are 199 backend
+tests with 0 failures/skips at 95.11% coverage, Mypy over 101 source files, and 64 frontend
+tests with 0 failures. Empty and populated `0007 -> 0008`, downgrade/re-upgrade, drift,
+integrity, concurrency, rollback, risk workflow, focus behavior, and Stage 1–5 regression
+verification passed. Automated tests use synthetic data and deterministic doubles; real customer
+AWS is prohibited. Release gates remain at least 95% backend coverage, zero
 mandatory PostgreSQL skips, complete frontend tests/build, dependency audits, and
 credential/security scans.

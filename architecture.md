@@ -1,9 +1,8 @@
 # CloudOps Current Architecture
 
-Stages 1–5 are independently verified and merged in `main` at
-`9811aeb881a1386c1dfba7e3e1641a2b765430f2`. Stage 6 deterministic risk scoring is implemented
-on `feature/6-risk-scoring` with migration `0008_stage6_risk_scoring` and awaits independent
-verification.
+Stages 1–6 are independently clean-room verified, merged, and regression-tested in `main` at
+`f23e124813b5f65a8f85957c1dce57d95b9cf038`. The current migration head is
+`0008_stage6_risk_scoring`. Stage 7 has not started.
 
 ## Document role
 
@@ -95,6 +94,24 @@ PostgreSQL composite foreign keys enforce account/evaluation/organization and
 control/framework consistency. Partial unique indexes prevent duplicate active assessments and
 open-ended mappings. Finalized per-rule summaries and assessment snapshots cannot be updated.
 
+## Stage 6 deterministic risk flow
+
+`CLOUDOPS_RISK_V1` reads committed Stage 4 findings and bounded tenant context only. It records
+explicit component points, reason codes, finding age, business impact, data sensitivity,
+environment, unknown-input indicators, policy version, and source lifecycle versions. Scores
+are CloudOps-specific and CVSS-inspired—not CVSS—and are clamped to 0–100:
+
+- LOW 0–29; MEDIUM 30–59; HIGH 60–79; CRITICAL 80–100.
+- Account score = 50% highest finding + 30% mean top ten + 20% mean all active findings.
+- Organization score = 60% highest account + 40% mean account score.
+
+Suppressed findings remain in scope. Only an authorized, reasoned compensating control bounded
+from -15 through -1 may adjust a subsequent assessment. It does not alter finding severity or
+compliance status. Finding, account, and organization snapshots are immutable, so later context
+or control changes never recalculate history. Tenant-scoped transactions, deterministic lock
+ordering, partial indexes, and optimistic versions prevent duplicate or stale writes. Scoring
+makes no AWS, network, filesystem, plugin, dynamic-code, or AI call.
+
 ## Authentication flow
 
 1. Login verifies normalized email and Argon2 password hash.
@@ -170,6 +187,13 @@ newer lifecycle state. Terminal counters, structured logs, and audit events are 
 | `RuleControlMapping` / `rule_control_mappings`                   | Rule-version ranges mapped to controls                        |
 | `ComplianceAssessment` / `compliance_assessments`                | Account/framework assessment lifecycle and counters           |
 | `ComplianceAssessmentControl` / `compliance_assessment_controls` | Immutable historical control result snapshot                  |
+| `RiskScoringPolicy` / `risk_scoring_policies`                    | Immutable versioned deterministic scoring policy              |
+| `AssetRiskContext` / `asset_risk_contexts`                       | Bounded account-default or asset-specific context             |
+| `RiskAssessment` / `risk_assessments`                            | Tenant-scoped deterministic assessment lifecycle              |
+| `FindingRiskSnapshot` / `finding_risk_snapshots`                 | Immutable finding score, components, reasons, and inputs      |
+| `AccountRiskSnapshot` / `account_risk_snapshots`                 | Immutable deterministic account aggregate                     |
+| `OrganizationRiskSnapshot` / `organization_risk_snapshots`       | Immutable deterministic organization aggregate                |
+| `CompensatingControl` / `compensating_controls`                  | Authorized bounded adjustment with reason and lifecycle       |
 
 ## Database constraints and concurrency
 
@@ -190,6 +214,10 @@ newer lifecycle state. Terminal counters, structured logs, and audit events are 
   composite tenant and framework constraints.
 - Finalized evaluation-rule summaries and compliance snapshots are immutable.
 - Partial indexes prevent duplicate active assessments and duplicate open-ended mappings.
+- Stage 6 composite keys enforce tenant agreement across risk context, findings, assessments,
+  snapshots, accounts, and assets.
+- Score/counter/version/lifecycle checks, partial active-assessment/context/control indexes, and
+  PostgreSQL triggers enforce bounded state and immutable finalized snapshots.
 - PostgreSQL row locks serialize refresh rotation, invitation acceptance, final-owner changes,
   AWS account lifecycle mutations, and account-level asset lifecycle work.
 - Validation operation tokens stop stale STS results from overwriting newer account changes.
@@ -220,6 +248,8 @@ headers, AWS credentials, full policies, and unbounded evidence are excluded.
 - `discovery`: discovery start, jobs, assets, summary
 - `security_findings`: rules, evaluations, findings, summary, suppression
 - `compliance`: frameworks, controls, mappings/findings, summaries, assessments, snapshots
+- `risk`: policies, assessments, summaries, ranked findings, contexts, compensating controls,
+  and immutable history
 - `health`: liveness and readiness
 
 ## Migration chain
@@ -231,7 +261,8 @@ headers, AWS credentials, full policies, and unbounded evidence are excluded.
   -> 0004_verification_repairs
   -> 0005_stage4_rule_engine
   -> 0006_stage4_verification_repairs
-  -> 0007_stage5_compliance_engine (current head)
+  -> 0007_stage5_compliance_engine
+  -> 0008_stage6_risk_scoring (current head)
 ```
 
 `0004_verification_repairs` backfills permanent external-ID reservations and adds the composite
@@ -240,6 +271,7 @@ valid Stage 2/3 data is preserved.
 
 ## Future work
 
-Stage 5 compliance interprets persisted Stage 4 evidence. Stage 6 deterministic risk scoring
-builds immutable point-in-time scores from those persisted findings. AI, notifications, raw
-event ingestion, scheduling, remediation, and production infrastructure remain future work.
+Stage 4 detects findings; Stage 5 interprets persisted evidence for compliance; Stage 6 uses
+`CLOUDOPS_RISK_V1` to prioritize those findings without network calls or AI. Stage 7 may explain
+existing deterministic results but must never detect, score, or mutate them. AI, notifications,
+raw event ingestion, scheduling, remediation, and production infrastructure remain future work.
