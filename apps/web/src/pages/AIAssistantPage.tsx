@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { aiQueryKeys } from "../ai/queryKeys";
 import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import type { AIRequestRecord, AITaskType, Page } from "../types";
@@ -39,8 +40,11 @@ export function AIAssistantPage() {
   const [task, setTask] = useState<AITaskType>("explain_finding");
   const [announcement, setAnnouncement] = useState("");
   const queryClient = useQueryClient();
+  const historyKey = organization
+    ? aiQueryKeys.history(organization.id)
+    : aiQueryKeys.all;
   const history = useQuery({
-    queryKey: ["ai-requests", organization?.id],
+    queryKey: historyKey,
     enabled: Boolean(organization),
     queryFn: () =>
       api<Page<AIRequestRecord>>(
@@ -67,7 +71,7 @@ export function AIAssistantPage() {
     onSuccess: async () => {
       setAnnouncement("AI draft generated. Human review is required.");
       await queryClient.invalidateQueries({
-        queryKey: ["ai-requests", organization?.id],
+        queryKey: historyKey,
       });
     },
   });

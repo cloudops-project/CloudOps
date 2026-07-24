@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { aiQueryKeys } from "../ai/queryKeys";
 import { ApiError, api } from "../api/client";
 import type { AIRequestRecord, AITaskType, Organization, Page } from "../types";
 
@@ -43,12 +44,22 @@ export function AIWorkflow({
 }) {
   const client = useQueryClient();
   const [announcement, setAnnouncement] = useState("");
-  const [latest, setLatest] = useState<AIRequestRecord | null>(null);
+  const scope = `${organization.id}:${sourceType}:${sourceId}`;
+  const [latest, setLatest] = useState<{
+    scope: string;
+    record: AIRequestRecord;
+  } | null>(null);
   const [selectedTask, setSelectedTask] = useState<AITaskType | null>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const historyKey = aiQueryKeys.history(organization.id, {
+    sourceType,
+    sourceId,
+    pageSize: 10,
+  });
   const history = useQuery({
-    queryKey: ["ai-requests", organization.id, sourceType, sourceId],
+    queryKey: historyKey,
     queryFn: () =>
       api<Page<AIRequestRecord>>(
         `/api/v1/ai/requests?organization_id=${organization.id}` +
@@ -67,12 +78,12 @@ export function AIWorkflow({
         }),
       }),
     onSuccess: async (result) => {
-      setLatest(result);
+      setLatest({ scope, record: result });
       setSelectedTask(null);
       setAnnouncement("AI-generated draft is ready. Human review is required.");
       queueMicrotask(() => triggerRef.current?.focus());
       await client.invalidateQueries({
-        queryKey: ["ai-requests", organization.id, sourceType, sourceId],
+        queryKey: historyKey,
       });
     },
   });
@@ -82,7 +93,7 @@ export function AIWorkflow({
         "AI generation failed safely.")
       : "AI generation failed safely.";
   const visible =
-    latest ??
+    (latest?.scope === scope ? latest.record : null) ??
     (Array.isArray(history.data?.items) ? history.data.items[0] : undefined) ??
     null;
   const copyVisible = () => {
@@ -109,6 +120,18 @@ export function AIWorkflow({
       if (event.key === "Escape" && !generation.isPending) {
         setSelectedTask(null);
         queueMicrotask(() => triggerRef.current?.focus());
+      }
+      if (event.key === "Tab") {
+        const first = confirmRef.current;
+        const last = cancelRef.current;
+        if (!first || !last) return;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
     document.addEventListener("keydown", close);
@@ -173,6 +196,7 @@ export function AIWorkflow({
                 {generation.isPending ? "Generating…" : "Generate AI draft"}
               </button>
               <button
+                ref={cancelRef}
                 type="button"
                 className="button-secondary"
                 disabled={generation.isPending}

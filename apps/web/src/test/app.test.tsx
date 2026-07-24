@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { App } from "../App";
+import { aiQueryKeys } from "../ai/queryKeys";
 import { AuthProvider } from "../auth/AuthProvider";
 import type { Me } from "../types";
 
@@ -27,7 +28,7 @@ function renderApp(path: string, me: Me | null = null) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <AuthProvider initialMe={me} restoreOnMount={false}>
@@ -36,6 +37,7 @@ function renderApp(path: string, me: Me | null = null) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...view, client };
 }
 
 describe("Stage 1 application", () => {
@@ -283,11 +285,15 @@ describe("Stage 1 application", () => {
             }),
       ),
     );
-    renderApp("/dashboard", owner);
+    const { client } = renderApp("/dashboard", owner);
+    client.setQueryData(aiQueryKeys.history("o1"), {
+      items: [{ id: "protected-request" }],
+    });
     await userEvent.click(screen.getByRole("button", { name: /logout/i }));
     expect(
       await screen.findByRole("heading", { name: /welcome back/i }),
     ).toBeInTheDocument();
+    expect(client.getQueryCache().getAll()).toHaveLength(0);
   });
 
   it("submits an invitation and exposes the development token", async () => {
