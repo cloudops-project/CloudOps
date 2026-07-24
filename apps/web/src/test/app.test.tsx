@@ -318,6 +318,88 @@ describe("Stage 1 application", () => {
   });
 });
 
+describe("Stage 7 AI explanation assistant", () => {
+  it("renders safe draft history and generates from a finding", async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const generated = {
+          id: "ai-1",
+          organization_id: "o1",
+          requested_by_user_id: "u1",
+          task_type: "explain_finding",
+          status: "completed",
+          provider_key: "mock",
+          prompt_key: "CLOUDOPS_EXPLAIN_FINDING_V1",
+          prompt_version: 1,
+          context_hash: "a".repeat(64),
+          error_code: null,
+          finished_at: "2026-07-24T00:00:00Z",
+          created_at: "2026-07-24T00:00:00Z",
+          updated_at: "2026-07-24T00:00:00Z",
+          content: {
+            title: "Finding explanation",
+            summary: "<script>alert('unsafe')</script>",
+            details: ["Persisted evidence only."],
+            caveats: ["Human review required."],
+            source_references: ["finding:f1:v1"],
+            draft_only: true,
+          },
+        };
+        return new Response(
+          JSON.stringify(
+            init?.method === "POST"
+              ? generated
+              : { items: [generated], total: 1, page: 1, page_size: 25 },
+          ),
+          { status: init?.method === "POST" ? 201 : 200 },
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderApp("/ai", owner);
+    expect(
+      await screen.findByRole("heading", { name: "AI explanation assistant" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("<script>alert('unsafe')</script>"),
+    ).toBeVisible();
+    expect(document.querySelector("script")).toBeNull();
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByLabelText("Finding ID"),
+      "00000000-0000-0000-0000-000000000001",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/ai/generate"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("hides generation controls from a viewer", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ items: [], total: 0, page: 1, page_size: 25 }),
+            { status: 200 },
+          ),
+      ),
+    );
+    renderApp("/ai", {
+      ...owner,
+      organizations: [{ ...owner.organizations[0], role: "viewer" }],
+    });
+    await screen.findByRole("heading", { name: "AI explanation assistant" });
+    expect(
+      screen.queryByRole("button", { name: "Generate draft" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("Stage 6 risk scoring", () => {
   const riskSummary = {
     current: {

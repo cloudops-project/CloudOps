@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AcceptInvitationPage } from "./pages/AcceptInvitationPage";
+import { AIAssistantPage } from "./pages/AIAssistantPage";
 import {
   AddAWSAccountPage,
   AWSAccountDetailsPage,
@@ -65,6 +66,7 @@ export function App() {
           <Route path="/evaluations" element={<EvaluationJobsPage />} />
           <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/risk" element={<RiskPage />} />
+          <Route path="/ai" element={<AIAssistantPage />} />
           <Route
             path="/compliance/frameworks/:frameworkKey"
             element={<ComplianceFrameworkPage />}

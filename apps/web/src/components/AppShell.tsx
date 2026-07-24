@@ -7,6 +7,7 @@ import {
   ShieldAlert,
   Scale,
   Gauge,
+  Sparkles,
   Users,
   UserRound,
 } from "lucide-react";
@@ -63,6 +64,13 @@ export function AppShell() {
           >
             <Gauge />
             Risk
+          </Link>
+          <Link
+            className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+            to="/ai"
+          >
+            <Sparkles />
+            AI Assistant
           </Link>
           <Link
             className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"

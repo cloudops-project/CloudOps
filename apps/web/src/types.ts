@@ -331,3 +331,35 @@ export interface RiskSummary {
   highest_risk_assets: FindingRisk[];
   trend: OrganizationRisk[];
 }
+
+export type AITaskType =
+  | "explain_finding"
+  | "explain_business_impact"
+  | "suggest_remediation"
+  | "executive_summary"
+  | "jira_description"
+  | "email_summary";
+export interface AIContent {
+  title: string;
+  summary: string;
+  details: string[];
+  caveats: string[];
+  source_references: string[];
+  draft_only: boolean;
+}
+export interface AIRequestRecord {
+  id: string;
+  organization_id: string;
+  requested_by_user_id: string;
+  task_type: AITaskType;
+  status: "pending" | "running" | "completed" | "failed";
+  provider_key: string;
+  prompt_key: string;
+  prompt_version: number;
+  context_hash: string;
+  error_code: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+  content: AIContent | null;
+}
