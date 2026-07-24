@@ -13,14 +13,15 @@ may contain credentials, JWTs, passwords, headers, full policies, raw AWS errors
 metadata. Stage 5 adds durable `compliance.assessment.started`,
 `compliance.assessment.completed`, and sanitized failure events. Per-control status messages are
 bounded operational logs rather than durable audit events. Database rows are protected by access
-controls and transactional writes, but absolute audit immutability is not claimed. Risk, AI,
-Jira, notification, and remediation events remain planned only.
+controls and transactional writes, but absolute audit immutability is not claimed. AI, Jira,
+notification, and remediation events remain planned only.
 
 Events include UTC time, organization, actor type/ID, action, target type/ID, result, reason/code, correlation and idempotency IDs, source/service, relevant version, and previous/event hash. Do not include credentials, tokens, external IDs, raw AI content, full policies, or customer application data. Events append in the business transaction via a reliable outbox pattern proposal.
 
 Export signed/hash-chained batches to encrypted, versioned S3 with Object Lock capability considered for the required retention mode; access and deletion are separated and monitored. “Immutable” must not be claimed until configuration and reconciliation tests prove it. Authorized tenant users receive filtered read/export access; platform access is audited.
 
 Open questions: retention/legal holds, Object Lock mode, key ownership, event schema/signing, clock source, export frequency, and privacy deletion interactions.
+
 ## Stage 6 risk events
 
 Stage 6 adds durable accepted-transition events for `risk.assessment.started`,
@@ -30,3 +31,7 @@ may also include `risk.finding.scored` and `risk.aggregate.updated`. Only bounde
 counts, durations, policy versions, component reason codes, and sanitized error codes are
 allowed; credentials, authorization headers, raw policies, raw exceptions, and unbounded
 evidence are prohibited.
+
+Risk snapshots are database-immutable; audit records are durable transactional records but are
+not described as absolutely immutable. Future Stage 7 explanation requests require a separate
+reviewed event design and are not implemented.

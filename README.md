@@ -5,11 +5,11 @@ administration, secure cross-account AWS onboarding, read-only asset discovery, 
 security findings, and evidence-based compliance assessments. It is intended for organization
 owners, administrators, security analysts, cloud engineers, auditors, and viewers.
 
-Stages 1–5 are implemented, independently verified, and merged. Stage 4 deterministic rules
+Stages 1–6 are implemented, independently clean-room verified, merged, and regression-tested. Stage 4 deterministic rules
 detect findings from persisted inventory; Stage 5 interprets that deterministic evidence for
-compliance and never performs independent detection. Stage 6 deterministic risk scoring is
-implemented on `feature/6-risk-scoring` and awaits independent verification and merge. AI is not
-used for finding detection or risk scoring.
+compliance and never performs independent detection. Stage 6 prioritizes persisted findings
+using the deterministic, versioned `CLOUDOPS_RISK_V1` policy. Stage 7 has not started. AI is not
+used for finding detection, compliance decisions, or risk scoring.
 
 CloudOps uses read-only AWS discovery with STS temporary credentials. It never requires
 long-lived customer access keys and does not mutate customer AWS resources. Automated tests use
@@ -20,17 +20,20 @@ accounts.
 
 | Item                  | Verified value                                                             |
 | --------------------- | -------------------------------------------------------------------------- |
-| Integrated `main`     | `9811aeb881a1386c1dfba7e3e1641a2b765430f2`                                 |
-| Stage 5 feature SHA   | `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f`                                 |
-| Feature migration     | `0008_stage6_risk_scoring` after integrated head `0007_stage5_compliance_engine` |
-| Backend               | 162 passed, 0 failed, 0 skipped                                            |
-| Backend coverage      | 95.88%                                                                     |
-| Frontend              | 56 passed, 0 failed                                                        |
+| Integrated `main`     | `f23e124813b5f65a8f85957c1dce57d95b9cf038`                                 |
+| Stage 6 feature SHA   | `b0361b8efe9060ef6c498e1cebfede4baaa9947d`                                 |
+| Migration head        | `0008_stage6_risk_scoring`                                                 |
+| Backend               | 199 passed, 0 failed, 0 skipped                                            |
+| Backend coverage      | 95.11%                                                                     |
+| Mypy                  | 101 source files                                                           |
+| Frontend              | 64 passed, 0 failed                                                        |
 | PostgreSQL            | Migration lifecycle, integrity, and independent-session concurrency passed |
 | Dependencies/security | Audits and credential/security scans passed                                |
 
-GitHub reported no automated check rollup for Stage 5 PR #4. Do not describe absent checks as
-successful CI.
+PR #6 merged at `2026-07-24T06:10:19Z`. It had zero recorded reviews or approvals and no
+automated check rollup. The exact feature SHA passed technical clean-room verification, and the
+merge proceeded under: **Owner-authorized governance exception for PR #6.** This was not an
+independent GitHub, CODEOWNER, automated CI, or repository-policy approval.
 
 ## Technology stack
 
@@ -305,6 +308,11 @@ The production build is written to ignored `apps/web/dist`.
 10. View findings and their lifecycle.
 11. Run a Stage 5 compliance assessment.
 12. Review frameworks, controls, mapped findings, and immutable historical assessments.
+13. Configure bounded Stage 6 asset or account risk context.
+14. Run a Stage 6 risk assessment and review its score, textual priority, component reasons,
+    unknown-input indicators, aggregates, and deterministically ranked findings.
+15. Where authorized, add a reasoned compensating control bounded from -15 through -1.
+16. Run a new assessment and compare it with the unchanged historical snapshot.
 
 Actual STS validation requires an approved sandbox role and trusted principal configuration.
 Never use a production account or customer credentials for local testing.
@@ -446,7 +454,7 @@ alembic history
 alembic check
 ```
 
-There must be one head: `0007_stage5_compliance_engine`. Never edit a reviewed migration merely
+There must be one head: `0008_stage6_risk_scoring`. Never edit a reviewed migration merely
 to make a stale local database agree; recreate only a disposable database.
 
 ### A port is already in use
@@ -621,7 +629,12 @@ Operating rules:
 - GitHub reported no automated check rollup for PR #4.
 - The Starlette TestClient/httpx deprecation warning remains.
 - Node 20 LTS or Node 22 LTS is recommended.
-- Stage 6 deterministic risk scoring is not implemented.
+- Stage 6 uses an initial CloudOps-specific, CVSS-inspired policy; it is not CVSS and does not
+  predict exploitation or replace human security review.
+- Business-impact accuracy depends on explicit context quality. Unknown context is recorded and
+  handled conservatively.
+- Compensating controls require human authorization and are bounded from -15 through -1.
+- Stage 7 AI explanation, Jira generation, email delivery, and remediation are not implemented.
 - Live AWS validation is controlled sandbox work, not a requirement for automated tests.
 
 ## Safety summary
@@ -632,5 +645,6 @@ Operating rules:
 - Never bypass backend tenant/RBAC checks.
 - Never treat missing compliance evidence as `PASS`.
 - Never use AI to detect findings or determine risk scores.
-- Never begin Stage 6 before documentation PR #5 is reviewed, authorized where required, merged,
-  and `main` is synchronized.
+- Never begin Stage 7 before this documentation PR is reviewed and merged, local `main` is
+  synchronized, the Stage 6 regression baseline remains green, and the owner explicitly directs
+  Stage 7 to begin.

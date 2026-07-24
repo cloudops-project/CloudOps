@@ -6,10 +6,10 @@ Use this file to resume work in a fresh AI chat. Detailed documents remain autho
 
 CloudOps is an AWS-focused multi-tenant SaaS for secure AWS onboarding, normalized inventory,
 deterministic findings, evidence-based compliance snapshots, and deterministic risk scoring.
-Stages 1–5 are independently verified and merged in `main` at
-`9811aeb881a1386c1dfba7e3e1641a2b765430f2`. Stage 6 is implemented on
-`feature/6-risk-scoring` with migration `0008_stage6_risk_scoring` and awaits independent
-verification. Stage 7 AI, notifications, remediation, and raw event ingestion remain deferred.
+Stages 1–6 are independently clean-room verified, merged, and regression-tested in `main` at
+`f23e124813b5f65a8f85957c1dce57d95b9cf038`. The current migration head is
+`0008_stage6_risk_scoring`. Stage 7 AI explanation, notifications, remediation, and raw event
+ingestion remain deferred.
 
 - Repository: `D:\learn\cdac\cloudfix`
 - Remote: `https://github.com/cloudops-project/CloudOps.git`
@@ -25,12 +25,15 @@ findings remain in scope. Authorized compensating controls are separate bounded 
 never rewrite the source finding. The API and React dashboard expose sanitized scores,
 priorities, filters, component explanations, and history without live AWS calls. Stage 7 has not
 started.
-- Documentation release branch: `docs/stage5-merge-sync`
-- Documentation release: PR #5 is open for review and must not be treated as merged.
-- Stage 5 release evidence: 162 backend tests passed with 0 failures and 0 skips at 95.88%
-  coverage; 56 frontend tests passed with 0 failures.
+
+- Documentation release branch: `docs/stage6-merge-sync`
+- Documentation release: draft PR #7 is open for review and must not be treated as merged.
+- Stage 6 release evidence: 199 backend tests passed with 0 failures and 0 skips at 95.11%
+  coverage; Mypy checked 101 source files; 64 frontend tests passed with 0 failures.
 - Current warnings: Starlette TestClient/httpx deprecation; use supported Node 20 LTS or Node
-  22 LTS. GitHub reported no automated check rollup for PR #4.
+  22 LTS or a compatible 24+ release; Node can emit an experimental type-stripping warning.
+  The unpublished local API package cannot be resolved from PyPI by pip-audit. GitHub reported
+  no automated check rollup for PR #6.
 
 ## Source-of-truth documents
 
@@ -101,9 +104,9 @@ mindmap
       Deterministic rules
       Finding lifecycle
       Evidence-based compliance
-    Future
       Deterministic risk scoring
-      Advisory AI
+    Future
+      Stage 7 advisory AI explanation
       Approved remediation
 ```
 
@@ -138,8 +141,8 @@ Routes contain validation and HTTP mapping only. Services own transactions and i
 - `apps/api/app/security_rules/`: trusted typed rules and the static registry; no boto3 calls.
 - `apps/api/app/security/`: Argon2, JWT/opaque-token helpers, RBAC and rate-limit abstraction.
 - `apps/api/app/models/`: identity, AWS onboarding/reservations, assets, and discovery jobs.
-- `apps/api/alembic/versions/0007_stage5_compliance_engine.py`: current migration head;
-  compliance catalog, evaluation-rule summaries, assessments, and immutable snapshots.
+- `apps/api/alembic/versions/0008_stage6_risk_scoring.py`: current migration head; policies,
+  risk contexts, assessments, immutable snapshots, and compensating controls.
 - `apps/web/src/auth/AuthProvider.tsx`: session restoration and memory-only access token.
 - `apps/web/src/api/client.ts`: credentialed API client and single-flight refresh.
 - `apps/web/src/pages/`: administration, onboarding, inventory, findings, rules, and evaluations.
@@ -167,6 +170,8 @@ Database checks protect asset seen-time ordering and discovery-job counters and 
   suppress and unsuppress findings.
 - Compliance: list frameworks and controls; inspect mappings and mapped findings; start, list,
   and inspect immutable assessments and summaries.
+- Risk: list policies; start/list/detail assessments; view organization/account/asset summaries
+  and ranked findings; read/update bounded context; add/remove authorized compensating controls.
 - Process: `/health` and database-backed `/ready`.
 
 All application APIs are under `/api/v1`; health probes are root paths.
@@ -211,8 +216,8 @@ concurrency, and inventory/job UI.
 Email delivery, password reset, email-verification delivery, MFA, OIDC/SSO, distributed rate
 limiting, PostgreSQL RLS, production deployment, and live-AWS validation remain deferred.
 Discovery and evaluation are synchronous and automated tests use deterministic AWS doubles.
-Risk scoring, scheduler, AI, notifications, remediation, raw provider events, customer AWS
-mutation, and compliance export are deferred. Development/testing returns invitation tokens
+Stage 7 AI explanation, scheduler, notifications, remediation, raw provider events, customer
+AWS mutation, and compliance export are deferred. Development/testing returns invitation tokens
 temporarily; production does not.
 
 ## Architecture decisions
@@ -227,8 +232,8 @@ temporarily; production does not.
 
 The linear migration chain is `0001_stage1 -> 0002_stage2 -> 0003_stage3 ->
 0004_verification_repairs -> 0005_stage4_rule_engine -> 0006_stage4_verification_repairs ->
-0007_stage5_compliance_engine`. The current release baseline is `main` at
-`68785b0138eaecf84850887a3d4005c40e9761c0`.
+0007_stage5_compliance_engine -> 0008_stage6_risk_scoring`. The current release baseline is
+`main` at `f23e124813b5f65a8f85957c1dce57d95b9cf038`.
 
 PR #2 had no recorded GitHub approval. The repository owner explicitly accepted that missing
 approval as a governance exception and authorized Stage 4; no approval is fabricated. PR #4
@@ -236,13 +241,17 @@ also had zero recorded GitHub reviews/approvals and no automated check rollup. A
 clean-room verification, the owner recorded an **Owner-authorized governance exception for PR
 #4**. Neither exception is an independent GitHub, CODEOWNER, CI, or repository-policy approval.
 
+PR #6 had zero reviews, zero approvals, and no automated check rollup. Its exact SHA passed
+technical clean-room verification, and the owner recorded:
+**Owner-authorized governance exception for PR #6.**
+
 ## Current priorities
 
-1. Review and explicitly authorize PR #5 where governance requires it.
-2. Merge PR #5 and synchronize local `main`.
-3. Reconfirm the Stage 1–5 baseline and clean worktree.
-4. Obtain explicit Stage 6 scope authorization.
-5. Create the Stage 6 branch from synchronized clean `main`; do not add Stage 6 code before then.
+1. Review draft documentation PR #7 and explicitly authorize it where governance requires.
+2. Merge PR #7 and synchronize local `main`.
+3. Reconfirm migration head `0008_stage6_risk_scoring`, the Stage 1–6 baseline, and a clean
+   worktree.
+4. Obtain explicit owner direction before creating any Stage 7 branch.
 
 ## Stage 5 compliance boundary
 
@@ -254,7 +263,8 @@ rule evidence. Catalog prose is CloudOps-authored and links to official referenc
 
 The initial catalog contains four controls and twelve mappings. It is not complete framework
 coverage or certification, mappings require human compliance review, and compliance export is
-not implemented. Stage 6 will add deterministic risk scoring; AI must not perform detection or
+not implemented. Stage 6 deterministic risk scoring is implemented. Stage 7 may explain
+existing deterministic results, but AI must not perform detection, compliance decisions, or
 risk scoring.
 
 ## HOW TO START A NEW AI SESSION
@@ -287,7 +297,8 @@ Do not modify code yet. Identify contradictions or missing information before pr
 
 The new session must resolve any conflict between these files and current repository evidence
 before changing code. Never use real customer AWS accounts or credentials for automated tests.
-Stages advance sequentially: Stage 6 cannot begin until PR #5 is reviewed/authorized, merged,
-`main` is synchronized, and the verified baseline remains clean. Stage 4 detects findings;
-Stage 5 interprets persisted deterministic evidence for compliance. AI must not perform finding
-detection or deterministic risk scoring.
+Stages advance sequentially: Stage 7 cannot begin until draft PR #7 is reviewed/authorized,
+merged, `main` is synchronized, the verified Stage 6 baseline remains clean, and the owner
+explicitly directs Stage 7 to begin. Stage 4 detects findings; Stage 5 interprets persisted
+deterministic evidence for compliance; Stage 6 prioritizes findings deterministically. AI may
+explain those outputs only and must not detect findings or calculate risk.

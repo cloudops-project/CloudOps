@@ -19,20 +19,20 @@ Protect tenant configuration/evidence, identities and sessions, role/external-ID
 
 ## Threat/control register
 
-| Threats | Planned controls and validation |
-|---|---|
+| Threats                                                    | Planned controls and validation                                                                                                                                                                            |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Multi-tenant leakage, IDOR, broken access, mass assignment | Stage 1 local JWT identity; organization membership/RBAC; deny-by-default services and scoped repositories; response allowlists; negative cross-tenant tests; optional PostgreSQL RLS; future OIDC adapter |
-| Compromised org admin / platform admin / insider | MFA readiness, least privilege, separation of duties, time-bound support access, sensitive-action confirmation, independent review, behavioral alerts, immutable audit |
-| Stolen session, brute force, CSRF | short-lived access JWTs, secure HttpOnly/SameSite refresh cookies, row-locked rotation/revocation, rate limits, and origin checks for cookie writes |
-| XSS, SQL injection, SSRF, malicious uploads | output encoding/CSP, parameterized ORM, Pydantic allowlists, outbound destination allowlists and no arbitrary fetches, strict file type/size scanning or omit uploads in MVP |
-| API abuse, rate-limit bypass, DDoS | per-subject/tenant/IP quotas, request-size/concurrency bounds, backpressure, caching, provider protections, monitoring/runbooks; WAF is only one layer and budget/platform limits remain |
-| Queue flooding, job replay, duplicate remediation | quotas, authenticated private queue, opaque payloads, idempotency keys, nonces/leases, optimistic locks, reauthorization, deduplication and dead-letter monitoring |
-| Confused deputy / permissive IAM / credential exposure | exact CloudOps principal, per-connection external ID, STS temporary credentials, minimal session duration, read-only scan role, separate action-specific remediation role, policy review and CloudTrail |
-| Compromised worker | isolated runtime identity/network, no credential persistence, minimal job data, egress controls, patched images, workload limits, secrets manager, rapid revocation |
+| Compromised org admin / platform admin / insider           | MFA readiness, least privilege, separation of duties, time-bound support access, sensitive-action confirmation, independent review, behavioral alerts, immutable audit                                     |
+| Stolen session, brute force, CSRF                          | short-lived access JWTs, secure HttpOnly/SameSite refresh cookies, row-locked rotation/revocation, rate limits, and origin checks for cookie writes                                                        |
+| XSS, SQL injection, SSRF, malicious uploads                | output encoding/CSP, parameterized ORM, Pydantic allowlists, outbound destination allowlists and no arbitrary fetches, strict file type/size scanning or omit uploads in MVP                               |
+| API abuse, rate-limit bypass, DDoS                         | per-subject/tenant/IP quotas, request-size/concurrency bounds, backpressure, caching, provider protections, monitoring/runbooks; WAF is only one layer and budget/platform limits remain                   |
+| Queue flooding, job replay, duplicate remediation          | quotas, authenticated private queue, opaque payloads, idempotency keys, nonces/leases, optimistic locks, reauthorization, deduplication and dead-letter monitoring                                         |
+| Confused deputy / permissive IAM / credential exposure     | exact CloudOps principal, per-connection external ID, STS temporary credentials, minimal session duration, read-only scan role, separate action-specific remediation role, policy review and CloudTrail    |
+| Compromised worker                                         | isolated runtime identity/network, no credential persistence, minimal job data, egress controls, patched images, workload limits, secrets manager, rapid revocation                                        |
 | Leaked AI key, prompt injection in metadata, AI disclosure | secret store/rotation, treat metadata and output as untrusted, delimit/minimize/redact inputs, never send credentials/full policies, schema validate/sanitize, provider retention review, cost/time limits |
-| Jira webhook forgery / email or Teams abuse | signature and timestamp verification, replay cache, scoped integration identity, destination allowlist, content minimization, throttling, delivery audit |
-| Audit tampering, backup compromise, sensitive logs | append-only events, hash chaining/export to versioned Object Lock-capable S3 design, separate access, encryption, redaction, restore tests, alerts on gaps; retention approval required |
-| Dependency/CI compromise and CI secret exposure | lockfiles later, review, dependency/secret/static scanning, least-privilege ephemeral CI identities/OIDC, protected environments, provenance and update policy |
+| Jira webhook forgery / email or Teams abuse                | signature and timestamp verification, replay cache, scoped integration identity, destination allowlist, content minimization, throttling, delivery audit                                                   |
+| Audit tampering, backup compromise, sensitive logs         | append-only events, hash chaining/export to versioned Object Lock-capable S3 design, separate access, encryption, redaction, restore tests, alerts on gaps; retention approval required                    |
+| Dependency/CI compromise and CI secret exposure            | lockfiles later, review, dependency/secret/static scanning, least-privilege ephemeral CI identities/OIDC, protected environments, provenance and update policy                                             |
 
 ## Security requirements
 
@@ -50,12 +50,21 @@ controlled, and React renders evidence as escaped text.
 ## Residual risks and open questions
 
 No control guarantees complete security. OIDC vendor, MFA enforcement, WAF/CDN/hosting protections, RLS, data residency, archive immutability mode, penetration-test scope, upload exclusion, and incident/recovery objectives require approval. Revisit this model at every architecture boundary or new integration.
+
 ## Stage 6 risk-scoring threats
 
 - Score manipulation is constrained by fixed policy versions, component bounds, immutable
   snapshots, optimistic context versions, and audited compensating controls.
 - Cross-tenant substitution is rejected by composite PostgreSQL foreign keys and tenant-scoped
   queries.
+
+## Future Stage 7 boundary
+
+Prompt injection, sensitive-data disclosure, hallucinated remediation, provider retention, and
+tool-use escalation are future Stage 7 threats only. No AI provider, prompt execution, model
+route, or AI persistence exists in the Stage 6 baseline. Any later explanation assistant must
+treat provider-derived content as untrusted data and may never detect findings or calculate risk.
+
 - Missing data is an explicit unknown input with a conservative neutral value; it is never
   silently treated as zero or success.
 - Stale workers cannot mutate historical snapshots or create a second active assessment for the

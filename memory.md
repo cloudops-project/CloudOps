@@ -7,16 +7,13 @@
 ## Current repository and documentation release
 
 - Integration branch: `main`
-- Documentation release branch: `docs/stage5-merge-sync`
-- Documentation PR: PR #5, open for review and not merged
-- Initial documentation synchronization commit: `65d95a6d717556c70ede25900e9daf01dcb90dd4`
-- The current documentation branch SHA is the result of `git rev-parse HEAD`; the final pushed
-  SHA is recorded in PR #5 and the release report.
-- Current main baseline SHA: `9811aeb881a1386c1dfba7e3e1641a2b765430f2`
-- Verified Stage 5 feature SHA: `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f`
-- Integrated Alembic head: `0007_stage5_compliance_engine`
-- Stage 6 feature migration: `0008_stage6_risk_scoring`
-- PR #4 is merged. Stage 5 is independently clean-room verified and regression-verified on main.
+- Documentation release branch: `docs/stage6-merge-sync`
+- Documentation PR: draft PR #7, created by this documentation release and not merged
+- Current authoritative main SHA: `f23e124813b5f65a8f85957c1dce57d95b9cf038`
+- Verified Stage 6 feature SHA: `b0361b8efe9060ef6c498e1cebfede4baaa9947d`
+- Stage 6 merge commit: `f23e124813b5f65a8f85957c1dce57d95b9cf038`
+- Integrated Alembic head: `0008_stage6_risk_scoring`
+- PR #6 merged at `2026-07-24T06:10:19Z`.
 
 ## Current implementation status
 
@@ -25,7 +22,9 @@
 - Stage 3 Asset Discovery: complete and independently verified
 - Stage 4 Deterministic Rule Engine and Findings: verified and merged
 - Stage 5 Compliance Engine: complete, independently verified, and merged
-- Stage 6 Deterministic Risk Scoring: implemented on `feature/6-risk-scoring`, verification pending
+- Stage 6 Deterministic Risk Scoring: independently clean-room verified, merged, and
+  regression-tested
+- Stage 7 AI Explanation Assistant: not started
 
 ### Stage 6
 
@@ -105,7 +104,7 @@ Migration chain:
 ```text
 0001_stage1 -> 0002_stage2 -> 0003_stage3 -> 0004_verification_repairs ->
 0005_stage4_rule_engine -> 0006_stage4_verification_repairs ->
-0007_stage5_compliance_engine
+0007_stage5_compliance_engine -> 0008_stage6_risk_scoring
 ```
 
 The repair migration backfills reservations without changing existing external IDs, adds
@@ -114,17 +113,17 @@ lifecycle checks.
 
 ## Completed verification evidence
 
-The exact Stage 5 feature SHA was independently clean-room verified and the merged main commit
+The exact Stage 6 feature SHA was independently clean-room verified and the merged main commit
 was regression-tested:
 
-- Backend: 162 passed, 0 failed, 0 skipped; 95.88% coverage
-- Frontend: 56 passed, 0 failed
-- Ruff, Mypy (93 source files), startup/import, Prettier, ESLint, TypeScript, and Vite passed
-- Empty and populated `0006 -> 0007` migration, downgrade/re-upgrade, drift, integrity,
+- Backend: 199 passed, 0 failed, 0 skipped; 95.11% coverage
+- Frontend: 64 passed, 0 failed
+- Ruff, Mypy (101 source files), startup/import, Prettier, ESLint, TypeScript, and Vite passed
+- Empty and populated `0007 -> 0008` migration, downgrade/re-upgrade, drift, integrity,
   independent-session concurrency, rollback, and immutability checks passed
 - `pip check`, `pip-audit`, and `npm audit` passed
 - Secret, private-key, AWS-key, bearer/JWT, environment-file, unsafe-HTML, mojibake, local
-  database, and Stage 6 executable-code scans found no blocker
+  database, and Stage 7 executable-code scans found no blocker
 
 ## Known issues and limitations
 
@@ -133,19 +132,24 @@ was regression-tested:
 - Production email delivery, MFA, OIDC/SSO, password reset, distributed rate limiting,
   background scheduling, and deployment infrastructure are deferred.
 - A Starlette multipart parsing deprecation warning may appear in backend tests.
-- Supported Node 20 LTS or Node 22 LTS is recommended.
+- Supported Node 20 LTS, Node 22 LTS, or a compatible 24+ release is recommended; Node may emit
+  an experimental type-stripping warning.
 - Python uses `pyproject.toml` without a committed Python lockfile.
 - The initial compliance catalog contains four controls and twelve mappings. It is not complete
   framework coverage or certification; mappings require human compliance review.
-- Compliance export is not implemented, and GitHub reported no automated check rollup for PR #4.
-- Risk scoring, AI, raw event ingestion, remediation, and Stage 6 functionality are absent by
-  design. Stage 5 compliance is implemented without live AWS access or independent detection.
+- Compliance export is not implemented.
+- Stage 6 uses an initial CloudOps-specific, CVSS-inspired policy. It is not CVSS, does not
+  predict exploitation, and does not replace human review.
+- Business-impact accuracy depends on explicit context quality. Unknown inputs are persisted and
+  conservatively handled; compensating controls require authorization.
+- AI explanation, Jira integration, email delivery, raw event ingestion, and remediation are
+  absent. The unpublished local `cloudops-api` package cannot be resolved from PyPI by pip-audit.
 
 ## Repository state
 
-Stage 5 is integrated in `main` through PR #4 at
-`68785b0138eaecf84850887a3d4005c40e9761c0`. Documentation synchronization is isolated on
-`docs/stage5-merge-sync` in PR #5. Generated output remains ignored.
+Stage 6 is integrated in `main` through PR #6 at
+`f23e124813b5f65a8f85957c1dce57d95b9cf038`. Documentation synchronization is isolated on
+`docs/stage6-merge-sync` in draft PR #7. Generated output remains ignored.
 
 ## Governance record
 
@@ -159,11 +163,16 @@ technical clean-room verification passed, the repository owner provided an
 **Owner-authorized governance exception for PR #4**. This is not an independent GitHub,
 CODEOWNER, automated CI, or repository-policy approval.
 
+PR #6 likewise had zero recorded reviews/approvals and no automated check rollup. Its exact SHA
+passed technical clean-room verification, after which the owner recorded:
+**Owner-authorized governance exception for PR #6.** This was not an independent GitHub,
+CODEOWNER, automated CI, or repository-policy approval.
+
 ## Next immediate task
 
-1. Review and explicitly authorize PR #5 as required by repository governance.
-2. Merge PR #5 and synchronize local `main`.
-3. Reconfirm the Stage 1–5 regression baseline and a clean worktree.
-4. Authorize Stage 6 — deterministic risk scoring.
-5. Create the Stage 6 feature branch only from the synchronized clean main baseline.
-6. Keep AI out of finding detection and deterministic risk scoring.
+1. Review draft documentation PR #7 and explicitly authorize it where governance requires.
+2. Merge PR #7 and synchronize local `main`.
+3. Reconfirm migration head `0008_stage6_risk_scoring`, the Stage 1–6 regression baseline, and
+   a clean worktree.
+4. Obtain explicit owner direction before creating `feature/7-ai-assistant`.
+5. Keep AI explanation separate from finding detection, compliance decisions, and risk scoring.

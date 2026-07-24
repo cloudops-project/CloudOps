@@ -41,6 +41,13 @@ as declarative catalog data and use union semantics: a rule version is applicabl
 matches any range, and duplicate matches cannot improve a control result. There is no mutable
 mapping-administration API in Stage 5.
 
+## Stage 6 deterministic risk
+
+Migration `0008_stage6_risk_scoring` is the current head. It adds the versioned
+`CLOUDOPS_RISK_V1` policy, bounded tenant risk context, risk assessment jobs, immutable finding,
+account, and organization snapshots, and authorized compensating controls. The engine reads
+persisted Stage 4 findings only; it performs no discovery, live AWS calls, or AI work.
+
 ## Stage 2 AWS onboarding
 
 Set `AWS_TRUSTED_PRINCIPAL_ARN` to the CloudOps AWS principal that customers may trust and
@@ -67,6 +74,7 @@ scope and RBAC. Revisions `0005_stage4_rule_engine` and
 `0006_stage4_verification_repairs` add and harden evaluation jobs and findings. Stage 5
 compliance consumes that persisted evidence. Raw provider events, risk, AI, and remediation are
 not implemented.
+
 ## Stage 6 deterministic risk scoring
 
 Migration `0008_stage6_risk_scoring` adds versioned scoring policies, tenant-scoped risk context,

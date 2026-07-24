@@ -17,8 +17,10 @@ flowchart TD
   COL --> INV[Normalized asset inventory]
   INV --> RULES[Deterministic rule engine]
   RULES --> FIND[Security findings]
-  FIND --> MAP[Risk and compliance mapping]
-  MAP --> AIX[Optional AI-assisted explanation]
+  FIND --> COMP[Stage 5 compliance interpretation]
+  FIND --> RISK[Stage 6 deterministic risk scoring]
+  COMP --> AIX[Future Stage 7 AI explanation]
+  RISK --> AIX
   MAP --> OUT[Dashboard / report / notification / Jira]
   AIX --> OUT
   OUT --> APPROVE[Stakeholder approval]
@@ -44,14 +46,16 @@ Authentication establishes a user; authorization resolves an active organization
 The deterministic engine evaluates an explicitly pinned rule version. Findings retain evidence
 and input/run linkage. Implemented Stage 5 compliance maps persisted per-rule results and
 findings to versioned controls, producing immutable PASS, FAIL, NOT_ASSESSED, or ERROR snapshots.
-Missing evidence never becomes PASS, and suppression remains failure evidence. Risk and AI
-remain future work. No compliance rule calls boto3 or customer AWS APIs.
+Missing evidence never becomes PASS, and suppression remains failure evidence. Stage 6 risk
+scoring consumes persisted findings separately; Stage 7 AI remains future work. No compliance
+or risk calculation calls boto3 or customer AWS APIs.
 
 Remediation requires a separate request, current evidence, authorized approval, playbook/version, idempotency key, and separate permissions. Execution outcome never alone closes a finding: a verification scan evaluates it. Every state transition emits an audit event.
 
 ## Data minimization and retention
 
 Do not collect customer application content, AWS credentials, session tokens, complete IAM policies for AI submission, or unnecessary tags. Exact retention and regional residency are open decisions; deletion must preserve required audit/security records under approved policy.
+
 ## Stage 6 risk-scoring flow
 
 Stage 6 reads committed Stage 4 finding lifecycle state and bounded risk context in one
@@ -60,3 +64,7 @@ reason codes, after which the service persists immutable finding snapshots and d
 account/organization aggregates. Rules make no boto3 calls; scoring makes no network calls.
 Suppression remains evidence, while an authorized compensating-control record supplies the only
 bounded adjustment.
+
+Stage 7 may later explain the already-persisted deterministic finding, compliance, and risk
+results. It must not become a detection, scoring, mutation, tool-execution, Jira-delivery, or
+email-delivery path.

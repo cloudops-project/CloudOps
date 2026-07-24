@@ -1,7 +1,7 @@
 # CloudOps Current UI Design
 
-This design reflects the merged Stage 1–5 baseline and the Stage 6 feature implementation based
-on main commit `9811aeb881a1386c1dfba7e3e1641a2b765430f2`.
+This design reflects the merged and regression-tested Stage 1–6 baseline at main commit
+`f23e124813b5f65a8f85957c1dce57d95b9cf038`.
 
 ## Document role
 
@@ -25,7 +25,7 @@ Authenticated pages use a responsive application shell:
 - Header with the signed-in email and logout action
 - Constrained main content area for forms, tables, cards, and status views
 
-Primary navigation exposes Dashboard, AWS Accounts, Assets, Security, Compliance, Members, and
+Primary navigation exposes Dashboard, AWS Accounts, Assets, Security, Compliance, Risk, Members, and
 Profile. Discovery and evaluation jobs, the rule catalog, finding details, compliance
 frameworks/controls, and assessment history have dedicated routes.
 
@@ -86,8 +86,17 @@ frameworks/controls, and assessment history have dedicated routes.
 - Accessible evaluation confirmation and suppression dialogs
 - Role-aware actions
 
-Risk, AI, and remediation screens are not implemented. Compliance overview, framework/control
-details, assessment history/details, and the assessment confirmation workflow are implemented.
+### Risk
+
+- Organization overview with numeric score, textual priority, and Critical/High/Medium/Low counts
+- Deterministically ranked findings plus account and asset summaries
+- Component reasons, unknown-input indicators, business-impact context, and historical snapshots
+- Role-aware risk-assessment confirmation and bounded context/compensating-control actions
+- Loading, empty, running, completed, and failed states
+- Keyboard-operable dialogs with initial focus, Escape close, and focus return
+- Status and priority labels that never rely on color alone
+
+AI and remediation screens are not implemented.
 
 ## Design tokens
 
@@ -119,8 +128,8 @@ details, assessment history/details, and the assessment confirmation workflow ar
 | Critical             | `#DC2626` |
 | Information          | `#06B6D4` |
 
-Future risk colors are reserved design tokens only; their presence does not imply risk
-functionality.
+Risk colors always accompany textual LOW, MEDIUM, HIGH, or CRITICAL labels. Unknown inputs,
+running/failed assessment states, and component reasons are also presented as text.
 
 ### Shape, spacing, and motion
 
