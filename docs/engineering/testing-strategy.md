@@ -87,3 +87,11 @@ references, idempotency, tenant isolation, RBAC, prompt injection, secret
 redaction, output escaping, provider failure, PostgreSQL migration lifecycle,
 immutable source/response rows, quotas, and Stage 1–6 regression. External AI
 and real AWS access are not required.
+
+Stage 7 repair coverage additionally exercises organization-scoped request
+fingerprints and deterministic conflicts, typed `429` quota responses,
+deterministic provider fault states, Unicode/control neutralization,
+database-URL and session-token redaction, task/source compatibility, typed
+source foreign keys, used-template immutability, deferred completed-response
+enforcement, integrated finding/risk draft actions, clipboard announcements,
+and tenant-scoped query invalidation.

@@ -177,3 +177,12 @@ versions, and hashes. `ai_responses` stores one immutable structured response
 and output hash per request. `ai_usage_windows` enforces nonnegative,
 organization-scoped request/token accounting. Composite foreign keys prevent
 cross-tenant request/source/response relationships.
+
+The idempotency identity is `(organization_id, idempotency_key)` and stores a
+canonical request fingerprint. Typed nullable source identities are protected
+by composite foreign keys to findings, risk assessments, or compliance
+assessments, with exactly one source type per request. Used prompt templates,
+source snapshots, and responses are database-immutable. A deferred lifecycle
+constraint requires exactly one response for `completed` and forbids successful
+responses on failed, timed-out, disabled, invalid-response, or rate-limited
+requests without imposing an impossible insertion order.

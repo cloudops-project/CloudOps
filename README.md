@@ -665,3 +665,21 @@ assistant cannot detect or create findings, calculate or change risk, alter
 severity or compliance, execute remediation, create tickets, or send messages.
 
 Migration head: `0009_stage7_ai_assistant`. Stage 8 has not started.
+
+Stage 7 idempotency is scoped to `(organization_id, idempotency_key)`. A replay
+with the same canonical task, typed persisted source, source lifecycle/hash,
+bounded options, prompt version, and response-schema version returns the
+original terminal result without another provider call or quota charge. Reuse
+with a different fingerprint returns `409 AI_IDEMPOTENCY_CONFLICT`. Failed
+terminal results are replayed; callers must use a new key for an intentional
+retry. Organization quotas use fixed UTC hourly windows, transactional locks,
+and `429 AI_RATE_LIMITED`; an accepted provider attempt is charged once even
+when the provider returns a safe terminal failure.
+
+The provider-neutral contract distinguishes disabled, timeout, retryable,
+permanent-failure, and invalid-response states. Only retryable failures receive
+one bounded retry. Context is Unicode-normalized, control characters are
+neutralized, secrets and credential-bearing URLs are redacted, and evidence is
+structurally labeled as untrusted data. These controls reduce prompt-injection
+risk; they do not claim absolute prevention. Every output string and collection
+is schema-bounded before persistence.
