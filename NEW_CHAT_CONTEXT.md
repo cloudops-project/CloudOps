@@ -5,15 +5,26 @@ Use this file to resume work in a fresh AI chat. Detailed documents remain autho
 ## Purpose and current status
 
 CloudOps is an AWS-focused multi-tenant SaaS for secure AWS onboarding, normalized inventory,
-deterministic findings, and evidence-based compliance snapshots. Stages 1–5 are independently
-verified and merged in `main` at `68785b0138eaecf84850887a3d4005c40e9761c0`.
-Stage 5 feature SHA `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` was merged by PR #4;
-migration head is `0007_stage5_compliance_engine`. Stage 6 deterministic risk scoring, AI,
-notifications, remediation, and raw event ingestion remain deferred.
+deterministic findings, evidence-based compliance snapshots, and deterministic risk scoring.
+Stages 1–5 are independently verified and merged in `main` at
+`9811aeb881a1386c1dfba7e3e1641a2b765430f2`. Stage 6 is implemented on
+`feature/6-risk-scoring` with migration `0008_stage6_risk_scoring` and awaits independent
+verification. Stage 7 AI, notifications, remediation, and raw event ingestion remain deferred.
 
 - Repository: `D:\learn\cdac\cloudfix`
 - Remote: `https://github.com/cloudops-project/CloudOps.git`
 - Active integration branch: `main`
+
+## Stage 6 deterministic risk boundary
+
+The trusted Python scoring engine has a fixed versioned policy and evaluates only persisted
+Stage 4 findings plus explicit tenant risk context. It writes immutable finding, account, and
+organization snapshots. Every finding snapshot records source lifecycle version, component
+points, reason codes, unknown inputs, policy key/version, and evaluation timestamp. Suppressed
+findings remain in scope. Authorized compensating controls are separate bounded records and
+never rewrite the source finding. The API and React dashboard expose sanitized scores,
+priorities, filters, component explanations, and history without live AWS calls. Stage 7 has not
+started.
 - Documentation release branch: `docs/stage5-merge-sync`
 - Documentation release: PR #5 is open for review and must not be treated as merged.
 - Stage 5 release evidence: 162 backend tests passed with 0 failures and 0 skips at 95.88%

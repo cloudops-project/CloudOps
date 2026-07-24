@@ -50,3 +50,15 @@ controlled, and React renders evidence as escaped text.
 ## Residual risks and open questions
 
 No control guarantees complete security. OIDC vendor, MFA enforcement, WAF/CDN/hosting protections, RLS, data residency, archive immutability mode, penetration-test scope, upload exclusion, and incident/recovery objectives require approval. Revisit this model at every architecture boundary or new integration.
+## Stage 6 risk-scoring threats
+
+- Score manipulation is constrained by fixed policy versions, component bounds, immutable
+  snapshots, optimistic context versions, and audited compensating controls.
+- Cross-tenant substitution is rejected by composite PostgreSQL foreign keys and tenant-scoped
+  queries.
+- Missing data is an explicit unknown input with a conservative neutral value; it is never
+  silently treated as zero or success.
+- Stale workers cannot mutate historical snapshots or create a second active assessment for the
+  same scope.
+- Evidence is bounded to reason codes and numeric components; credentials, raw policies, and raw
+  provider errors are excluded.

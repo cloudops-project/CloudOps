@@ -318,6 +318,145 @@ describe("Stage 1 application", () => {
   });
 });
 
+describe("Stage 6 risk scoring", () => {
+  const riskSummary = {
+    current: {
+      risk_score: 87,
+      priority: "critical",
+      highest_account_score: 91,
+      mean_account_score: 72,
+      accounts_total: 2,
+      evaluation_time: "2026-07-24T00:00:00Z",
+    },
+    assessment: {
+      id: "ra1",
+      organization_id: "o1",
+      aws_account_id: null,
+      evaluation_time: "2026-07-24T00:00:00Z",
+      status: "completed",
+      findings_total: 1,
+      critical_count: 1,
+      high_count: 0,
+      medium_count: 0,
+      low_count: 0,
+      informational_count: 0,
+      accounts_scored: 2,
+      aggregate_score: 87,
+      aggregate_priority: "critical",
+    },
+    highest_risk_accounts: [],
+    highest_risk_findings: [],
+    highest_risk_assets: [],
+    trend: [],
+  };
+  const riskFinding = {
+    id: "rs1",
+    finding_id: "f1",
+    asset_id: "asset1",
+    aws_account_id: "a1",
+    risk_score: 95,
+    priority: "critical",
+    severity: "critical",
+    rule_key: "EC2_SG_SSH_OPEN_TO_WORLD",
+    finding_status: "open",
+    asset_name: "<script>alert(1)</script>",
+    service: "ec2",
+    region: "us-east-1",
+    business_impact: "critical",
+    severity_points: 30,
+    exposure_points: 15,
+    exploitability_points: 10,
+    privilege_points: 5,
+    asset_criticality_points: 10,
+    environment_points: 5,
+    business_impact_points: 10,
+    data_sensitivity_points: 5,
+    age_points: 5,
+    compensating_adjustment: 0,
+    component_codes_json: {},
+    unknown_inputs_json: ["required_privilege"],
+  };
+
+  function riskFetch(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    const data = url.includes("/risk/summary")
+      ? riskSummary
+      : url.includes("/risk/assess") && init?.method === "POST"
+        ? riskSummary.assessment
+        : {
+            items: [riskFinding],
+            total: 1,
+            page: 1,
+            page_size: 10,
+          };
+    return Promise.resolve(
+      new Response(JSON.stringify(data), {
+        status: url.includes("/risk/assess") ? 201 : 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  }
+
+  it("renders scores with text and escapes untrusted asset names", async () => {
+    vi.stubGlobal("fetch", vi.fn(riskFetch));
+    renderApp("/risk", owner);
+    expect(
+      await screen.findByRole("heading", { name: "Risk" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByLabelText(/risk score 95, priority critical/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("<script>alert(1)</script>")).toBeInTheDocument();
+    expect(document.querySelector("script")).toBeNull();
+  });
+
+  it("requires confirmation and prevents duplicate assessment submission", async () => {
+    const fetchMock = vi.fn(riskFetch);
+    vi.stubGlobal("fetch", fetchMock);
+    renderApp("/risk", owner);
+    const trigger = await screen.findByRole("button", {
+      name: /recalculate risk/i,
+    });
+    await userEvent.click(trigger);
+    const dialog = screen.getByRole("dialog", {
+      name: /recalculate deterministic risk/i,
+    });
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /cancel/i })).toHaveFocus();
+    await userEvent.dblClick(screen.getByRole("button", { name: /confirm/i }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(
+          ([input, init]) =>
+            String(input).includes("/risk/assess") &&
+            (init as RequestInit | undefined)?.method === "POST",
+        ),
+      ).toHaveLength(1),
+    );
+  });
+
+  it.each([
+    ["owner", true],
+    ["admin", true],
+    ["security_analyst", true],
+    ["cloud_engineer", true],
+    ["auditor", false],
+    ["viewer", false],
+  ] as const)("applies assessment controls for %s", async (role, allowed) => {
+    vi.stubGlobal("fetch", vi.fn(riskFetch));
+    renderApp("/risk", {
+      ...owner,
+      organizations: [{ ...owner.organizations[0], role }],
+    });
+    await screen.findByRole("heading", { name: "Risk" });
+    const trigger = screen.queryByRole("button", {
+      name: /recalculate risk/i,
+    });
+    if (allowed) expect(trigger).toBeInTheDocument();
+    else expect(trigger).not.toBeInTheDocument();
+  });
+});
+
 describe("Stage 5 compliance", () => {
   const framework = {
     id: "framework-1",

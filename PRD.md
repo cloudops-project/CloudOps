@@ -10,15 +10,16 @@ future intent.
 
 CloudOps is a multi-tenant SaaS application for securely connecting AWS accounts and building a
 normalized inventory, deterministic security findings, and point-in-time compliance
-assessments. Stages 1–5 are independently verified and merged; Stage 6 has not started.
+assessments and deterministic explainable risk scoring. Stages 1–5 are independently verified
+and merged; Stage 6 is implemented on its feature branch and awaits independent verification.
 
 ## Business goals
 
 - Give each customer organization an isolated administrative boundary.
 - Avoid long-lived customer AWS credentials by using cross-account IAM roles and AWS STS.
 - Maintain an auditable record of authentication, membership, onboarding, and discovery actions.
-- Build reliable inventory and deterministic evidence without prematurely claiming risk,
-  certification, or unsupported compliance coverage.
+- Build reliable inventory, deterministic evidence, and explainable bounded risk scores without
+  claiming certification or unsupported compliance coverage.
 - Preserve historical asset visibility when resources disappear from a later successful
   discovery.
 
@@ -191,7 +192,7 @@ content, or remediation controls.
 
 ## Delivery status
 
-Stages 1–5 are independently verified and merged in `main`. Stage 5 feature SHA
-`ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` was merged by PR #4 at
-`68785b0138eaecf84850887a3d4005c40e9761c0`; Alembic head is
-`0007_stage5_compliance_engine`. Stage 6 deterministic risk scoring has not started.
+Stages 1–5 are independently verified and merged in `main`. Stage 6 is implemented on
+`feature/6-risk-scoring` from baseline `9811aeb881a1386c1dfba7e3e1641a2b765430f2`; migration
+`0008_stage6_risk_scoring` follows `0007_stage5_compliance_engine`. Independent Stage 6
+verification and merge remain pending.

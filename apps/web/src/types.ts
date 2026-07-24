@@ -264,3 +264,70 @@ export interface FindingSummary {
     count: number;
   }>;
 }
+
+export type RiskPriority = "critical" | "high" | "medium" | "low";
+export interface RiskAssessment {
+  id: string;
+  organization_id: string;
+  aws_account_id: string | null;
+  evaluation_time: string;
+  status: "pending" | "running" | "completed" | "failed";
+  findings_total: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+  informational_count: number;
+  accounts_scored: number;
+  aggregate_score: number | null;
+  aggregate_priority: RiskPriority | null;
+}
+export interface FindingRisk {
+  id: string;
+  finding_id: string;
+  asset_id: string | null;
+  aws_account_id: string;
+  risk_score: number;
+  priority: RiskPriority;
+  severity: FindingSeverity;
+  rule_key: string;
+  finding_status: FindingStatus;
+  asset_name: string | null;
+  service: string;
+  region: string | null;
+  business_impact: string;
+  severity_points: number;
+  exposure_points: number;
+  exploitability_points: number;
+  privilege_points: number;
+  asset_criticality_points: number;
+  environment_points: number;
+  business_impact_points: number;
+  data_sensitivity_points: number;
+  age_points: number;
+  compensating_adjustment: number;
+  component_codes_json: Record<string, string>;
+  unknown_inputs_json: string[];
+}
+export interface OrganizationRisk {
+  risk_score: number;
+  priority: RiskPriority;
+  highest_account_score: number;
+  mean_account_score: number;
+  accounts_total: number;
+  evaluation_time: string;
+}
+export interface AccountRisk {
+  aws_account_id: string;
+  risk_score: number;
+  priority: RiskPriority;
+  findings_total: number;
+}
+export interface RiskSummary {
+  current: OrganizationRisk | null;
+  assessment: RiskAssessment | null;
+  highest_risk_accounts: AccountRisk[];
+  highest_risk_findings: FindingRisk[];
+  highest_risk_assets: FindingRisk[];
+  trend: OrganizationRisk[];
+}

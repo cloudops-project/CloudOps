@@ -9,7 +9,9 @@ synchronization is open as PR #5.
 
 Stages 1–5 are independently verified, merged, and regression-tested. PR #4 merged verified
 feature SHA `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f` at main commit
-`68785b0138eaecf84850887a3d4005c40e9761c0`. Stage 6 has not started.
+`9811aeb881a1386c1dfba7e3e1641a2b765430f2`. Stage 6 is implemented on
+`feature/6-risk-scoring` with migration `0008_stage6_risk_scoring`; independent verification is
+pending.
 
 The active integration branch is `main`. Documentation synchronization is isolated on
 `docs/stage5-merge-sync` and published as PR #5. Its initial synchronization commit is

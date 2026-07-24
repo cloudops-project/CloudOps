@@ -6,6 +6,7 @@ import {
   LogOut,
   ShieldAlert,
   Scale,
+  Gauge,
   Users,
   UserRound,
 } from "lucide-react";
@@ -55,6 +56,13 @@ export function AppShell() {
           >
             <Scale />
             Compliance
+          </Link>
+          <Link
+            className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+            to="/risk"
+          >
+            <Gauge />
+            Risk
           </Link>
           <Link
             className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"

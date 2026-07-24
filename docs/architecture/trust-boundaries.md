@@ -35,3 +35,10 @@ Security architects and implementers use this catalogue to place authentication,
 ## Administrative boundary
 
 Platform administration crosses all tenant boundaries and therefore requires separate identity, MFA readiness, just-in-time access where feasible, two-person review for sensitive operations, and immutable audit evidence. Exact vendors and network topology are proposals for later stages.
+## Stage 6 scoring boundary
+
+The risk engine is inside the trusted application boundary but has no AWS, network, filesystem,
+plugin, or dynamic-code capability. Its inputs are persisted tenant-scoped findings and bounded
+operator context. PostgreSQL is authoritative for identity, tenant relationships, concurrency,
+and historical immutability. The browser receives sanitized numeric components and reason codes,
+never credentials or unbounded provider documents.

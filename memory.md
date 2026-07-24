@@ -12,9 +12,10 @@
 - Initial documentation synchronization commit: `65d95a6d717556c70ede25900e9daf01dcb90dd4`
 - The current documentation branch SHA is the result of `git rev-parse HEAD`; the final pushed
   SHA is recorded in PR #5 and the release report.
-- Current main SHA: `68785b0138eaecf84850887a3d4005c40e9761c0`
+- Current main baseline SHA: `9811aeb881a1386c1dfba7e3e1641a2b765430f2`
 - Verified Stage 5 feature SHA: `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f`
-- Current Alembic head: `0007_stage5_compliance_engine`
+- Integrated Alembic head: `0007_stage5_compliance_engine`
+- Stage 6 feature migration: `0008_stage6_risk_scoring`
 - PR #4 is merged. Stage 5 is independently clean-room verified and regression-verified on main.
 
 ## Current implementation status
@@ -24,7 +25,16 @@
 - Stage 3 Asset Discovery: complete and independently verified
 - Stage 4 Deterministic Rule Engine and Findings: verified and merged
 - Stage 5 Compliance Engine: complete, independently verified, and merged
-- Stage 6: not started
+- Stage 6 Deterministic Risk Scoring: implemented on `feature/6-risk-scoring`, verification pending
+
+### Stage 6
+
+Deterministic scoring uses persisted Stage 4 finding state plus explicit bounded context. Policy
+key/version, component points, unknown inputs, source versions, and evaluation time are captured
+in immutable snapshots. Suppression alone does not reduce risk. A compensating adjustment is
+applied only through a separately authorized, reasoned, bounded control record. Account and
+organization aggregates are derived from immutable finding snapshots. No rule performs network
+or filesystem access, and AI is not part of detection or scoring.
 
 ## Completed work
 

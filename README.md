@@ -7,8 +7,9 @@ owners, administrators, security analysts, cloud engineers, auditors, and viewer
 
 Stages 1–5 are implemented, independently verified, and merged. Stage 4 deterministic rules
 detect findings from persisted inventory; Stage 5 interprets that deterministic evidence for
-compliance and never performs independent detection. Stage 6 deterministic risk scoring has not
-started. AI is not used for finding detection or risk scoring.
+compliance and never performs independent detection. Stage 6 deterministic risk scoring is
+implemented on `feature/6-risk-scoring` and awaits independent verification and merge. AI is not
+used for finding detection or risk scoring.
 
 CloudOps uses read-only AWS discovery with STS temporary credentials. It never requires
 long-lived customer access keys and does not mutate customer AWS resources. Automated tests use
@@ -19,9 +20,9 @@ accounts.
 
 | Item                  | Verified value                                                             |
 | --------------------- | -------------------------------------------------------------------------- |
-| Integrated `main`     | `68785b0138eaecf84850887a3d4005c40e9761c0`                                 |
+| Integrated `main`     | `9811aeb881a1386c1dfba7e3e1641a2b765430f2`                                 |
 | Stage 5 feature SHA   | `ff69a4ff5fd48a3e64581fadb284d9845cfcbc8f`                                 |
-| Alembic head          | `0007_stage5_compliance_engine`                                            |
+| Feature migration     | `0008_stage6_risk_scoring` after integrated head `0007_stage5_compliance_engine` |
 | Backend               | 162 passed, 0 failed, 0 skipped                                            |
 | Backend coverage      | 95.88%                                                                     |
 | Frontend              | 56 passed, 0 failed                                                        |
