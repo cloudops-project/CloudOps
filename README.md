@@ -5,12 +5,12 @@ administration, secure cross-account AWS onboarding, read-only asset discovery, 
 security findings, and evidence-based compliance assessments. It is intended for organization
 owners, administrators, security analysts, cloud engineers, auditors, and viewers.
 
-Stages 1–6 are implemented, independently clean-room verified, merged, and regression-tested. Stage 4 deterministic rules
-detect findings from persisted inventory; Stage 5 interprets that deterministic evidence for
+Stages 1-7 are implemented, independently clean-room verified, merged, and regression-tested.
+Stage 4 deterministic rules detect findings from persisted inventory; Stage 5 interprets that deterministic evidence for
 compliance and never performs independent detection. Stage 6 prioritizes persisted findings
-using the deterministic, versioned `CLOUDOPS_RISK_V1` policy. Stage 7 is implemented on
-`feature/7-ai-assistant` and awaits independent verification. AI is not used for finding
-detection, compliance decisions, or risk scoring.
+using the deterministic, versioned `CLOUDOPS_RISK_V1` policy. Stage 7 explains existing
+records and generates advisory drafts only. AI is not used for finding detection, compliance
+decisions, risk scoring, AWS mutation, remediation execution, Jira creation, or email delivery.
 
 CloudOps uses read-only AWS discovery with STS temporary credentials. It never requires
 long-lived customer access keys and does not mutate customer AWS resources. Automated tests use
@@ -21,20 +21,22 @@ accounts.
 
 | Item                  | Verified value                                                             |
 | --------------------- | -------------------------------------------------------------------------- |
-| Integrated `main`     | `b3ddab02b741b76831b195a9bc42939154fb582e`                                 |
+| Integrated `main`     | `882ff531af07276c11e0d25664fdca033e09c7c7`                                 |
 | Stage 6 feature SHA   | `b0361b8efe9060ef6c498e1cebfede4baaa9947d`                                 |
-| Stage 7 branch        | `feature/7-ai-assistant`                                                   |
-| Migration head        | `0009_stage7_ai_assistant`                                                |
-| Backend               | 217 passed, 0 failed, 0 skipped                                            |
-| Backend coverage      | 95.10%                                                                     |
-| Mypy                  | 109 source files                                                           |
-| Frontend              | 66 passed, 0 failed                                                        |
+| Stage 7 feature SHA   | `9b5f4372359a32066787060ca839d5a68c5ab490`                                 |
+| Migration head        | `0009_stage7_ai_assistant`                                                 |
+| Backend               | 343 passed, 0 failed, 0 skipped                                            |
+| Backend coverage      | 96% reported                                                               |
+| Mypy                  | 111 source files                                                           |
+| Frontend              | 81 passed, 0 failed, 0 skipped                                             |
+| Black-box             | 44 PASS, 0 FAIL, 0 missing, 0 duplicate                                    |
 | PostgreSQL            | Migration lifecycle, integrity, and independent-session concurrency passed |
-| Dependencies/security | Audits and credential/security scans passed                                |
+| Dependencies/security | `pip check`, Python audit, npm audit, and security scans passed            |
 
-PR #6 merged at `2026-07-24T06:10:19Z`. It had zero recorded reviews or approvals and no
-automated check rollup. The exact feature SHA passed technical clean-room verification, and the
-merge proceeded under: **Owner-authorized governance exception for PR #6.** This was not an
+PR #8 merged Stage 7 at `2026-07-24T19:19:02Z` with merge commit
+`882ff531af07276c11e0d25664fdca033e09c7c7`. It had zero recorded reviews or approvals and no
+automated check rollup. The exact feature SHA passed technical detached verification, and the
+merge proceeded under: **Owner-authorized governance exception for PR #8.** This was not an
 independent GitHub, CODEOWNER, automated CI, or repository-policy approval.
 
 ## Technology stack
@@ -110,7 +112,7 @@ git switch main
 git pull --ff-only origin main
 ```
 
-`main` contains the integrated Stage 5 baseline. Create a separate branch for every focused
+`main` contains the integrated Stage 7 baseline. Create a separate branch for every focused
 task or stage. Do not commit directly to `main`, force push, or rewrite shared history.
 
 ## Environment configuration
@@ -456,7 +458,7 @@ alembic history
 alembic check
 ```
 
-There must be one head: `0008_stage6_risk_scoring`. Never edit a reviewed migration merely
+There must be one head: `0009_stage7_ai_assistant`. Never edit a reviewed migration merely
 to make a stale local database agree; recreate only a disposable database.
 
 ### A port is already in use
@@ -636,7 +638,8 @@ Operating rules:
 - Business-impact accuracy depends on explicit context quality. Unknown context is recorded and
   handled conservatively.
 - Compensating controls require human authorization and are bounded from -15 through -1.
-- Stage 7 AI explanation, Jira generation, email delivery, and remediation are not implemented.
+- Stage 7 AI explanation is implemented as advisory drafting only; Jira/email outputs remain
+  drafts and no delivery or ticket creation is implemented.
 - Live AWS validation is controlled sandbox work, not a requirement for automated tests.
 
 ## Safety summary
@@ -647,9 +650,10 @@ Operating rules:
 - Never bypass backend tenant/RBAC checks.
 - Never treat missing compliance evidence as `PASS`.
 - Never use AI to detect findings or determine risk scores.
-- Never begin Stage 7 before this documentation PR is reviewed and merged, local `main` is
-  synchronized, the Stage 6 regression baseline remains green, and the owner explicitly directs
-  Stage 7 to begin.
+- Never begin Stage 8 before Stage 7 documentation is synchronized, local `main` is
+  synchronized, the Stage 7 regression baseline remains green, and the owner explicitly directs
+  Stage 8 to begin.
+
 ## Stage 7 — AI explanation assistant
 
 Stage 7 adds a bounded, tenant-scoped drafting assistant over persisted CloudOps

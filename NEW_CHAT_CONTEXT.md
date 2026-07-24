@@ -5,15 +5,14 @@ Use this file to resume work in a fresh AI chat. Detailed documents remain autho
 ## Purpose and current status
 
 CloudOps is an AWS-focused multi-tenant SaaS for secure AWS onboarding, normalized inventory,
-deterministic findings, evidence-based compliance snapshots, and deterministic risk scoring.
-Stages 1–6 are independently verified, merged, and regression-tested in `main` at
-`b3ddab02b741b76831b195a9bc42939154fb582e`. Stage 7 AI explanation is implemented on
-`feature/7-ai-assistant` with migration `0009_stage7_ai_assistant` and awaits independent
-verification. Notifications, remediation, and raw-event ingestion remain deferred.
+deterministic findings, evidence-based compliance snapshots, deterministic risk scoring, and
+advisory AI explanations. Stages 1-7 are independently verified, merged, and regression-tested
+in `main` at `882ff531af07276c11e0d25664fdca033e09c7c7`. The current migration head is
+`0009_stage7_ai_assistant`. Stage 8 Dashboard work has not started.
 
 - Repository: `D:\learn\cdac\cloudfix`
 - Remote: `https://github.com/cloudops-project/CloudOps.git`
-- Active feature branch: `feature/7-ai-assistant`
+- Active feature branch: none; create future stage branches from verified `main`
 
 ## Stage 6 deterministic risk boundary
 
@@ -23,8 +22,8 @@ organization snapshots. Every finding snapshot records source lifecycle version,
 points, reason codes, unknown inputs, policy key/version, and evaluation timestamp. Suppressed
 findings remain in scope. Authorized compensating controls are separate bounded records and
 never rewrite the source finding. The API and React dashboard expose sanitized scores,
-priorities, filters, component explanations, and history without live AWS calls. Stage 7 has not
-started.
+priorities, filters, component explanations, and history without live AWS calls. Stage 7 may
+explain those persisted deterministic results but cannot change them.
 
 - Documentation release branch: `docs/stage6-merge-sync`
 - Documentation release: draft PR #7 is open for review and must not be treated as merged.
@@ -216,9 +215,10 @@ concurrency, and inventory/job UI.
 Email delivery, password reset, email-verification delivery, MFA, OIDC/SSO, distributed rate
 limiting, PostgreSQL RLS, production deployment, and live-AWS validation remain deferred.
 Discovery and evaluation are synchronous and automated tests use deterministic AWS doubles.
-Stage 7 AI explanation, scheduler, notifications, remediation, raw provider events, customer
-AWS mutation, and compliance export are deferred. Development/testing returns invitation tokens
-temporarily; production does not.
+Scheduler, notifications, remediation, raw provider events, customer AWS mutation, and
+compliance export are deferred. Stage 7 Jira and email outputs are drafts only; no ticket or
+message delivery is implemented. Development/testing returns invitation tokens temporarily;
+production does not.
 
 ## Architecture decisions
 
@@ -232,8 +232,8 @@ temporarily; production does not.
 
 The linear migration chain is `0001_stage1 -> 0002_stage2 -> 0003_stage3 ->
 0004_verification_repairs -> 0005_stage4_rule_engine -> 0006_stage4_verification_repairs ->
-0007_stage5_compliance_engine -> 0008_stage6_risk_scoring`. The current release baseline is
-`main` at `f23e124813b5f65a8f85957c1dce57d95b9cf038`.
+0007_stage5_compliance_engine -> 0008_stage6_risk_scoring -> 0009_stage7_ai_assistant`. The
+current release baseline is `main` at `882ff531af07276c11e0d25664fdca033e09c7c7`.
 
 PR #2 had no recorded GitHub approval. The repository owner explicitly accepted that missing
 approval as a governance exception and authorized Stage 4; no approval is fabricated. PR #4
@@ -245,13 +245,18 @@ PR #6 had zero reviews, zero approvals, and no automated check rollup. Its exact
 technical clean-room verification, and the owner recorded:
 **Owner-authorized governance exception for PR #6.**
 
+PR #8 had zero reviews, zero approvals, and no automated check rollup. Its exact SHA passed
+technical detached verification, and the owner recorded:
+**Owner-authorized governance exception for PR #8.**
+
 ## Current priorities
 
-1. Review draft documentation PR #7 and explicitly authorize it where governance requires.
-2. Merge PR #7 and synchronize local `main`.
-3. Reconfirm migration head `0008_stage6_risk_scoring`, the Stage 1–6 baseline, and a clean
+1. Review this Stage 7 documentation synchronization PR and explicitly authorize it where
+   governance requires.
+2. Merge the documentation PR and synchronize local `main`.
+3. Reconfirm migration head `0009_stage7_ai_assistant`, the Stage 1-7 baseline, and a clean
    worktree.
-4. Obtain explicit owner direction before creating any Stage 7 branch.
+4. Obtain explicit owner direction before creating any Stage 8 branch.
 
 ## Stage 5 compliance boundary
 
@@ -297,18 +302,19 @@ Do not modify code yet. Identify contradictions or missing information before pr
 
 The new session must resolve any conflict between these files and current repository evidence
 before changing code. Never use real customer AWS accounts or credentials for automated tests.
-Stages advance sequentially: Stage 7 cannot begin until draft PR #7 is reviewed/authorized,
-merged, `main` is synchronized, the verified Stage 6 baseline remains clean, and the owner
-explicitly directs Stage 7 to begin. Stage 4 detects findings; Stage 5 interprets persisted
-deterministic evidence for compliance; Stage 6 prioritizes findings deterministically. AI may
-explain those outputs only and must not detect findings or calculate risk.
+Stages advance sequentially: Stage 8 cannot begin until this documentation PR is
+reviewed/authorized, merged, `main` is synchronized, the verified Stage 7 baseline remains
+clean, and the owner explicitly directs Stage 8 to begin. Stage 4 detects findings; Stage 5
+interprets persisted deterministic evidence for compliance; Stage 6 prioritizes findings
+deterministically. AI may explain those outputs only and must not detect findings or calculate
+risk.
+
 ## Stage 7 handoff
 
-Stage 7 is the bounded AI explanation assistant on
-`feature/7-ai-assistant`, based on main
-`b3ddab02b741b76831b195a9bc42939154fb582e`. Its migration is
-`0009_stage7_ai_assistant`. It uses persisted deterministic records only,
-defaults to a no-network mock provider, validates structured drafts, preserves
-source hashes/references, redacts secrets and prompt injection, and never
-detects, scores, mutates, remediates, creates tickets, or sends email. Stage 8
-is not started.
+Stage 7 is the bounded AI explanation assistant merged in `main` at
+`882ff531af07276c11e0d25664fdca033e09c7c7`. Its verified feature SHA is
+`9b5f4372359a32066787060ca839d5a68c5ab490`. Its migration is
+`0009_stage7_ai_assistant`. It uses persisted deterministic records only, defaults to a
+no-network mock provider, validates structured drafts, preserves source hashes/references,
+redacts secrets and prompt injection, and never detects, scores, mutates, remediates, creates
+tickets, or sends email. Stage 8 Dashboard work is not started.

@@ -2,9 +2,9 @@
 
 ## Current status
 
-Stages 1–6 are independently clean-room verified, merged, and regression-tested in `main` at
-`b3ddab02b741b76831b195a9bc42939154fb582e`. Stage 7 is implemented on
-`feature/7-ai-assistant` and awaits independent verification. Stage 8 has not started.
+Stages 1-7 are independently clean-room verified, merged, and regression-tested in `main` at
+`882ff531af07276c11e0d25664fdca033e09c7c7`. Stage 7 is implemented, post-merge verified, and
+merged. Stage 8 has not started.
 
 ## Stage 0 — Planning and architecture
 
@@ -79,16 +79,17 @@ accessible risk dashboard. Scores are derived only from persisted Stage 4 findin
 
 ## Stage 7 — AI Explanation Assistant
 
-**Status: NOT STARTED**
+**Status: COMPLETE, INDEPENDENTLY VERIFIED, MERGED, AND POST-MERGE VERIFIED**
 
-Optional advisory explanations only. AI must not detect findings or determine risk scores.
+Delivered bounded tenant-scoped advisory explanations and drafts over persisted Stage 4-6
+records, with immutable source references, idempotency, quota controls, prompt-injection
+defenses, redaction, deterministic mock-provider verification, AI-specific audit events, API
+and frontend workflows, and the 44-step black-box release gate. AI explains existing records
+only. It must not detect findings, calculate or change risk or compliance, change severity,
+resolve or suppress findings, modify AWS, execute remediation, create Jira issues, or send
+email. Migration `0009_stage7_ai_assistant` is the current head.
 
-Planned outputs are explanations of existing findings and business impact, remediation text,
-and drafts for executive summaries, Jira descriptions, and email summaries. AI must not create
-findings, calculate or change risk, change severity/compliance state, execute remediation, send
-email, or create Jira tickets.
-
-## Stage 8 — Dashboard and Reports
+## Stage 8 — Dashboard
 
 **Status: NOT STARTED**
 
@@ -112,27 +113,50 @@ Governed remediation and customer-resource mutation are not implemented.
 
 Scheduling, queues, and background-worker orchestration are not implemented.
 
-## Stage 12 — Extended Tamper-Evident Audit Timeline
+## Stage 12 — Audit Logs
 
 **Status: NOT STARTED**
 
 The extended audit timeline/archive is planned; current audit controls must not be described as
 absolutely immutable.
 
+## Stage 13 — Security Hardening
+
+**Status: NOT STARTED**
+
+Additional security hardening remains planned.
+
+## Stage 14 — DevOps and IaC
+
+**Status: NOT STARTED**
+
+Deployment automation and infrastructure-as-code remain planned.
+
+## Stage 15 — Testing
+
+**Status: NOT STARTED**
+
+Expanded release, UAT, load, and integrated testing work remains planned.
+
+## Stage 16 — Deployment
+
+**Status: NOT STARTED**
+
+Production deployment remains planned.
+
+## Stage 17 — Documentation and Demo
+
+**Status: NOT STARTED**
+
+Final user/developer documentation and demo materials remain planned.
+
 ## Immediate gate
 
-1. Review and explicitly authorize the Stage 6 documentation PR where governance requires it.
-2. Merge that documentation-only PR and synchronize local `main`.
-3. Confirm migration head `0008_stage6_risk_scoring`, the Stage 6 regression baseline, and a
+1. Review this Stage 7 documentation synchronization PR and authorize it where governance
+   requires it.
+2. Merge the documentation-only PR and synchronize local `main`.
+3. Confirm migration head `0009_stage7_ai_assistant`, the Stage 7 regression baseline, and a
    clean worktree.
-4. Obtain explicit owner direction before creating any Stage 7 branch.
-5. Keep deterministic detection, compliance interpretation, and risk scoring separate from
-   optional advisory AI.
-## Stage 7 — AI explanation assistant
-
-Implementation is isolated on `feature/7-ai-assistant` from merged Stage 6.
-Scope includes the six bounded drafting tasks, migration
-`0009_stage7_ai_assistant`, tenant-scoped APIs, centralized RBAC, immutable
-evidence/response records, deterministic mock provider, prompt-injection and
-redaction controls, request history, and accessible draft UI. Stage 8 is not
-started.
+4. Obtain explicit owner direction before creating any Stage 8 branch.
+5. Keep deterministic detection, compliance interpretation, risk scoring, and advisory AI
+   explanation separate.

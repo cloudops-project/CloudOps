@@ -1,7 +1,7 @@
 # CloudOps Current UI Design
 
 This design reflects the merged and regression-tested Stage 1–6 baseline at main commit
-`f23e124813b5f65a8f85957c1dce57d95b9cf038`.
+`882ff531af07276c11e0d25664fdca033e09c7c7`.
 
 ## Document role
 
@@ -96,7 +96,8 @@ frameworks/controls, and assessment history have dedicated routes.
 - Keyboard-operable dialogs with initial focus, Escape close, and focus return
 - Status and priority labels that never rely on color alone
 
-AI and remediation screens are not implemented.
+The Stage 7 AI assistant screen is implemented for advisory explanations and drafts.
+Remediation execution, Jira creation, and email delivery are not implemented.
 
 ## Design tokens
 
@@ -188,8 +189,9 @@ hover. Desktop layouts use a 240px sidebar and a bounded content region.
 
 ## Future UI
 
-The Stage 6 risk dashboard is implemented. The design system reserves future space for AI,
+The Stage 6 risk dashboard and Stage 7 AI assistant workflow are implemented. The design system reserves future space for Dashboard,
 notifications, and remediation; those views must not be presented as implemented.
+
 ## Stage 7 response design
 
 All six AI tasks return the same strict envelope: title, bounded summary,
