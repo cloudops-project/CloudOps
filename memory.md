@@ -7,12 +7,14 @@
 ## Current repository and documentation release
 
 - Integration branch: `main`
-- Active feature branch: `feature/7-ai-assistant`
-- Current authoritative main SHA: `b3ddab02b741b76831b195a9bc42939154fb582e`
+- Active feature branch: none; use `main` as the synchronized baseline
+- Current authoritative main SHA: `882ff531af07276c11e0d25664fdca033e09c7c7`
 - Verified Stage 6 feature SHA: `b0361b8efe9060ef6c498e1cebfede4baaa9947d`
 - Stage 6 merge commit: `f23e124813b5f65a8f85957c1dce57d95b9cf038`
-- Feature-branch Alembic head: `0009_stage7_ai_assistant`
-- PR #6 merged at `2026-07-24T06:10:19Z`.
+- Verified Stage 7 feature SHA: `9b5f4372359a32066787060ca839d5a68c5ab490`
+- Stage 7 merge commit: `882ff531af07276c11e0d25664fdca033e09c7c7`
+- Current Alembic head: `0009_stage7_ai_assistant`
+- PR #8 merged at `2026-07-24T19:19:02Z`.
 
 ## Current implementation status
 
@@ -23,7 +25,7 @@
 - Stage 5 Compliance Engine: complete, independently verified, and merged
 - Stage 6 Deterministic Risk Scoring: independently clean-room verified, merged, and
   regression-tested
-- Stage 7 AI Explanation Assistant: implemented and locally verified; awaiting independent review
+- Stage 7 AI Explanation Assistant: independently verified, merged, and post-merge verified
 
 ### Stage 6
 
@@ -103,7 +105,7 @@ Migration chain:
 ```text
 0001_stage1 -> 0002_stage2 -> 0003_stage3 -> 0004_verification_repairs ->
 0005_stage4_rule_engine -> 0006_stage4_verification_repairs ->
-0007_stage5_compliance_engine -> 0008_stage6_risk_scoring
+0007_stage5_compliance_engine -> 0008_stage6_risk_scoring -> 0009_stage7_ai_assistant
 ```
 
 The repair migration backfills reservations without changing existing external IDs, adds
@@ -112,15 +114,16 @@ lifecycle checks.
 
 ## Completed verification evidence
 
-The exact Stage 6 feature SHA was independently clean-room verified and the merged main commit
+The exact Stage 7 feature SHA was independently clean-room verified and the merged main commit
 was regression-tested:
 
-- Backend: 199 passed, 0 failed, 0 skipped; 95.11% coverage
-- Frontend: 64 passed, 0 failed
-- Ruff, Mypy (101 source files), startup/import, Prettier, ESLint, TypeScript, and Vite passed
+- Backend: 343 passed, 0 failed, 0 skipped; 96% reported coverage
+- Frontend: 81 passed, 0 failed, 0 skipped
+- Black-box workflow: 44 PASS, 0 FAIL, 0 missing, 0 duplicate
+- Ruff, Mypy (111 source files), startup/import, Prettier, ESLint, TypeScript, and Vite passed
 - Empty and populated `0007 -> 0008` migration, downgrade/re-upgrade, drift, integrity,
   independent-session concurrency, rollback, and immutability checks passed
-- `pip check`, `pip-audit`, and `npm audit` passed
+- `pip check`, exact installed-environment Python audit, and `npm audit` passed
 - Secret, private-key, AWS-key, bearer/JWT, environment-file, unsafe-HTML, mojibake, local
   database, and Stage 7 executable-code scans found no blocker
 
@@ -141,14 +144,15 @@ was regression-tested:
   predict exploitation, and does not replace human review.
 - Business-impact accuracy depends on explicit context quality. Unknown inputs are persisted and
   conservatively handled; compensating controls require authorization.
-- AI explanation, Jira integration, email delivery, raw event ingestion, and remediation are
-  absent. The unpublished local `cloudops-api` package cannot be resolved from PyPI by pip-audit.
+- AI explanation is implemented as advisory drafting only. Jira and email outputs are drafts;
+  no Jira creation, email delivery, remediation execution, raw event ingestion, or customer AWS
+  mutation is implemented.
 
 ## Repository state
 
-Stage 6 is integrated in `main` through PR #6 at
-`f23e124813b5f65a8f85957c1dce57d95b9cf038`. Documentation synchronization is isolated on
-`docs/stage6-merge-sync` in draft PR #7. Generated output remains ignored.
+Stage 7 is integrated in `main` through PR #8 at
+`882ff531af07276c11e0d25664fdca033e09c7c7`. Documentation synchronization is isolated on
+`docs/stage7-completion`. Generated output remains ignored.
 
 ## Governance record
 
@@ -167,21 +171,18 @@ passed technical clean-room verification, after which the owner recorded:
 **Owner-authorized governance exception for PR #6.** This was not an independent GitHub,
 CODEOWNER, automated CI, or repository-policy approval.
 
+PR #8 had zero recorded reviews/approvals and no automated check rollup. Its exact SHA passed
+technical detached verification, after which the owner recorded:
+**Owner-authorized governance exception for PR #8.** This was not an independent GitHub,
+CODEOWNER, automated CI, or repository-policy approval.
+
 ## Next immediate task
 
-1. Review draft documentation PR #7 and explicitly authorize it where governance requires.
-2. Merge PR #7 and synchronize local `main`.
-3. Reconfirm migration head `0008_stage6_risk_scoring`, the Stage 1–6 regression baseline, and
+1. Review this Stage 7 documentation synchronization PR and explicitly authorize it where
+   governance requires.
+2. Merge the documentation PR and synchronize local `main`.
+3. Reconfirm migration head `0009_stage7_ai_assistant`, the Stage 1-7 regression baseline, and
    a clean worktree.
-4. Obtain explicit owner direction before creating `feature/7-ai-assistant`.
-5. Keep AI explanation separate from finding detection, compliance decisions, and risk scoring.
-## Current Stage 7 implementation context
-
-- Base: merged Stage 6 main `b3ddab02b741b76831b195a9bc42939154fb582e`.
-- Branch: `feature/7-ai-assistant`.
-- Migration: `0009_stage7_ai_assistant` after `0008_stage6_risk_scoring`.
-- The default provider is deterministic and offline.
-- Stage 4 detects, Stage 5 interprets compliance, Stage 6 scores risk, and
-  Stage 7 only explains or drafts from those persisted results.
-- No real AWS or external AI call is required by automated tests.
-- Stage 8 has not started and must remain gated on Stage 7 review and merge.
+4. Obtain explicit owner direction before creating any Stage 8 branch.
+5. Keep AI explanation separate from finding detection, compliance decisions, risk scoring,
+   AWS mutation, Jira creation, email delivery, and remediation execution.

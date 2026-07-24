@@ -2,20 +2,22 @@
 
 ## Last updated
 
-2026-07-24 — Stage 7 AI explanation assistant implemented on
-`feature/7-ai-assistant` from synchronized main.
+2026-07-25 - Stage 7 AI explanation assistant merged, post-merge verified, and ready for
+documentation synchronization review.
 
 ## Current implementation
 
-Stages 1–6 are independently clean-room verified, merged, and regression-tested. PR #6 merged
-verified feature SHA `b0361b8efe9060ef6c498e1cebfede4baaa9947d` at main commit
-`f23e124813b5f65a8f85957c1dce57d95b9cf038`. The feature-branch migration head is
-`0009_stage7_ai_assistant`; Stage 7 awaits independent verification and Stage 8 has not started.
+Stages 1-7 are independently clean-room verified, merged, and regression-tested. PR #8 merged
+verified feature SHA `9b5f4372359a32066787060ca839d5a68c5ab490` at main commit
+`882ff531af07276c11e0d25664fdca033e09c7c7`. The current migration head is
+`0009_stage7_ai_assistant`; Stage 8 has not started.
 
-The active integration branch is `main`; Stage 7 work is isolated on
-`feature/7-ai-assistant`.
+The active integration branch is `main`; future stage work must branch from verified `main`.
 
-Alembic revision `0008_stage6_risk_scoring` follows `0007_stage5_compliance_engine` and adds
+Alembic revision `0009_stage7_ai_assistant` follows `0008_stage6_risk_scoring` and adds
+versioned prompt templates, tenant-scoped AI requests, typed source references, immutable
+structured responses, and usage windows. Alembic revision `0008_stage6_risk_scoring` follows
+`0007_stage5_compliance_engine` and adds
 versioned scoring policies, bounded risk context, assessment jobs, immutable finding/account/
 organization snapshots, and authorized compensating controls. Revision `0007_stage5_compliance_engine` follows
 `0006_stage4_verification_repairs` and adds versioned frameworks and controls, rule mappings,
@@ -40,10 +42,11 @@ backfilled without change.
 - Frontend discovery requires an accessible confirmation and covers filters, pagination,
   states, RBAC, focus behavior, and escaped metadata.
 
-Current release evidence is 199 backend tests passed with 0 failures and 0 skips at 95.11%
-coverage, Mypy over 101 source files, and 64 frontend tests passed with 0 failures. Migration
-lifecycle, populated `0007 -> 0008` upgrade, PostgreSQL integrity/concurrency, dependency audits,
-security scans, and merged-main regression verification passed.
+Current release evidence is 343 backend tests passed with 0 failures and 0 skips, 96% reported
+coverage, Mypy over 111 source files, 81 frontend tests passed with 0 failures and 0 skips, and
+the Stage 7 black-box workflow at 44 PASS, 0 FAIL, 0 missing, and 0 duplicate. Migration
+lifecycle, PostgreSQL integrity/concurrency, dependency audits, security scans, and merged-main
+regression verification passed.
 
 ## Decisions
 
@@ -60,10 +63,10 @@ tests use deterministic AWS doubles; controlled live-AWS validation remains oper
 
 ## Next task
 
-Review and explicitly authorize draft PR #7 where required, merge it, synchronize `main`,
-reconfirm migration head `0008_stage6_risk_scoring`, the Stage 1–6 baseline, and a clean
-worktree, then obtain explicit owner direction for Stage 7. Do not create Stage 7 code before
-that gate; AI may explain existing results but must not detect or score.
+Review and explicitly authorize this Stage 7 documentation synchronization PR where required,
+merge it, synchronize `main`, reconfirm migration head `0009_stage7_ai_assistant`, the Stage
+1-7 baseline, and a clean worktree, then obtain explicit owner direction for Stage 8. Do not
+create Stage 8 code before that gate.
 
 ## Stage 3 implementation snapshot
 
@@ -92,6 +95,11 @@ SHA passed technical clean-room verification, after which the owner recorded:
 **Owner-authorized governance exception for PR #6.** This is not an independent GitHub,
 CODEOWNER, automated CI, or repository-policy approval.
 
+PR #8 also had zero recorded reviews/approvals and no automated check rollup. Its exact feature
+SHA passed technical detached verification, after which the owner recorded:
+**Owner-authorized governance exception for PR #8.** This is not an independent GitHub,
+CODEOWNER, automated CI, or repository-policy approval.
+
 ## Stage 5 limitations
 
 The initial catalog contains four controls and twelve mappings. It is not complete framework
@@ -107,6 +115,7 @@ seven root source-of-truth files: `NEW_CHAT_CONTEXT.md`, `PRD.md`, `architecture
 architecture, implementation state, known issues, and next task before editing. Contradictions
 must be resolved against current repository evidence. Automated verification uses synthetic
 data and deterministic AWS doubles; never use real customer AWS credentials or resources.
+
 ## Stage 7 boundary
 
 Stage 7 explains persisted deterministic Stage 4–6 evidence through six

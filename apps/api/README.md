@@ -50,7 +50,7 @@ persisted Stage 4 findings only; it performs no discovery, live AWS calls, or AI
 
 ## Stage 7 AI explanation assistant
 
-Migration `0009_stage7_ai_assistant` is the feature-branch head. It adds
+Migration `0009_stage7_ai_assistant` is the current head. It adds
 versioned prompt templates, tenant-scoped idempotent requests, immutable source
 references and structured responses, and organization-hour usage windows. The
 default mock provider is deterministic and offline. AI consumes bounded

@@ -1,9 +1,8 @@
 # CloudOps Current Architecture
 
-Stages 1–6 are independently clean-room verified, merged, and regression-tested in `main` at
-`b3ddab02b741b76831b195a9bc42939154fb582e`. Stage 7 is implemented on
-`feature/7-ai-assistant`, with migration head `0009_stage7_ai_assistant`, and awaits
-independent verification.
+Stages 1-7 are independently clean-room verified, merged, and regression-tested in `main` at
+`882ff531af07276c11e0d25664fdca033e09c7c7`. Stage 7 AI explanations are implemented with
+migration head `0009_stage7_ai_assistant`. Stage 8 Dashboard work has not started.
 
 ## Document role
 
@@ -263,7 +262,7 @@ headers, AWS credentials, full policies, and unbounded evidence are excluded.
   -> 0005_stage4_rule_engine
   -> 0006_stage4_verification_repairs
   -> 0007_stage5_compliance_engine
-  -> 0008_stage6_risk_scoring (current head)
+  -> 0008_stage6_risk_scoring -> 0009_stage7_ai_assistant (current head)
 ```
 
 `0004_verification_repairs` backfills permanent external-ID reservations and adds the composite
@@ -276,6 +275,7 @@ Stage 4 detects findings; Stage 5 interprets persisted evidence for compliance; 
 `CLOUDOPS_RISK_V1` to prioritize those findings without network calls or AI. Stage 7 may explain
 existing deterministic results but must never detect, score, or mutate them. AI, notifications,
 raw event ingestion, scheduling, remediation, and production infrastructure remain future work.
+
 ## Stage 7 AI trust boundary
 
 The AI explanation assistant consumes only bounded persisted findings, risk

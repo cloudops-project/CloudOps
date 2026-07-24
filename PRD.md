@@ -10,9 +10,8 @@ future intent.
 
 CloudOps is a multi-tenant SaaS application for securely connecting AWS accounts and building a
 normalized inventory, deterministic security findings, and point-in-time compliance
-assessments and deterministic explainable risk scoring. Stages 1–6 are independently
-clean-room verified, merged, and regression-tested. Stage 7 is implemented on its feature
-branch and awaits independent verification.
+assessments, deterministic explainable risk scoring, and advisory AI explanations. Stages 1-7
+are independently clean-room verified, merged, and regression-tested.
 
 ## Business goals
 
@@ -168,22 +167,21 @@ The frontend provides organization identity and role context, member and invitat
 recent authentication/membership activity, member administration, AWS onboarding, asset
 inventory, discovery jobs, findings, rule catalog, evaluation jobs, compliance frameworks,
 control details, assessment history, deterministic risk summaries, component explanations,
-ranked findings, contexts, compensating controls, and historical risk snapshots. It does not
-display AI-generated content or remediation controls.
+ranked findings, contexts, compensating controls, historical risk snapshots, and advisory AI
+draft workflows. Jira and email outputs remain drafts, and no remediation executor is exposed.
 
 ## Out of scope and not implemented
 
 - Complete framework coverage or compliance certification
 - Security recommendations
-- AI assistance
 - Notifications and ticketing
 - Remediation or customer-resource mutation
 - Scheduled/background discovery
 - Raw CloudWatch log or CloudTrail event ingestion, EventBridge, or deployment infrastructure
 - MFA, SSO/OIDC, password reset, and production invitation email delivery
-- Stage 7 AI explanations; Stage 8 expanded
-  dashboards/reports; Stage 9 notifications; Stage 10 remediation; Stage 11 scheduling; and
-  Stage 12 extended tamper-evident audit timeline
+- Stage 8 dashboards; Stage 9 notifications; Stage 10 remediation workflow; Stage 11
+  scheduler; Stage 12 audit logs; Stage 13 security hardening; Stage 14 DevOps and IaC;
+  Stage 15 testing; Stage 16 deployment; and Stage 17 documentation and demo
 
 ## Security and test boundaries
 
@@ -216,10 +214,11 @@ display AI-generated content or remediation controls.
 
 ## Delivery status
 
-Stages 1–6 are independently clean-room verified and merged in `main` at
-`f23e124813b5f65a8f85957c1dce57d95b9cf038`. Stage 6 feature SHA
-`b0361b8efe9060ef6c498e1cebfede4baaa9947d` was merged by PR #6. The current migration head is
-`0008_stage6_risk_scoring`. Stage 7–12 functionality is not implemented.
+Stages 1-7 are independently clean-room verified and merged in `main` at
+`882ff531af07276c11e0d25664fdca033e09c7c7`. Stage 7 feature SHA
+`9b5f4372359a32066787060ca839d5a68c5ab490` was merged by PR #8. The current migration head is
+`0009_stage7_ai_assistant`. Stage 8-17 functionality is not implemented.
+
 ## Stage 7 acceptance boundary
 
 Stage 7 provides explanation and drafting assistance for deterministic
