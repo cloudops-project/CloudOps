@@ -64,10 +64,13 @@ def black_box_client() -> Generator[tuple[TestClient, sessionmaker[Session]], No
 def test_stage7_integrated_black_box(
     black_box_client: tuple[TestClient, sessionmaker[Session]],
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     client, sessions = black_box_client
     recorder = StepRecorder()
-    result_path = Path(os.environ["STAGE7_BLACK_BOX_BACKEND_RESULTS"])
+    result_path = Path(
+        os.getenv("STAGE7_BLACK_BOX_BACKEND_RESULTS", tmp_path / "stage7-backend-results.json")
+    )
     marker = uuid.uuid4().hex
     email = f"stage7-e2e-{marker}@example.com"
     password = "Stage7-Black-Box-Password-123!"
