@@ -397,8 +397,10 @@ def test_timeout_cancels_synchronous_provider_and_rejects_late_result(
         "during_output_validation",
         "before_response_insert",
         "after_response_insert",
+        "before_terminal_state_update",
         "after_terminal_state_update",
         "before_request_finalization",
+        "during_completion_audit",
         "after_completion_audit",
         "before_commit",
     ],
@@ -436,6 +438,7 @@ def test_request_finalization_faults_roll_back_atomically(db: Session, fault_at:
         "after_idempotency_reservation",
         "after_quota_reservation",
         "after_request_insert",
+        "before_source_insert",
         "after_first_source_insert",
         "after_source_persistence",
         "before_request_start_audit",
@@ -627,6 +630,73 @@ def test_historical_response_becomes_stale_without_being_rewritten(db: Session) 
     with pytest.raises(AppError) as captured:
         AIService(db).generate(payload, user.id)
     assert captured.value.code == "AI_IDEMPOTENCY_CONFLICT"
+
+
+def test_risk_and_compliance_staleness_uses_canonical_assessment_state(
+    db: Session,
+) -> None:
+    user, organization, account = _tenant(db)
+    _, asset = _finding(db, organization, account, user)
+    framework = _framework(db, "ai-staleness")
+    compliance = _assessment(db, organization, account, framework)
+    db.add(
+        AssetRiskContext(
+            organization_id=organization.id,
+            aws_account_id=account.id,
+            asset_id=asset.id,
+            criticality=RiskCriticality.CRITICAL,
+            environment=RiskEnvironment.PRODUCTION,
+            business_impact=BusinessImpact.CRITICAL,
+            data_sensitivity=DataSensitivity.RESTRICTED,
+            source="manual",
+            updated_by_user_id=user.id,
+        )
+    )
+    db.commit()
+    risk = RiskService(db).assess(
+        organization.id,
+        user,
+        aws_account_id=account.id,
+        evaluation_time=datetime(2026, 7, 24, tzinfo=UTC),
+    )
+    _template(db, AITaskType.EXECUTIVE_SUMMARY)
+    db.commit()
+    generated = []
+    for source_type, source_id, key in (
+        (AISourceType.RISK_ASSESSMENT, risk.id, "risk-staleness-contract"),
+        (
+            AISourceType.COMPLIANCE_ASSESSMENT,
+            compliance.id,
+            "compliance-staleness-contract",
+        ),
+    ):
+        result = AIService(db).generate(
+            AIGenerateRequest(
+                organization_id=organization.id,
+                task_type=AITaskType.EXECUTIVE_SUMMARY,
+                sources=[AISourceInput(source_type=source_type, source_id=source_id)],
+                idempotency_key=key,
+            ),
+            user.id,
+        )
+        assert result.source_staleness == "current"
+        generated.append((result.id, result.content))
+    db.commit()
+    for request_id, _ in generated:
+        request = db.get(AIRequest, request_id)
+        assert request is not None
+        assert AIService(db).response(request).source_staleness == "current"
+
+    risk.aggregate_score = 42
+    compliance.controls_total += 1
+    compliance.controls_not_assessed += 1
+    db.commit()
+    for request_id, original_content in generated:
+        request = db.get(AIRequest, request_id)
+        assert request is not None
+        historical = AIService(db).response(request)
+        assert historical.source_staleness == "stale"
+        assert historical.content == original_content
 
 
 def test_service_rejects_cross_tenant_source(db: Session) -> None:

@@ -171,6 +171,7 @@ class AIService:
         self.db.flush()
         self._fault("after_request_insert")
         for source in source_rows:
+            self._fault("before_source_insert")
             self.db.add(
                 AIRequestSource(
                     request_id=request.id,
@@ -294,10 +295,12 @@ class AIService:
             self.db.flush()
             self._fault("after_response_insert")
             usage.token_count += max(1, len(output) // 4)
+            self._fault("before_terminal_state_update")
             request.status = AIRequestStatus.COMPLETED
             request.finished_at = datetime.now(UTC)
             self._fault("after_terminal_state_update")
             self._fault("before_request_finalization")
+            self._fault("during_completion_audit")
             record_audit(
                 self.db,
                 "ai.request.completed",
@@ -405,6 +408,13 @@ class AIService:
                     raise NotFoundError("ai_source_not_found", "AI source was not found.")
                 data = {
                     "status": risk_assessment.status.value,
+                    "policy_id": str(risk_assessment.policy_id),
+                    "aws_account_id": (
+                        str(risk_assessment.aws_account_id)
+                        if risk_assessment.aws_account_id
+                        else None
+                    ),
+                    "source_cutoff_at": risk_assessment.source_cutoff_at,
                     "aggregate_score": risk_assessment.aggregate_score,
                     "aggregate_priority": (
                         risk_assessment.aggregate_priority.value
@@ -412,6 +422,11 @@ class AIService:
                         else None
                     ),
                     "findings_total": risk_assessment.findings_total,
+                    "critical_count": risk_assessment.critical_count,
+                    "high_count": risk_assessment.high_count,
+                    "medium_count": risk_assessment.medium_count,
+                    "low_count": risk_assessment.low_count,
+                    "informational_count": risk_assessment.informational_count,
                 }
                 version = 1
                 finding_aws_account_id = None
@@ -427,6 +442,22 @@ class AIService:
                 data = {
                     "status": compliance_assessment.status.value,
                     "framework_id": str(compliance_assessment.framework_id),
+                    "aws_account_id": (
+                        str(compliance_assessment.aws_account_id)
+                        if compliance_assessment.aws_account_id
+                        else None
+                    ),
+                    "evaluation_job_id": (
+                        str(compliance_assessment.evaluation_job_id)
+                        if compliance_assessment.evaluation_job_id
+                        else None
+                    ),
+                    "controls_total": compliance_assessment.controls_total,
+                    "controls_passed": compliance_assessment.controls_passed,
+                    "controls_failed": compliance_assessment.controls_failed,
+                    "controls_not_assessed": compliance_assessment.controls_not_assessed,
+                    "controls_error": compliance_assessment.controls_error,
+                    "findings_count": compliance_assessment.findings_count,
                 }
                 version = 1
                 finding_aws_account_id = None
