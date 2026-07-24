@@ -266,6 +266,15 @@ def upgrade() -> None:
         LANGUAGE plpgsql AS $$
         DECLARE response_count integer;
         BEGIN
+          IF TG_OP = 'UPDATE'
+            AND OLD.status IN (
+              'completed','failed','timed_out','provider_disabled',
+              'invalid_response','rate_limited'
+            )
+            AND NEW.status <> OLD.status
+          THEN
+            RAISE EXCEPTION 'terminal AI request status is immutable';
+          END IF;
           SELECT count(*) INTO response_count FROM ai_responses WHERE request_id = NEW.id;
           IF NEW.status = 'completed' AND response_count <> 1 THEN
             RAISE EXCEPTION 'completed AI request requires exactly one response';

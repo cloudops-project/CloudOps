@@ -7,15 +7,22 @@ from datetime import UTC, datetime
 from threading import Barrier
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import AIPromptTemplate, AIRequest, AIRequestSource, AIResponse
+from app.models import (
+    AIPromptTemplate,
+    AIRequest,
+    AIRequestSource,
+    AIResponse,
+    AIUsageWindow,
+)
 from app.models.enums import AIRequestStatus, AISourceType, AITaskType
 from app.schemas.ai import AIGenerateRequest, AISourceInput
 from app.services.ai import AIService
+from app.services.ai_provider import MockAIProvider
 from app.tests.test_risk import _finding, _tenant
 
 POSTGRES_URL = os.getenv("POSTGRES_TEST_DATABASE_URL")
@@ -155,30 +162,26 @@ def test_concurrent_duplicate_idempotency_has_one_winner(
         seed.commit()
         user_id, organization_id, finding_id = user.id, organization.id, finding.id
     barrier = Barrier(2)
+    provider = MockAIProvider()
 
     def worker() -> str:
         with pg_sessions() as db:
             barrier.wait(timeout=10)
-            try:
-                result = AIService(db).generate(
-                    AIGenerateRequest(
-                        organization_id=organization_id,
-                        task_type=AITaskType.EXPLAIN_FINDING,
-                        sources=[
-                            AISourceInput(source_type=AISourceType.FINDING, source_id=finding_id)
-                        ],
-                        idempotency_key="concurrent-idempotency",
-                    ),
-                    user_id,
-                )
-                return str(result.id)
-            except Exception:
-                db.rollback()
-                return "conflict"
+            result = AIService(db, provider).generate(
+                AIGenerateRequest(
+                    organization_id=organization_id,
+                    task_type=AITaskType.EXPLAIN_FINDING,
+                    sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding_id)],
+                    idempotency_key="concurrent-idempotency",
+                ),
+                user_id,
+            )
+            return str(result.id)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda _: worker(), range(2)))
-    assert results.count("conflict") <= 1
+    assert len(set(results)) == 1
+    assert provider.invocations == 1
     with pg_sessions() as db:
         rows = db.scalars(
             select(AIRequest).where(
@@ -187,6 +190,26 @@ def test_concurrent_duplicate_idempotency_has_one_winner(
             )
         ).all()
         assert len(rows) == 1
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AIRequestSource)
+                .where(AIRequestSource.request_id == rows[0].id)
+            )
+            == 1
+        )
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AIResponse)
+                .where(AIResponse.request_id == rows[0].id)
+            )
+            == 1
+        )
+        usage = db.scalar(
+            select(AIUsageWindow).where(AIUsageWindow.organization_id == organization_id)
+        )
+        assert usage is not None and usage.request_count == 1
 
 
 def test_used_prompt_template_is_database_immutable(
@@ -250,8 +273,62 @@ def test_completed_request_requires_response_at_commit(
         db.rollback()
 
 
+@pytest.mark.parametrize(
+    "terminal_status",
+    [
+        AIRequestStatus.FAILED,
+        AIRequestStatus.TIMED_OUT,
+        AIRequestStatus.PROVIDER_DISABLED,
+        AIRequestStatus.INVALID_RESPONSE,
+        AIRequestStatus.RATE_LIMITED,
+    ],
+)
 def test_failed_request_cannot_retain_successful_response(
     pg_sessions: sessionmaker[Session],
+    terminal_status: AIRequestStatus,
+) -> None:
+    with pg_sessions() as db:
+        user, organization, _ = _tenant(db)
+        template = db.scalar(
+            select(AIPromptTemplate).where(AIPromptTemplate.task_type == AITaskType.EXPLAIN_FINDING)
+        )
+        assert template is not None
+        request = AIRequest(
+            organization_id=organization.id,
+            requested_by_user_id=user.id,
+            task_type=AITaskType.EXPLAIN_FINDING,
+            status=terminal_status,
+            idempotency_key=f"{terminal_status.value}-cannot-have-response",
+            provider_key="mock",
+            model_key="mock",
+            prompt_key=template.key,
+            prompt_version=template.version,
+            response_schema_version=template.schema_version,
+            context_hash="a" * 64,
+            request_fingerprint="b" * 64,
+            error_code="AI_PROVIDER_FAILED",
+            finished_at=datetime.now(UTC),
+        )
+        db.add(request)
+        db.flush()
+        db.add(
+            AIResponse(
+                request_id=request.id,
+                organization_id=organization.id,
+                content_json={"title": "must not persist"},
+                schema_version=1,
+                output_hash="c" * 64,
+            )
+        )
+        with pytest.raises(DatabaseError, match="cannot retain a response"):
+            db.commit()
+        db.rollback()
+
+
+@pytest.mark.parametrize("invalid_status", [AIRequestStatus.PENDING, AIRequestStatus.RUNNING])
+def test_terminal_request_cannot_return_to_active_state(
+    pg_sessions: sessionmaker[Session],
+    invalid_status: AIRequestStatus,
 ) -> None:
     with pg_sessions() as db:
         user, organization, account = _tenant(db)
@@ -262,16 +339,15 @@ def test_failed_request_cannot_retain_successful_response(
                 organization_id=organization.id,
                 task_type=AITaskType.EXPLAIN_FINDING,
                 sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
-                idempotency_key="failed-cannot-have-response",
+                idempotency_key=f"terminal-transition-{invalid_status.value}",
             ),
             user.id,
         )
         request = db.get(AIRequest, generated.id)
         assert request is not None
-        request.status = AIRequestStatus.FAILED
-        request.error_code = "AI_PROVIDER_FAILED"
-        request.finished_at = datetime.now(UTC)
-        with pytest.raises(DatabaseError, match="cannot retain a response"):
+        request.status = invalid_status
+        request.finished_at = None
+        with pytest.raises(DatabaseError, match="terminal AI request status is immutable"):
             db.commit()
         db.rollback()
 
