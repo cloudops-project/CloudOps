@@ -292,6 +292,66 @@ def test_transient_provider_failure_retries_once(db: Session) -> None:
     assert provider.invocations == 2
 
 
+@pytest.mark.parametrize(
+    ("mode", "expected_code"),
+    [
+        ("transient_always", "AI_PROVIDER_FAILED"),
+        ("transient_then_timeout", "AI_PROVIDER_TIMEOUT"),
+    ],
+)
+def test_provider_retry_is_bounded_and_has_one_terminal_state(
+    db: Session, mode: str, expected_code: str
+) -> None:
+    user, organization, account = _tenant(db)
+    finding, _ = _finding(db, organization, account, user)
+    _template(db)
+    provider = MockAIProvider(mode)
+    with pytest.raises(AppError) as captured:
+        AIService(db, provider).generate(
+            AIGenerateRequest(
+                organization_id=organization.id,
+                task_type=AITaskType.EXPLAIN_FINDING,
+                sources=[AISourceInput(source_type=AISourceType.FINDING, source_id=finding.id)],
+                idempotency_key=f"bounded-retry-{mode}",
+            ),
+            user.id,
+        )
+    assert captured.value.code == expected_code
+    assert provider.invocations == AIService.MAX_PROVIDER_ATTEMPTS
+    assert db.scalar(select(func.count()).select_from(AIResponse)) == 0
+    request = db.scalar(select(AIRequest))
+    assert request is not None
+    assert request.status in {AIRequestStatus.FAILED, AIRequestStatus.TIMED_OUT}
+
+
+def test_repeated_timeouts_leave_no_provider_work_or_duplicate_quota(db: Session) -> None:
+    user, organization, account = _tenant(db)
+    finding, _ = _finding(db, organization, account, user)
+    _template(db)
+    provider = MockAIProvider("timeout")
+    for index in range(3):
+        with pytest.raises(AppError, match="timed out"):
+            AIService(db, provider).generate(
+                AIGenerateRequest(
+                    organization_id=organization.id,
+                    task_type=AITaskType.EXPLAIN_FINDING,
+                    sources=[
+                        AISourceInput(
+                            source_type=AISourceType.FINDING,
+                            source_id=finding.id,
+                        )
+                    ],
+                    idempotency_key=f"repeated-timeout-{index}",
+                ),
+                user.id,
+            )
+    assert provider.invocations == 3
+    assert provider.lifecycle_events.count("invocation_exited") == 3
+    assert db.scalar(select(func.count()).select_from(AIResponse)) == 0
+    usage = db.scalar(select(AIUsageWindow))
+    assert usage is not None and usage.request_count == 3
+
+
 @pytest.mark.parametrize("mode", ["timeout", "late_success"])
 def test_timeout_cancels_synchronous_provider_and_rejects_late_result(
     db: Session, mode: str

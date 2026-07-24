@@ -82,7 +82,9 @@ class MockAIProvider:
         if not self.enabled or self.fault_mode == "disabled":
             control.exit()
             raise AIProviderError(ProviderErrorCode.DISABLED)
-        if self.fault_mode == "timeout":
+        if self.fault_mode == "timeout" or (
+            self.fault_mode == "transient_then_timeout" and self.invocations > 1
+        ):
             control.cancel()
             self.lifecycle_events.extend(["cancellation_received", "invocation_exited"])
             control.exit()
@@ -102,7 +104,11 @@ class MockAIProvider:
         if self.fault_mode == "permanent_failure":
             control.exit()
             raise AIProviderError(ProviderErrorCode.FAILED)
-        if self.fault_mode == "transient_then_success" and self.invocations == 1:
+        if self.fault_mode in {
+            "transient_then_success",
+            "transient_then_timeout",
+            "transient_always",
+        } and (self.invocations == 1 or self.fault_mode == "transient_always"):
             control.exit()
             raise AIProviderError(ProviderErrorCode.RETRYABLE, retryable=True)
         if self.fault_mode in {"invalid_json", "schema_invalid"}:
