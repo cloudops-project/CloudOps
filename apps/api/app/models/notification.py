@@ -5,7 +5,6 @@ from datetime import datetime
 
 from sqlalchemy import (
     CheckConstraint,
-    DateTime,
     Enum,
     ForeignKey,
     Index,
@@ -16,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, TimestampMixin
+from app.db.base import Base, TimestampMixin, TZAwareDateTime
 from app.models.enums import NotificationChannel, NotificationStatus, enum_values
 
 
@@ -94,8 +93,8 @@ class NotificationEvent(TimestampMixin, Base):
     approved_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
     )
-    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
+    scheduled_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
+    delivered_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
+    failed_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
     failure_reason: Mapped[str | None] = mapped_column(String(500))
