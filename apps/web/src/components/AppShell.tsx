@@ -2,11 +2,12 @@ import {
   Building2,
   Cloud,
   Database,
+  Gauge,
   LayoutDashboard,
   LogOut,
   ShieldAlert,
   Scale,
-  Gauge,
+  ShieldCheck,
   Sparkles,
   Users,
   UserRound,
@@ -50,6 +51,13 @@ export function AppShell() {
           >
             <ShieldAlert />
             Security
+          </Link>
+          <Link
+            className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+            to="/security-dashboard"
+          >
+            <ShieldCheck />
+            Security Posture
           </Link>
           <Link
             className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
