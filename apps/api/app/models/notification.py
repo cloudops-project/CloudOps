@@ -13,7 +13,6 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     Uuid,
-    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -86,7 +85,12 @@ class NotificationEvent(TimestampMixin, Base):
         server_default=NotificationStatus.PENDING_APPROVAL.value,
         nullable=False,
     )
-    attempt_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    attempt_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+    )
     approved_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
     )
