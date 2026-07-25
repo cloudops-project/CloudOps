@@ -242,3 +242,15 @@ class RemediationExecutionMode(StrEnum):
     MOCK_AUTOMATION = "mock_automation"
     MANUAL = "manual"
     JIRA_DRAFT = "jira_draft"
+
+
+class ScanRunStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ScanRunTrigger(StrEnum):
+    MANUAL = "manual"
+    SCHEDULED = "scheduled"

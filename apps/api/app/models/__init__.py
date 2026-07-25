@@ -29,6 +29,7 @@ from app.models.risk import (
     RiskAssessment,
     RiskScoringPolicy,
 )
+from app.models.scheduler import ScanRun, ScanSchedule
 from app.models.user import User
 
 __all__ = [
@@ -63,5 +64,7 @@ __all__ = [
     "RiskAssessment",
     "RiskScoringPolicy",
     "RuleControlMapping",
+    "ScanRun",
+    "ScanSchedule",
     "User",
 ]
