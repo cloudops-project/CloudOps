@@ -19,6 +19,7 @@ from app.models.membership import OrganizationMembership
 from app.models.notification import NotificationEvent
 from app.models.organization import Organization
 from app.models.refresh_session import RefreshTokenSession
+from app.models.remediation import RemediationRequest
 from app.models.risk import (
     AccountRiskSnapshot,
     AssetRiskContext,
@@ -58,6 +59,7 @@ __all__ = [
     "OrganizationMembership",
     "OrganizationRiskSnapshot",
     "RefreshTokenSession",
+    "RemediationRequest",
     "RiskAssessment",
     "RiskScoringPolicy",
     "RuleControlMapping",

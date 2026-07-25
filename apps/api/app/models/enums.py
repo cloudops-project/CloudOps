@@ -227,3 +227,18 @@ class NotificationStatus(StrEnum):
     APPROVED = "approved"
     DELIVERED = "delivered"
     FAILED = "failed"
+
+
+class RemediationStatus(StrEnum):
+    PENDING_APPROVAL = "pending_approval"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class RemediationExecutionMode(StrEnum):
+    MOCK_AUTOMATION = "mock_automation"
+    MANUAL = "manual"
+    JIRA_DRAFT = "jira_draft"
