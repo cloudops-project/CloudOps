@@ -355,7 +355,7 @@ def _seed_dashboard_org(db: Session) -> tuple[User, Organization]:
     owner = _user(db, "dashboard-owner")
     org = _organization(db, owner, "primary")
     connected = _account(db, org, owner, "connected", connection_status=AWSAccountStatus.CONNECTED)
-    failed = _account(db, org, owner, "failed", connection_status=AWSAccountStatus.FAILED)
+    _account(db, org, owner, "failed", connection_status=AWSAccountStatus.FAILED)
     first_asset = _asset(
         db,
         org,
@@ -399,7 +399,7 @@ def _seed_dashboard_org(db: Session) -> tuple[User, Organization]:
     _finding(
         db,
         org,
-        failed,
+        connected,
         first_asset,
         evaluation,
         "medium",

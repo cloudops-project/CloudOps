@@ -404,7 +404,7 @@ def _seed_dashboard_org(db: Session) -> tuple[User, Organization]:
     owner = _user(db, "dashboard-pg-owner")
     org = _organization(db, owner, "primary")
     connected = _account(db, org, owner, "connected", connection_status=AWSAccountStatus.CONNECTED)
-    failed = _account(db, org, owner, "failed", connection_status=AWSAccountStatus.FAILED)
+    _account(db, org, owner, "failed", connection_status=AWSAccountStatus.FAILED)
     first_asset = _asset(
         db, org, connected, "primary", asset_type=AssetType.EC2_SECURITY_GROUP, region="us-east-1"
     )
@@ -427,7 +427,7 @@ def _seed_dashboard_org(db: Session) -> tuple[User, Organization]:
         severity=FindingSeverity.HIGH, category="identity", last_seen_offset=1,
     )
     _finding(
-        db, org, failed, first_asset, evaluation, "medium",
+        db, org, connected, first_asset, evaluation, "medium",
         severity=FindingSeverity.MEDIUM, category="network",
     )
     _finding(
