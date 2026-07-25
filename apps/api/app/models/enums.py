@@ -216,3 +216,14 @@ class RuleCategory(StrEnum):
     PATCHING = "patching"
     RESILIENCE = "resilience"
     TRANSPORT = "transport"
+
+
+class NotificationChannel(StrEnum):
+    EMAIL = "email"
+
+
+class NotificationStatus(StrEnum):
+    PENDING_APPROVAL = "pending_approval"
+    APPROVED = "approved"
+    DELIVERED = "delivered"
+    FAILED = "failed"
