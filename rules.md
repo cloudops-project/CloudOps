@@ -6,8 +6,9 @@ These rules govern current CloudOps development. More detailed policies remain u
 `docs/engineering/`. When documents conflict, stop and resolve the contradiction before changing
 code.
 
-The governed baseline contains independently clean-room verified, merged Stages 1-7 at main
-commit `882ff531af07276c11e0d25664fdca033e09c7c7`. Stage 8 Dashboard work has not started.
+The governed baseline contains independently clean-room verified, merged Stages 1-8 at main
+commit `889660ecb8a378d107f6737b4466b70362066793`. Stage 9 Notifications backend is complete on
+`feature/9-notifications` (not yet merged); its frontend is not started.
 
 ## Technology stack
 
@@ -49,8 +50,9 @@ partial indexes, composite foreign keys, or concurrency.
 - Frontend visibility is usability only; backend authorization is authoritative.
 - Rules evaluate persisted normalized data only; boto3 stays in discovery.
 - Compliance consumes persisted Stage 4 results; it never performs detection or live AWS calls.
-- Do not introduce remediation, raw event ingestion, customer AWS mutation, or Stage 8
-  functionality. Stage 7 AI must remain advisory and draft-only.
+- Do not introduce remediation, raw event ingestion, customer AWS mutation, or real notification
+  delivery. Stage 7 AI must remain advisory and draft-only. Stage 9 notification delivery is a
+  deterministic mock/no-op provider only and always requires explicit human approval.
 
 ## Security rules
 
@@ -195,8 +197,8 @@ documentation, dependency audits, and independent verification pass; no later-st
 scope is present; and no secrets or generated artifacts are committed.
 
 No stage may begin until its predecessor is independently verified, merged, regression-tested,
-and documentation-synchronized. Stage 8 remains blocked until Stage 7 is independently
-verified, merged, regression-tested, and documentation-synchronized.
+and documentation-synchronized. Stage 10 remains blocked until Stage 9 (including its frontend)
+is independently verified, merged, regression-tested, and documentation-synchronized.
 
 ## Deterministic risk policy
 
@@ -224,5 +226,5 @@ verified, merged, regression-tested, and documentation-synchronized.
 - Never persist provider credentials or expose raw provider failures.
 - Never use AI for findings, severity, compliance, or risk decisions.
 - Never execute remediation or send Jira/email output.
-- Stage 8 work is excluded until Stage 7 documentation synchronization is merged and the owner
-  explicitly authorizes Stage 8.
+- Never allow notification delivery to bypass explicit human approval; only the deterministic
+  mock/no-op provider may be used until a real provider is explicitly authorized.

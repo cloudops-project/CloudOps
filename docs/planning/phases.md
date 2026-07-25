@@ -2,10 +2,10 @@
 
 ## Current delivery status
 
-Stages 1-7 are independently clean-room verified, merged, and regression-tested in `main`.
-Stage 7 product and documentation are synchronized through
-`01c3eb4bf9ed2d1770da697c158c5d08742430bd`. Stage 8A dashboard read-model work has started;
-Stages 9-17 remain not-started planning entries.
+Stages 1-8 are independently clean-room verified, merged, and regression-tested in `main` at
+`889660ecb8a378d107f6737b4466b70362066793`. Stage 9 (notifications) backend is complete on
+`feature/9-notifications` (migration head `0010_stage9_notifications`), not yet merged; its
+frontend is not started. Stages 10-17 remain not-started planning entries.
 
 ## Purpose and audience
 
@@ -23,8 +23,8 @@ The five-member team and stakeholders use this dependency-ordered roadmap for pl
 | 5 Compliance                    | Explain reviewed control relationships; verified Stage 4                                    | **Complete, independently verified, and merged.** Versioned catalogs, rule-version mappings, immutable assessments, traceability, API/UI, PostgreSQL and accessibility verification; no certification claim                                                             | licensing/overclaiming; M1+M3 / M5; control drill-down                                     |
 | 6 Deterministic risk scoring    | **Complete, independently verified, merged, and regression-tested**                         | Versioned deterministic scoring of persisted Stage 4 findings, immutable snapshots, bounded context and compensating controls; AI does not assign risk                                                                                                                  | scope drift/misleading scores; M1+M3 / all; verification gate                              |
 | 7 AI explanation assistant      | **Complete, independently verified, merged, and post-merge verified**                       | Explain existing findings and business impact; draft remediation, executive, Jira, and email text. AI never detects, scores, mutates, executes, sends, or creates external tickets                                                                                      | disclosure/hallucination/cost; M1+M2 / M3+M5; AI on/off comparison                         |
-| 8 Dashboard                     | **Stage 8A read model in progress**; Stage 7 product/docs synchronized and owner-authorized | Read-only dashboard summary API over existing AWS account, asset, finding, compliance, risk, and AI-era records; UI/charts/accessibility remain Stage 8B; integrated/detached release remains Stage 8C                                                                   | dense data/misleading metrics; M4 / M1+M5; analyst journey                                 |
-| 9 Notifications                 | **Not started**; 5, 7–8                                                                     | Email, collaboration, and ticketing delivery with bounded retries and minimization                                                                                                                                                                                      | spam/token/webhook risk; M2 / M1+M5; finding-to-notification                               |
+| 8 Dashboard                     | **Complete and merged**; Stage 7 product/docs synchronized and owner-authorized             | Read-only dashboard summary API and UI over existing AWS account, asset, finding, compliance, risk, and AI-era records                                                                                                                                                     | dense data/misleading metrics; M4 / M1+M5; analyst journey                                 |
+| 9 Notifications                 | **Backend complete on `feature/9-notifications` (not merged); frontend not started**; 5, 7–8 | Approval-gated critical-finding notification pipeline with a deterministic mock/no-op provider only; bounded retries; no real email/collaboration/ticketing delivery                                                                                                    | spam/token/webhook risk; M2 / M1+M5; finding-to-notification                               |
 | 10 Remediation workflow         | **Not started**; 2, 5, 9                                                                    | Approval-governed customer-resource changes and verification                                                                                                                                                                                                            | customer impact/duplicate action; M3 / M1+M2+M5; approve-remediate-verify                  |
 | 11 Scheduler                    | **Not started**; 3–5, 10                                                                    | Scheduled jobs, queues, retry, cancellation, and worker monitoring                                                                                                                                                                                                      | floods/starvation; M2+M5 / M3; scheduled and recovered run                                 |
 | 12 Audit Logs                   | **Not started**; prior security paths                                                       | Extended audit timeline/archive and reconciliation; current controls must not be called absolutely immutable                                                                                                                                                            | gaps/tampering; M1+M5 / all; incident evidence trace                                       |
@@ -42,11 +42,19 @@ Do not begin a stage solely because a prior draft exists. Product and architectu
 
 Stage 7 is merged in `main` with migration `0009_stage7_ai_assistant`.
 
-## Stage 8A — Dashboard read model
+## Stage 8 — Dashboard
 
-Stage 8A is active on `feature/8-dashboard`. It adds a read-only
-`GET /api/v1/dashboard/summary` API and TypeScript response contract. Dashboard data is derived
-from existing Stage 2-7 authoritative records. Stage 8A does not introduce dashboard snapshot
-tables, recalculate findings/compliance/risk, call AWS, invoke AI, send notifications, execute
-remediation, or create Jira issues. Stage 8B UI work and Stage 8C release verification remain
-future tasks.
+Stage 8 is merged in `main` at `889660ecb8a378d107f6737b4466b70362066793`. Stage 8A added a
+read-only `GET /api/v1/dashboard/summary` API and TypeScript response contract; Stage 8B added
+the `SecurityDashboardPage` UI. Dashboard data is derived from existing Stage 2-7 authoritative
+records. Stage 8 does not introduce dashboard snapshot tables, recalculate findings/compliance/
+risk, call AWS, invoke AI, send notifications, execute remediation, or create Jira issues.
+
+## Stage 9 — Notifications
+
+Stage 9 backend is complete on `feature/9-notifications` (commits `d0b5676`, `449e964`,
+`cb42db9`; migration head `0010_stage9_notifications`), not yet merged into `main`. It adds an
+approval-gated `NotificationEvent` lifecycle triggered only by newly created `CRITICAL`
+findings, a deterministic mock/no-op delivery provider, and RBAC-gated list/detail/approve/
+deliver API routes. No real notification delivery exists. The frontend notification history/
+approval page remains a future task.

@@ -1,9 +1,10 @@
 # CloudOps Current Architecture
 
-Stages 1-7 are independently clean-room verified, merged, and regression-tested in `main` at
-`01c3eb4bf9ed2d1770da697c158c5d08742430bd`. Stage 7 AI explanations are implemented with
-migration head `0009_stage7_ai_assistant`. Stage 8A Dashboard read-model work has started on
-`feature/8-dashboard`.
+Stages 1-8 are independently clean-room verified, merged, and regression-tested in `main` at
+`889660ecb8a378d107f6737b4466b70362066793`. Stage 7 AI explanations are implemented with
+migration head `0009_stage7_ai_assistant` on `main`. Stage 9 Notifications has a complete
+backend (persistence, service, API) on `feature/9-notifications` (migration head
+`0010_stage9_notifications`), not yet merged; its frontend is not yet implemented.
 
 ## Document role
 
@@ -195,6 +196,7 @@ newer lifecycle state. Terminal counters, structured logs, and audit events are 
 | `AccountRiskSnapshot` / `account_risk_snapshots`                 | Immutable deterministic account aggregate                     |
 | `OrganizationRiskSnapshot` / `organization_risk_snapshots`       | Immutable deterministic organization aggregate                |
 | `CompensatingControl` / `compensating_controls`                  | Authorized bounded adjustment with reason and lifecycle       |
+| `NotificationEvent` / `notification_events`                      | Approval-gated critical-finding notification lifecycle (Stage 9, `feature/9-notifications` only) |
 
 ## Database constraints and concurrency
 
@@ -251,6 +253,8 @@ headers, AWS credentials, full policies, and unbounded evidence are excluded.
 - `compliance`: frameworks, controls, mappings/findings, summaries, assessments, snapshots
 - `risk`: policies, assessments, summaries, ranked findings, contexts, compensating controls,
   and immutable history
+- `notifications` (`feature/9-notifications` only, not yet merged): list/detail, approve,
+  deliver
 - `health`: liveness and readiness
 
 ## Migration chain
@@ -270,14 +274,28 @@ headers, AWS credentials, full policies, and unbounded evidence are excluded.
 tenant keys, lifecycle constraints, and AWS-account validation coordination fields. Existing
 valid Stage 2/3 data is preserved.
 
+## Stage 9 notification flow
+
+`NotificationService.create_for_critical_finding` is invoked only when `EvaluationService`
+creates a new `CRITICAL` finding; it re-checks severity itself as a defensive second layer and
+is idempotent via a five-column database uniqueness constraint
+(`organization_id, source_event_type, source_resource_id, channel, template_key`). Events start
+`PENDING_APPROVAL`. `approve()` requires the `NOTIFICATIONS_APPROVE` capability and is
+idempotent for an already-approved event. `deliver()` invokes the configured provider (the
+deterministic `MockNotificationProvider` by default; no real provider exists) at most once per
+call, increments `attempt_count`, and transitions to `DELIVERED` on success or, after a third
+failed attempt, to `FAILED`. There is no `REJECTED` state and no automatic delivery without
+approval. All routes are organization-scoped and RBAC-gated identically to `risk`/`compliance`.
+
 ## Future work
 
 Stage 4 detects findings; Stage 5 interprets persisted evidence for compliance; Stage 6 uses
 `CLOUDOPS_RISK_V1` to prioritize those findings without network calls or AI. Stage 7 may explain
-existing deterministic results but must never detect, score, or mutate them. Stage 8A visualizes
-existing Stage 2-7 records through a read-only dashboard summary API and does not add dashboard
-persistence or recalculate authoritative posture. Notifications, raw event ingestion,
-scheduling, remediation, and production infrastructure remain future work.
+existing deterministic results but must never detect, score, or mutate them. Stage 8 visualizes
+existing Stage 2-7 records through a read-only dashboard summary API and UI, and does not add
+dashboard-owned persistence or recalculate authoritative posture. Stage 9's backend is complete
+but its frontend, real delivery providers, raw event ingestion, scheduling, remediation, and
+production infrastructure remain future work.
 
 ## Stage 8A dashboard read model
 

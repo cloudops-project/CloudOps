@@ -5,9 +5,9 @@ administration, secure cross-account AWS onboarding, read-only asset discovery, 
 security findings, and evidence-based compliance assessments. It is intended for organization
 owners, administrators, security analysts, cloud engineers, auditors, and viewers.
 
-Stages 1-7 are implemented, independently clean-room verified, merged, and regression-tested.
-Stage 8A has started on `feature/8-dashboard` to add a read-only dashboard contract; Stage 8
-UI work remains future Stage 8B scope.
+Stages 1-8 are implemented, independently clean-room verified, merged, and regression-tested.
+Stage 9 (notifications) has a complete backend on `feature/9-notifications`
+(persistence, service, and API layer); its frontend and merge into `main` remain outstanding.
 Stage 4 deterministic rules detect findings from persisted inventory; Stage 5 interprets that deterministic evidence for
 compliance and never performs independent detection. Stage 6 prioritizes persisted findings
 using the deterministic, versioned `CLOUDOPS_RISK_V1` policy. Stage 7 explains existing
@@ -23,23 +23,25 @@ accounts.
 
 | Item                  | Verified value                                                             |
 | --------------------- | -------------------------------------------------------------------------- |
-| Integrated `main`     | `01c3eb4bf9ed2d1770da697c158c5d08742430bd`                                 |
+| Integrated `main`     | `889660ecb8a378d107f6737b4466b70362066793`                                 |
 | Stage 6 feature SHA   | `b0361b8efe9060ef6c498e1cebfede4baaa9947d`                                 |
 | Stage 7 feature SHA   | `9b5f4372359a32066787060ca839d5a68c5ab490`                                 |
-| Migration head        | `0009_stage7_ai_assistant`                                                 |
-| Backend               | 343 passed, 0 failed, 0 skipped                                            |
-| Backend coverage      | 96% reported                                                               |
-| Mypy                  | 111 source files                                                           |
-| Frontend              | 81 passed, 0 failed, 0 skipped                                             |
-| Black-box             | 44 PASS, 0 FAIL, 0 missing, 0 duplicate                                    |
-| PostgreSQL            | Migration lifecycle, integrity, and independent-session concurrency passed |
-| Dependencies/security | `pip check`, Python audit, npm audit, and security scans passed            |
+| Stage 9 backend (unmerged, `feature/9-notifications`) | `d0b5676`, `449e964`, `cb42db9` |
+| Migration head (`main`) | `0009_stage7_ai_assistant`                                                |
+| Migration head (`feature/9-notifications`) | `0010_stage9_notifications`                            |
+| Backend/frontend/black-box/coverage counts | Not re-verified since Stage 7; re-run the full quality-gate sequence below before citing fresh numbers |
+| Dependencies/security | `pip check`, Python audit, npm audit, and security scans passed as of Stage 7 |
 
 PR #8 merged Stage 7 at `2026-07-24T19:19:02Z` with merge commit
 `882ff531af07276c11e0d25664fdca033e09c7c7`. It had zero recorded reviews or approvals and no
 automated check rollup. The exact feature SHA passed technical detached verification, and the
 merge proceeded under: **Owner-authorized governance exception for PR #8.** This was not an
 independent GitHub, CODEOWNER, automated CI, or repository-policy approval.
+
+Stage 8 merged via PR #10 (`feature/8-dashboard`) plus a follow-up `feature/8-dashboard-ui`
+branch merge, reaching `main` at `889660ecb8a378d107f6737b4466b70362066793`. This record does
+not independently confirm PR #10's review/approval state; verify it before treating it as
+equivalent governance evidence to PR #8.
 
 ## Technology stack
 
@@ -644,6 +646,8 @@ Operating rules:
 - Stage 7 AI explanation is implemented as advisory drafting only; Jira/email outputs remain
   drafts and no delivery or ticket creation is implemented.
 - Live AWS validation is controlled sandbox work, not a requirement for automated tests.
+- Stage 9 notification delivery uses a deterministic mock/no-op provider only; no real email,
+  Slack, Teams, or webhook delivery is implemented. Delivery requires explicit human approval.
 
 ## Safety summary
 
@@ -653,8 +657,9 @@ Operating rules:
 - Never bypass backend tenant/RBAC checks.
 - Never treat missing compliance evidence as `PASS`.
 - Never use AI to detect findings or determine risk scores.
-- Stage 8A has started only as a bounded dashboard read-model and API-contract branch. Do not
-  mark Stage 8 complete until Stage 8B UI work and Stage 8C release verification finish.
+- Never allow notification delivery to bypass explicit human approval.
+- Stage 9 backend (persistence, service, API) is complete on `feature/9-notifications`; its
+  frontend and merge into `main` remain outstanding.
 
 ## Stage 7 — AI explanation assistant
 
@@ -670,7 +675,8 @@ quoted data; prompt-like instructions inside evidence are neutralized. The
 assistant cannot detect or create findings, calculate or change risk, alter
 severity or compliance, execute remediation, create tickets, or send messages.
 
-Migration head: `0009_stage7_ai_assistant`. Stage 8A dashboard API work has started; Stage 8
+Migration head on `main`: `0009_stage7_ai_assistant`. Stage 8 (dashboard read model and UI) is
+merged. Stage 9
 is not complete.
 
 Stage 7 idempotency is scoped to `(organization_id, idempotency_key)`. A replay
@@ -691,14 +697,12 @@ structurally labeled as untrusted data. These controls reduce prompt-injection
 risk; they do not claim absolute prevention. Every output string and collection
 is schema-bounded before persistence.
 
-## Stage 8A — dashboard read model
+## Stage 8 — dashboard
 
-Stage 8A starts from verified `main` commit `01c3eb4bf9ed2d1770da697c158c5d08742430bd`
-on branch `feature/8-dashboard`. It introduces the read-only
-`GET /api/v1/dashboard/summary` contract for organization security posture. The endpoint
-visualizes existing Stage 2-7 authoritative records and does not discover assets, evaluate
-rules, calculate compliance, calculate risk, invoke AI, call AWS, send notifications, execute
-remediation, create Jira issues, or persist dashboard-owned snapshots.
+Stage 8A introduced the read-only `GET /api/v1/dashboard/summary` contract for organization
+security posture. The endpoint visualizes existing Stage 2-7 authoritative records and does not
+discover assets, evaluate rules, calculate compliance, calculate risk, invoke AI, call AWS, send
+notifications, execute remediation, create Jira issues, or persist dashboard-owned snapshots.
 
 The response is bounded and tenant-scoped. It includes metadata, AWS account posture, asset
 inventory distributions, finding posture, latest completed compliance posture, latest completed
@@ -707,6 +711,19 @@ timestamps. Empty and partial organizations return explicit missing-section meta
 fabricated scores or percentages. Region/type/service/account distributions and recent finding
 lists use deterministic sorting and documented caps.
 
-Stage 8B remains responsible for the dashboard UI, KPI cards, charts, heatmap rendering,
-accessibility matrices, and organization-switch cache behavior. Stage 9 notifications have not
-started.
+Stage 8B delivered the dashboard UI (`SecurityDashboardPage`), KPI cards, and
+organization-switch cache behavior over the Stage 8A contract. Both merged into `main` at
+`889660ecb8a378d107f6737b4466b70362066793`.
+
+## Stage 9 — notifications
+
+Stage 9 introduces an organization-scoped notification event pipeline for newly created critical
+findings. `NotificationEvent` records move through `PENDING_APPROVAL -> APPROVED -> DELIVERED`
+or, after three failed delivery attempts, `APPROVED -> FAILED`; there is no `REJECTED` state.
+Creation is triggered only by a newly created `CRITICAL` finding and is defensively re-checked
+inside `NotificationService.create_for_critical_finding` regardless of the caller. No delivery
+occurs without an explicit `POST /api/v1/notifications/{id}/approve` by a user holding the
+`NOTIFICATIONS_APPROVE` capability. The only delivery provider implemented is a deterministic
+mock/no-op provider; no real email, Slack, Teams, or webhook delivery exists. Migration head on
+`feature/9-notifications`: `0010_stage9_notifications`. The frontend notification history/
+approval page is not yet implemented.

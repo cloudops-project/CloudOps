@@ -2,20 +2,22 @@
 
 ## Last updated
 
-2026-07-25 - Stage 7 AI explanation assistant merged, post-merge verified, documentation
-synchronized, and Stage 8A dashboard read-model work authorized.
+2026-07-25 - Stage 8 (dashboard read model and UI) merged into `main`. Stage 9 (notifications)
+backend complete on `feature/9-notifications`, not yet merged; frontend not started. Version 1
+demo-completion effort underway on `feature/v1-demo-completion`.
 
 ## Current implementation
 
-Stages 1-7 are independently clean-room verified, merged, and regression-tested. PR #8 merged
-verified feature SHA `9b5f4372359a32066787060ca839d5a68c5ab490` at main commit
-`882ff531af07276c11e0d25664fdca033e09c7c7`; Stage 7 documentation is synchronized through
-`01c3eb4bf9ed2d1770da697c158c5d08742430bd`. The current migration head is
-`0009_stage7_ai_assistant`; Stage 8A dashboard read-model work has started on
-`feature/8-dashboard`.
+Stages 1-8 are independently clean-room verified, merged, and regression-tested in `main` at
+`889660ecb8a378d107f6737b4466b70362066793`. PR #8 merged verified Stage 7 feature SHA
+`9b5f4372359a32066787060ca839d5a68c5ab490` at commit `882ff531af07276c11e0d25664fdca033e09c7c7`;
+Stage 8 merged via PR #10 plus a follow-up `feature/8-dashboard-ui` merge. The current migration
+head on `main` is `0009_stage7_ai_assistant`. Stage 9 backend (persistence, service, API) is
+complete on `feature/9-notifications` at commits `d0b5676`, `449e964`, `cb42db9` (migration head
+`0010_stage9_notifications`), not yet merged; its frontend is not implemented.
 
-The active feature branch is `feature/8-dashboard`, created from verified `main`
-`01c3eb4bf9ed2d1770da697c158c5d08742430bd`.
+The active feature branch is `feature/v1-demo-completion`, created from `feature/9-notifications`
+(merge-base with `main`: `889660ecb8a378d107f6737b4466b70362066793`).
 
 Alembic revision `0009_stage7_ai_assistant` follows `0008_stage6_risk_scoring` and adds
 versioned prompt templates, tenant-scoped AI requests, typed source references, immutable
@@ -66,8 +68,11 @@ tests use deterministic AWS doubles; controlled live-AWS validation remains oper
 
 ## Next task
 
-Complete Stage 8A as a read-only dashboard contract over existing Stage 2-7 data, keep Stage 8B
-UI and Stage 8C release verification separate, and do not begin Stage 9 notifications.
+Complete Stage 9 notifications frontend (history/approval page), merge Stage 9 into `main`
+through normal review, then continue Version 1 demo completion: Stage 10 remediation workflow,
+Stage 11 scheduler, Stage 12 audit logs, security hardening, local Docker demo environment, and
+end-to-end verification. Notification delivery must remain gated on explicit human approval and
+limited to the deterministic mock provider throughout.
 
 ## Stage 3 implementation snapshot
 

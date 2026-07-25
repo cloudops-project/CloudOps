@@ -2,19 +2,22 @@
 
 ## Last updated
 
-2026-07-24
+2026-07-25
 
 ## Current repository and documentation release
 
 - Integration branch: `main`
-- Active feature branch: `feature/8-dashboard`
-- Current authoritative main SHA: `01c3eb4bf9ed2d1770da697c158c5d08742430bd`
+- Active feature branch: `feature/v1-demo-completion` (based on `feature/9-notifications`)
+- Current authoritative main SHA: `889660ecb8a378d107f6737b4466b70362066793`
 - Verified Stage 6 feature SHA: `b0361b8efe9060ef6c498e1cebfede4baaa9947d`
 - Stage 6 merge commit: `f23e124813b5f65a8f85957c1dce57d95b9cf038`
 - Verified Stage 7 feature SHA: `9b5f4372359a32066787060ca839d5a68c5ab490`
 - Stage 7 merge commit: `882ff531af07276c11e0d25664fdca033e09c7c7`
-- Stage 7 documentation synchronization commit: `01c3eb4bf9ed2d1770da697c158c5d08742430bd`
-- Current Alembic head: `0009_stage7_ai_assistant`
+- Stage 8 merge commit: `889660ecb8a378d107f6737b4466b70362066793` (PR #10 plus a follow-up
+  `feature/8-dashboard-ui` merge)
+- Stage 9 backend commits (not yet merged to `main`): `d0b5676` (persistence),
+  `449e964` (service), `cb42db9` (API)
+- Current Alembic head on `feature/9-notifications`: `0010_stage9_notifications`
 - PR #8 merged at `2026-07-24T19:19:02Z`.
 
 ## Current implementation status
@@ -27,7 +30,9 @@
 - Stage 6 Deterministic Risk Scoring: independently clean-room verified, merged, and
   regression-tested
 - Stage 7 AI Explanation Assistant: independently verified, merged, and post-merge verified
-- Stage 8A Dashboard read model: in progress on `feature/8-dashboard`
+- Stage 8 Dashboard (read model and UI): merged in `main`
+- Stage 9 Notifications: backend (model, service, API) complete on `feature/9-notifications`,
+  not yet merged; frontend not started
 
 ### Stage 6
 
@@ -154,7 +159,13 @@ was regression-tested:
 
 Stage 7 is integrated in `main` through PR #8 at
 `882ff531af07276c11e0d25664fdca033e09c7c7`. Documentation synchronization is isolated on
-`docs/stage7-completion`. Generated output remains ignored.
+`docs/stage7-completion`. Stage 8 (dashboard read model and UI) is integrated in `main` at
+`889660ecb8a378d107f6737b4466b70362066793` through PR #10 and a follow-up
+`feature/8-dashboard-ui` merge; this record does not independently confirm PR #10's exact
+review/approval state and that should be verified before treating it as equivalent governance
+evidence to PRs #2/#4/#6/#8 below. Stage 9 backend work is complete on `feature/9-notifications`
+(`d0b5676`, `449e964`, `cb42db9`) but not yet merged into `main`. Generated output remains
+ignored.
 
 ## Governance record
 
@@ -180,9 +191,13 @@ CODEOWNER, automated CI, or repository-policy approval.
 
 ## Next immediate task
 
-1. Complete the Stage 8A dashboard read-model/API contract on `feature/8-dashboard`.
-2. Keep Stage 8A read-only over Stage 2-7 authoritative records.
-3. Do not begin Stage 8B UI work until Stage 8A is closed or separately authorized.
-4. Do not begin Stage 9 notifications.
-5. Keep dashboard visualization separate from detection, compliance calculation, risk scoring,
+1. Complete Stage 9 notifications frontend (history/approval page) on
+   `feature/v1-demo-completion`.
+2. Merge `feature/9-notifications` work into `main` through normal review once ready.
+3. Continue the Version 1 demo-completion effort: Stage 10 remediation workflow, Stage 11
+   scheduler, Stage 12 audit logs, essential security hardening, local Docker demo environment,
+   and end-to-end demo verification, per `docs/planning/roadmap.md`.
+4. Keep dashboard visualization separate from detection, compliance calculation, risk scoring,
    AI explanation, AWS mutation, Jira creation, email delivery, and remediation execution.
+5. Keep notification delivery gated on explicit human approval; the mock provider must remain
+   the only delivery path until a real provider is explicitly authorized.

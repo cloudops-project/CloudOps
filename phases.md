@@ -3,9 +3,12 @@
 ## Current status
 
 Stages 1-7 are independently clean-room verified, merged, and regression-tested in `main`.
-Stage 7 product and documentation are synchronized through
-`01c3eb4bf9ed2d1770da697c158c5d08742430bd`. Stage 8A dashboard read-model work has started on
-`feature/8-dashboard`; Stage 8 is not complete.
+Stage 8 (dashboard read model and UI) is merged in `main` at `889660ecb8a378d107f6737b4466b70362066793`
+through PR #10 (`feature/8-dashboard`) and a follow-up `feature/8-dashboard-ui` branch merge.
+Stage 9 (notifications) has a complete backend (persistence, service, and API layer) on
+`feature/9-notifications` at commits `d0b5676`, `449e964`, and `cb42db9`, not yet merged to
+`main`. Stage 9 frontend (notification history/approval UI) is not yet implemented. Stages 10-17
+remain not-started planning entries.
 
 ## Stage 0 — Planning and architecture
 
@@ -92,19 +95,28 @@ email. Migration `0009_stage7_ai_assistant` is the current head.
 
 ## Stage 8 — Dashboard
 
-**Status: STARTED — STAGE 8A READ MODEL IN PROGRESS**
+**Status: MERGED IN `main`**
 
-Stage 8A adds a read-only organization dashboard summary contract over existing Stage 2-7
-authoritative records. It does not add dashboard-owned persistence, recalculate findings,
+Stage 8A delivered a read-only organization dashboard summary contract over existing Stage 2-7
+authoritative records. It adds no dashboard-owned persistence and does not recalculate findings,
 compliance, or risk, invoke AWS or AI providers, send notifications, execute remediation, or
-create Jira issues. Stage 8B will deliver the dashboard UI and accessibility matrices; Stage 8C
-will deliver integrated and detached release verification.
+create Jira issues. Stage 8B delivered the dashboard UI (`SecurityDashboardPage`) and
+accessibility-aware presentation over the Stage 8A contract. Both merged into `main` at
+`889660ecb8a378d107f6737b4466b70362066793` via PR #10 and a follow-up UI merge.
 
 ## Stage 9 — Notifications
 
-**Status: NOT STARTED**
+**Status: BACKEND COMPLETE ON `feature/9-notifications` — NOT MERGED; FRONTEND NOT STARTED**
 
-Notification and ticketing integrations remain planned.
+Delivered: an organization-scoped `NotificationEvent` persistence model and migration
+(`0010_stage9_notifications`, commit `d0b5676`); a deterministic mock/no-op delivery provider and
+`NotificationService` implementing create-on-critical-finding, approve, and deliver with a
+bounded 3-attempt retry state machine (commit `449e964`); and an API layer
+(`GET /notifications`, `GET /notifications/{id}`, `POST /notifications/{id}/approve`,
+`POST /notifications/{id}/deliver`) with dedicated `NOTIFICATIONS_READ`/`NOTIFICATIONS_APPROVE`
+RBAC capabilities (commit `cb42db9`). No notification is delivered without explicit human
+approval; the mock provider makes no real external delivery. Not yet implemented: a frontend
+notification history/approval page, and merge into `main`.
 
 ## Stage 10 — Remediation Workflow
 

@@ -5,16 +5,17 @@ Use this file to resume work in a fresh AI chat. Detailed documents remain autho
 ## Purpose and current status
 
 CloudOps is an AWS-focused multi-tenant SaaS for secure AWS onboarding, normalized inventory,
-deterministic findings, evidence-based compliance snapshots, deterministic risk scoring, and
-advisory AI explanations. Stages 1-7 are independently verified, merged, and regression-tested.
-Stage 7 product and documentation are synchronized in `main` through
-`01c3eb4bf9ed2d1770da697c158c5d08742430bd`. The current migration head is
-`0009_stage7_ai_assistant`. Stage 8A Dashboard read-model work has started on
-`feature/8-dashboard`; Stage 8 is not complete.
+deterministic findings, evidence-based compliance snapshots, deterministic risk scoring,
+advisory AI explanations, and an approval-gated critical-finding notification workflow.
+Stages 1-8 are independently verified, merged, and regression-tested in `main` through
+`889660ecb8a378d107f6737b4466b70362066793`. The current migration head on `main` is
+`0009_stage7_ai_assistant`. Stage 9 Notifications backend (persistence, service, API) is
+complete on `feature/9-notifications` (migration head `0010_stage9_notifications`), not yet
+merged; its frontend is not yet implemented.
 
 - Repository: `D:\learn\cdac\cloudfix`
 - Remote: `https://github.com/cloudops-project/CloudOps.git`
-- Active feature branch: `feature/8-dashboard`
+- Active feature branch: `feature/v1-demo-completion` (based on `feature/9-notifications`)
 
 ## Stage 6 deterministic risk boundary
 
@@ -253,10 +254,14 @@ technical detached verification, and the owner recorded:
 
 ## Current priorities
 
-1. Complete Stage 8A dashboard read-model/API verification on `feature/8-dashboard`.
-2. Keep dashboard work read-only over existing Stage 2-7 authoritative records.
-3. Do not begin Stage 8B UI work until Stage 8A is closed or separately authorized.
-4. Do not begin Stage 9 notifications.
+1. Complete Stage 9 notifications frontend (history/approval page) on
+   `feature/v1-demo-completion`.
+2. Merge `feature/9-notifications` work into `main` through normal review once ready.
+3. Continue Version 1 demo completion: Stage 10 remediation workflow, Stage 11 scheduler,
+   Stage 12 audit logs, security hardening, local Docker demo environment, and end-to-end
+   verification.
+4. Keep notification delivery gated on explicit human approval and the deterministic mock
+   provider only.
 
 ## Stage 5 compliance boundary
 
@@ -302,11 +307,12 @@ Do not modify code yet. Identify contradictions or missing information before pr
 
 The new session must resolve any conflict between these files and current repository evidence
 before changing code. Never use real customer AWS accounts or credentials for automated tests.
-Stages advance sequentially: Stage 8A is now authorized and active, but Stage 8B UI work and
-Stage 9 notifications remain blocked until separately directed. Stage 4 detects findings; Stage
-5 interprets persisted deterministic evidence for compliance; Stage 6 prioritizes findings
-deterministically. AI may explain those outputs only and must not detect findings or calculate
-risk. Stage 8 visualizes existing records only.
+Stages advance sequentially: Stage 8 (dashboard, read model and UI) is merged. Stage 9
+(notifications) backend is complete but not merged, and its frontend is not started. Stage 4
+detects findings; Stage 5 interprets persisted deterministic evidence for compliance; Stage 6
+prioritizes findings deterministically. AI may explain those outputs only and must not detect
+findings or calculate risk. Stage 8 visualizes existing records only. Stage 9 never delivers a
+notification without explicit human approval and uses only a deterministic mock provider.
 
 ## Stage 7 handoff
 
@@ -316,4 +322,22 @@ Stage 7 is the bounded AI explanation assistant merged in `main` at
 `0009_stage7_ai_assistant`. It uses persisted deterministic records only, defaults to a
 no-network mock provider, validates structured drafts, preserves source hashes/references,
 redacts secrets and prompt injection, and never detects, scores, mutates, remediates, creates
-tickets, or sends email. Stage 8A Dashboard work is active as a read-only dashboard contract.
+tickets, or sends email.
+
+## Stage 8 handoff
+
+Stage 8 (dashboard read model and UI) is merged in `main` at
+`889660ecb8a378d107f6737b4466b70362066793` via PR #10 and a follow-up `feature/8-dashboard-ui`
+merge. `GET /api/v1/dashboard/summary` aggregates existing Stage 2-7 records without
+recalculating them; the frontend `SecurityDashboardPage` renders that contract.
+
+## Stage 9 handoff
+
+Stage 9 (notifications) backend is complete on `feature/9-notifications`
+(`d0b5676` persistence, `449e964` service, `cb42db9` API), migration head
+`0010_stage9_notifications`, not yet merged into `main`. `NotificationEvent` moves through
+`PENDING_APPROVAL -> APPROVED -> DELIVERED`, or `APPROVED -> FAILED` after three failed attempts;
+there is no `REJECTED` state. Only newly created `CRITICAL` findings trigger creation, checked
+defensively inside the service itself. Delivery always requires explicit approval via
+`NOTIFICATIONS_APPROVE` and uses only the deterministic `MockNotificationProvider`. The frontend
+notification history/approval page is not yet implemented.

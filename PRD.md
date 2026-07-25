@@ -10,8 +10,10 @@ future intent.
 
 CloudOps is a multi-tenant SaaS application for securely connecting AWS accounts and building a
 normalized inventory, deterministic security findings, and point-in-time compliance
-assessments, deterministic explainable risk scoring, and advisory AI explanations. Stages 1-7
-are independently clean-room verified, merged, and regression-tested.
+assessments, deterministic explainable risk scoring, advisory AI explanations, and an
+approval-gated critical-finding notification workflow. Stages 1-8 are independently
+clean-room verified, merged, and regression-tested. Stage 9's backend (persistence, service,
+and API) is complete on `feature/9-notifications`; its frontend is not yet implemented.
 
 ## Business goals
 
@@ -174,12 +176,13 @@ draft workflows. Jira and email outputs remain drafts, and no remediation execut
 
 - Complete framework coverage or compliance certification
 - Security recommendations
-- Notifications and ticketing
+- Real notification delivery (email, Slack, Teams, webhook) and ticketing; Stage 9 ships a
+  deterministic mock/no-op provider only
 - Remediation or customer-resource mutation
 - Scheduled/background discovery
 - Raw CloudWatch log or CloudTrail event ingestion, EventBridge, or deployment infrastructure
 - MFA, SSO/OIDC, password reset, and production invitation email delivery
-- Stage 8 dashboards; Stage 9 notifications; Stage 10 remediation workflow; Stage 11
+- Stage 9 frontend (notification history/approval UI); Stage 10 remediation workflow; Stage 11
   scheduler; Stage 12 audit logs; Stage 13 security hardening; Stage 14 DevOps and IaC;
   Stage 15 testing; Stage 16 deployment; and Stage 17 documentation and demo
 
@@ -214,10 +217,13 @@ draft workflows. Jira and email outputs remain drafts, and no remediation execut
 
 ## Delivery status
 
-Stages 1-7 are independently clean-room verified and merged in `main` at
-`882ff531af07276c11e0d25664fdca033e09c7c7`. Stage 7 feature SHA
-`9b5f4372359a32066787060ca839d5a68c5ab490` was merged by PR #8. The current migration head is
-`0009_stage7_ai_assistant`. Stage 8-17 functionality is not implemented.
+Stages 1-8 are independently clean-room verified and merged in `main` at
+`889660ecb8a378d107f6737b4466b70362066793`. Stage 7 feature SHA
+`9b5f4372359a32066787060ca839d5a68c5ab490` was merged by PR #8; Stage 8 merged via PR #10 plus a
+follow-up `feature/8-dashboard-ui` merge. The current migration head on `main` is
+`0009_stage7_ai_assistant`. Stage 9's backend (persistence, service, API) is complete on
+`feature/9-notifications` (migration head `0010_stage9_notifications`) but not yet merged; its
+frontend is not implemented. Stage 10-17 functionality is not implemented.
 
 ## Stage 7 acceptance boundary
 
