@@ -92,3 +92,32 @@ export async function api<T>(
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
+
+export async function apiBlob(
+  path: string,
+  init: RequestInit = {},
+  retry = true,
+): Promise<Blob> {
+  const headers = new Headers(init.headers);
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  const response = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
+  if (response.status === 401 && retry && path !== "/api/v1/auth/refresh") {
+    if (await restoreAuthentication()) return apiBlob(path, init, false);
+  }
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as {
+      error?: { code?: string; message?: string; details?: ApiErrorDetail[] };
+    } | null;
+    throw new ApiError(
+      response.status,
+      body?.error?.message || "Request failed.",
+      body?.error?.code,
+      body?.error?.details,
+    );
+  }
+  return response.blob();
+}

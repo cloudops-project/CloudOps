@@ -3,6 +3,7 @@ import { AppShell } from "./components/AppShell";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AcceptInvitationPage } from "./pages/AcceptInvitationPage";
 import { AIAssistantPage } from "./pages/AIAssistantPage";
+import { AuditPage } from "./pages/AuditPage";
 import {
   AddAWSAccountPage,
   AWSAccountDetailsPage,
@@ -73,6 +74,7 @@ export function App() {
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/remediations" element={<RemediationsPage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
+          <Route path="/audit" element={<AuditPage />} />
           <Route
             path="/security-dashboard"
             element={<SecurityDashboardPage />}

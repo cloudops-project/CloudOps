@@ -36,10 +36,16 @@ export interface Invitation {
   status: string;
   development_token?: string;
 }
+export type AuditResult = "succeeded" | "failed" | "denied";
 export interface AuditEvent {
   id: string;
+  organization_id: string | null;
+  actor_user_id: string | null;
   event_type: string;
-  result: string;
+  resource_type: string;
+  resource_id: string | null;
+  result: AuditResult | string;
+  metadata_json?: Record<string, unknown>;
   created_at: string;
 }
 export type AWSAccountStatus =
