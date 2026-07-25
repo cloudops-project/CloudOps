@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.db.base import utc_now
 from app.models import Finding, Organization, RemediationRequest, User
 from app.models.enums import FindingStatus, OrganizationRole
 from app.security.tokens import create_access_token
@@ -238,7 +239,10 @@ def test_execute_without_approval_returns_409(client: TestClient, db: Session) -
 
 def test_propose_for_resolved_finding_returns_409(client: TestClient, db: Session) -> None:
     user, organization, account = _tenant(db)
-    finding, _asset = _finding(db, organization, account, user, status=FindingStatus.RESOLVED)
+    finding, _asset = _finding(db, organization, account, user)
+    finding.status = FindingStatus.RESOLVED
+    finding.resolved_at = utc_now()
+    db.flush()
     db.commit()
 
     response = client.post(

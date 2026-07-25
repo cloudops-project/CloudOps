@@ -4,14 +4,14 @@ import uuid
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
+from app.db.base import utc_now
 from app.exceptions.errors import ConflictError, NotFoundError
 from app.models import Organization, RemediationRequest, User
 from app.models.enums import FindingStatus, RemediationExecutionMode, RemediationStatus
 from app.services.remediation import RemediationService
 from app.services.remediation_executor import MockRemediationExecutor
-from sqlalchemy.orm import Session
-
 from app.tests.test_risk import _finding, _tenant
 
 
@@ -72,7 +72,10 @@ def test_propose_is_idempotent_for_an_active_request(db: Session) -> None:
 
 def test_propose_rejects_non_open_finding(db: Session) -> None:
     user, organization, account = _tenant(db)
-    finding, _asset = _finding(db, organization, account, user, status=FindingStatus.RESOLVED)
+    finding, _asset = _finding(db, organization, account, user)
+    finding.status = FindingStatus.RESOLVED
+    finding.resolved_at = utc_now()
+    db.flush()
     db.commit()
 
     with pytest.raises(ConflictError):
@@ -208,7 +211,7 @@ def test_cancel_from_terminal_state_is_rejected(db: Session) -> None:
 
 
 def _approved_request(db: Session) -> tuple[RemediationRequest, Organization]:
-    request, organization, user = _proposed_request(db)
+    request, organization, _user = _proposed_request(db)
     approver = _approver(db, f"approver-{uuid.uuid4().hex}")
     db.commit()
     RemediationService(db).approve(organization.id, request.id, approver)
