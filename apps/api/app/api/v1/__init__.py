@@ -12,6 +12,7 @@ from app.api.v1 import (
     organizations,
     remediation,
     risk,
+    scheduler,
     security_findings,
 )
 
@@ -27,4 +28,5 @@ router.include_router(compliance.router, tags=["compliance"])
 router.include_router(risk.router, tags=["risk"])
 router.include_router(notifications.router, tags=["notifications"])
 router.include_router(remediation.router, tags=["remediation"])
+router.include_router(scheduler.router, tags=["scheduler"])
 router.include_router(dashboard.router, tags=["dashboard"])
