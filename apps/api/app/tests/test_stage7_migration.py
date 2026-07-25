@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from alembic.operations import Operations
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session
 
@@ -23,11 +24,18 @@ from app.tests.test_zzz_stage5_migration import _config, _database, _seed_stage4
 
 
 def _snapshot_stage1_through_stage6(engine: Any) -> dict[str, list[str]]:
+    later_stage_tables = {
+        "notification_events",
+        "remediation_requests",
+        "scan_runs",
+        "scan_schedules",
+    }
     with engine.connect() as connection:
         names = sorted(
             name
             for name in inspect(connection).get_table_names()
             if name != "alembic_version" and not name.startswith("ai_")
+            if name not in later_stage_tables
         )
         return {
             name: list(
@@ -102,6 +110,12 @@ def test_stage7_populated_migration_preserves_stage1_through_stage6() -> None:
         assert _snapshot_stage1_through_stage6(engine) == before
         command.upgrade(config, "0009_stage7_ai_assistant")
         assert _snapshot_stage1_through_stage6(engine) == before
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            assert (
+                connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+                == ScriptDirectory.from_config(config).get_current_head()
+            )
         command.check(config)
         engine.dispose()
 
@@ -150,6 +164,7 @@ def test_stage7_migration_failure_is_transactional_and_retryable(
             )
         assert _snapshot_stage1_through_stage6(engine) == before
         command.upgrade(config, "0009_stage7_ai_assistant")
+        command.upgrade(config, "head")
         command.check(config)
         engine.dispose()
 

@@ -29,9 +29,7 @@ def test_list_returns_only_events_for_the_requested_organization(
 ) -> None:
     user, organization, _account = _tenant(db)
     _other_owner, other_org, _other_account = _tenant(db)
-    record_audit(
-        db, "scheduler.schedule.created", "scan_schedule", organization_id=organization.id
-    )
+    record_audit(db, "scheduler.schedule.created", "scan_schedule", organization_id=organization.id)
     record_audit(db, "scheduler.run.completed", "scan_run", organization_id=organization.id)
     record_audit(db, "scheduler.schedule.created", "scan_schedule", organization_id=other_org.id)
     db.commit()
@@ -99,9 +97,7 @@ def test_pagination(client: TestClient, db: Session) -> None:
 
 def test_export_returns_csv_with_expected_rows(client: TestClient, db: Session) -> None:
     user, organization, _account = _tenant(db)
-    record_audit(
-        db, "scheduler.schedule.created", "scan_schedule", organization_id=organization.id
-    )
+    record_audit(db, "scheduler.schedule.created", "scan_schedule", organization_id=organization.id)
     record_audit(db, "scheduler.run.completed", "scan_run", organization_id=organization.id)
     db.commit()
 
@@ -167,9 +163,7 @@ def test_export_requires_audit_read_capability(client: TestClient, db: Session) 
 
 def test_auditor_role_can_list_events(client: TestClient, db: Session) -> None:
     auditor, organization, _account = _tenant(db, OrganizationRole.AUDITOR)
-    record_audit(
-        db, "scheduler.schedule.created", "scan_schedule", organization_id=organization.id
-    )
+    record_audit(db, "scheduler.schedule.created", "scan_schedule", organization_id=organization.id)
     db.commit()
 
     response = client.get(

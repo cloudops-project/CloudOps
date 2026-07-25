@@ -30,9 +30,7 @@ def _require(
     OrganizationService(db).require_capability(organization_id, user.id, capability)
 
 
-@router.post(
-    "/schedules", response_model=ScanScheduleResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/schedules", response_model=ScanScheduleResponse, status_code=status.HTTP_201_CREATED)
 def create_schedule(
     payload: ScanScheduleCreate,
     user: CurrentUser,

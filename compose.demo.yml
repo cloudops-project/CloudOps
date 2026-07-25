@@ -1,0 +1,99 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cloudops_demo
+      POSTGRES_USER: cloudops
+      POSTGRES_PASSWORD: cloudops_demo_password
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudops -d cloudops_demo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - cloudops_demo_postgres:/var/lib/postgresql/data
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8025/api/v1/info"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://cloudops:cloudops_demo_password@postgres:5432/cloudops_demo
+      JWT_SECRET_KEY: demo-only-jwt-secret-at-least-32-characters
+      AWS_TRUSTED_PRINCIPAL_ARN: arn:aws:iam::123456789012:root
+      AWS_ACCESS_KEY_ID: demo
+      AWS_SECRET_ACCESS_KEY: demo
+      AWS_SESSION_TOKEN: demo
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_DEFAULT_REGION: us-east-1
+      AI_PROVIDER: mock
+      NOTIFICATION_PROVIDER: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM_EMAIL: cloudops-demo@example.local
+      SMTP_FROM_NAME: CloudOps Demo
+      FRONTEND_URL: http://localhost:5173
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      TRUSTED_HOSTS: localhost,127.0.0.1,api,testserver
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    command: >
+      sh -c "python -m alembic upgrade head &&
+      python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+
+  scheduler-worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    profiles:
+      - manual
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://cloudops:cloudops_demo_password@postgres:5432/cloudops_demo
+      JWT_SECRET_KEY: demo-only-jwt-secret-at-least-32-characters
+      AWS_ACCESS_KEY_ID: demo
+      AWS_SECRET_ACCESS_KEY: demo
+      AWS_SESSION_TOKEN: demo
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_DEFAULT_REGION: us-east-1
+      AI_PROVIDER: mock
+      NOTIFICATION_PROVIDER: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+    depends_on:
+      api:
+        condition: service_started
+    command: python -m app.worker.scheduler_worker
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api/v1
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+
+volumes:
+  cloudops_demo_postgres:

@@ -419,24 +419,56 @@ def _seed_dashboard_org(db: Session) -> tuple[User, Organization]:
     )
     evaluation = _evaluation(db, org, connected, owner, sequence=1)
     _finding(
-        db, org, connected, first_asset, evaluation, "critical",
-        severity=FindingSeverity.CRITICAL, category="network", last_seen_offset=2,
+        db,
+        org,
+        connected,
+        first_asset,
+        evaluation,
+        "critical",
+        severity=FindingSeverity.CRITICAL,
+        category="network",
+        last_seen_offset=2,
     )
     _finding(
-        db, org, connected, first_asset, evaluation, "high",
-        severity=FindingSeverity.HIGH, category="identity", last_seen_offset=1,
+        db,
+        org,
+        connected,
+        first_asset,
+        evaluation,
+        "high",
+        severity=FindingSeverity.HIGH,
+        category="identity",
+        last_seen_offset=1,
     )
     _finding(
-        db, org, connected, first_asset, evaluation, "medium",
-        severity=FindingSeverity.MEDIUM, category="network",
+        db,
+        org,
+        connected,
+        first_asset,
+        evaluation,
+        "medium",
+        severity=FindingSeverity.MEDIUM,
+        category="network",
     )
     _finding(
-        db, org, connected, first_asset, evaluation, "resolved",
-        severity=FindingSeverity.LOW, status=FindingStatus.RESOLVED,
+        db,
+        org,
+        connected,
+        first_asset,
+        evaluation,
+        "resolved",
+        severity=FindingSeverity.LOW,
+        status=FindingStatus.RESOLVED,
     )
     _finding(
-        db, org, connected, first_asset, evaluation, "suppressed",
-        severity=FindingSeverity.CRITICAL, status=FindingStatus.SUPPRESSED,
+        db,
+        org,
+        connected,
+        first_asset,
+        evaluation,
+        "suppressed",
+        severity=FindingSeverity.CRITICAL,
+        status=FindingStatus.SUPPRESSED,
     )
     db.add(
         DiscoveryJob(
@@ -457,12 +489,20 @@ def _seed_dashboard_org(db: Session) -> tuple[User, Organization]:
         status=ComplianceAssessmentStatus.FAILED,
     )
     _risk(
-        db, org, connected, owner,
-        evaluation_time=datetime(2026, 7, 25, 11, 30, tzinfo=UTC), score=60,
+        db,
+        org,
+        connected,
+        owner,
+        evaluation_time=datetime(2026, 7, 25, 11, 30, tzinfo=UTC),
+        score=60,
     )
     _risk(
-        db, org, connected, owner,
-        evaluation_time=datetime(2026, 7, 25, 12, 30, tzinfo=UTC), score=72,
+        db,
+        org,
+        connected,
+        owner,
+        evaluation_time=datetime(2026, 7, 25, 12, 30, tzinfo=UTC),
+        score=72,
     )
     _risk(
         db,
@@ -599,18 +639,32 @@ def test_postgres_dashboard_tenant_isolation_across_two_organizations(
         org_b = _organization(db, owner_b, "tenant-b")
         account_b = _account(db, org_b, owner_b, "tenant-b-account")
         asset_b = _asset(
-            db, org_b, account_b, "tenant-b-asset",
-            asset_type=AssetType.RDS_INSTANCE, region="eu-west-1",
+            db,
+            org_b,
+            account_b,
+            "tenant-b-asset",
+            asset_type=AssetType.RDS_INSTANCE,
+            region="eu-west-1",
         )
         evaluation_b = _evaluation(db, org_b, account_b, owner_b, sequence=1)
         _finding(
-            db, org_b, account_b, asset_b, evaluation_b, "tenant-b-critical",
-            severity=FindingSeverity.CRITICAL, category="network",
+            db,
+            org_b,
+            account_b,
+            asset_b,
+            evaluation_b,
+            "tenant-b-critical",
+            severity=FindingSeverity.CRITICAL,
+            category="network",
         )
         _compliance(db, org_b, account_b, finished_at=datetime(2026, 7, 25, 11, 0, tzinfo=UTC))
         _risk(
-            db, org_b, account_b, owner_b,
-            evaluation_time=datetime(2026, 7, 25, 12, 0, tzinfo=UTC), score=90,
+            db,
+            org_b,
+            account_b,
+            owner_b,
+            evaluation_time=datetime(2026, 7, 25, 12, 0, tzinfo=UTC),
+            score=90,
         )
         db.commit()
         org_a_id, org_b_id = org_a.id, org_b.id
@@ -738,8 +792,13 @@ def test_postgres_dashboard_empty_and_partial_states(
             db2, org_reloaded, owner, "partial", connection_status=AWSAccountStatus.PENDING
         )
         _asset(
-            db2, org_reloaded, account, "partial",
-            asset_type=AssetType.IAM_ROLE, region="", active=True,
+            db2,
+            org_reloaded,
+            account,
+            "partial",
+            asset_type=AssetType.IAM_ROLE,
+            region="",
+            active=True,
         )
         db2.commit()
 
@@ -758,7 +817,9 @@ def test_postgres_dashboard_running_and_failed_latest_assessment_falls_back_to_c
         org = _organization(db, owner, "fallback")
         account = _account(db, org, owner, "fallback-account")
         _compliance(
-            db, org, account,
+            db,
+            org,
+            account,
             finished_at=datetime(2026, 7, 25, 9, 0, tzinfo=UTC),
             status=ComplianceAssessmentStatus.COMPLETED,
         )
@@ -803,17 +864,33 @@ def test_postgres_dashboard_resolved_suppressed_only_findings(
         org = _organization(db, owner, "resolved-only")
         account = _account(db, org, owner, "resolved-account")
         asset = _asset(
-            db, org, account, "resolved-asset",
-            asset_type=AssetType.EC2_INSTANCE, region="us-east-1",
+            db,
+            org,
+            account,
+            "resolved-asset",
+            asset_type=AssetType.EC2_INSTANCE,
+            region="us-east-1",
         )
         evaluation = _evaluation(db, org, account, owner, sequence=1)
         _finding(
-            db, org, account, asset, evaluation, "resolved-only",
-            severity=FindingSeverity.HIGH, status=FindingStatus.RESOLVED,
+            db,
+            org,
+            account,
+            asset,
+            evaluation,
+            "resolved-only",
+            severity=FindingSeverity.HIGH,
+            status=FindingStatus.RESOLVED,
         )
         _finding(
-            db, org, account, asset, evaluation, "suppressed-only",
-            severity=FindingSeverity.CRITICAL, status=FindingStatus.SUPPRESSED,
+            db,
+            org,
+            account,
+            asset,
+            evaluation,
+            "suppressed-only",
+            severity=FindingSeverity.CRITICAL,
+            status=FindingStatus.SUPPRESSED,
         )
         db.commit()
         org_ref = org

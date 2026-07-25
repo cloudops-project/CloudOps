@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 from alembic.config import Config
 from alembic.operations import Operations
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.orm import Session
@@ -310,9 +311,10 @@ def test_stage5_populated_migration_preserves_stage1_through_stage4_data() -> No
 
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert connection.execute(
-                text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("0009_stage7_ai_assistant")
+            assert (
+                connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+                == ScriptDirectory.from_config(config).get_current_head()
+            )
             assert (
                 connection.execute(
                     text(

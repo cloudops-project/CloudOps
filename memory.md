@@ -2,10 +2,9 @@
 
 ## Last updated
 
-2026-07-26 — Stages 9-11 (notifications, remediation, scheduler) implemented, independently
-verified, and committed on `feature/v1-demo-completion`. Stage 12 (audit query/export)
-implemented and committed on that branch at `d0d24cd` and `9314f06`; backend and frontend
-checks are clean. Documentation reconciled for Codex handoff and tomorrow-demo readiness.
+2026-07-26 — Stages 9-12 are committed on `feature/v1-demo-completion`. The current
+demo-readiness work adds guarded Mailpit SMTP notification delivery, a local PostgreSQL/Mailpit/
+API/web Compose stack, deterministic demo seed/reset, and an 18-step V1 demo acceptance runner.
 
 ## Current repository and documentation release
 
@@ -30,7 +29,7 @@ checks are clean. Documentation reconciled for Codex handoff and tomorrow-demo r
 - Stage 12 commits: `d0d24cd` (audit API/query/export), `9314f06` (audit explorer UI)
 - Documentation reconciliation commit for this handoff: see the bottom of this file's "Repository
   state" section, or `git log -1` on `feature/v1-demo-completion` at the time this file is read
-- Current Alembic head on `feature/v1-demo-completion`: `0012_stage11_scheduler`
+- Current Alembic head on `feature/v1-demo-completion`: `0013_demo_notification_delivery`
 - PR #8 merged at `2026-07-24T19:19:02Z`.
 - `.git/index.lock` has recurred repeatedly and self-cleared or been cleared from Windows
   multiple times this effort. Check `Test-Path .git\index.lock` before any mutating Git command;
@@ -215,10 +214,11 @@ review/approval state and that should be verified before treating it as equivale
 evidence to PRs #2/#4/#6/#8 below.
 
 Stages 9-12 (notifications, remediation, scheduler, audit query/export) are fully implemented
-and committed on `feature/v1-demo-completion` (HEAD `9314f06`), independently verified on that
-branch, and not yet merged into `main`. Stage 12 spans 10 files (4 backend, 6 frontend — see
-`NEW_CHAT_CONTEXT.md` for the exact list). `CLAUDE.md` has remained untracked throughout every
-commit on this branch and must stay that way. Generated output remains ignored.
+and committed on `feature/v1-demo-completion`. The current worktree adds the V1 demo-readiness
+follow-up: Mailpit SMTP delivery metadata, local demo Compose/Docker files, a deterministic
+demo seed/reset script, and the 18-step V1 demo black-box runner. `CLAUDE.md` has remained
+untracked throughout every commit on this branch and must stay that way. Generated output
+remains ignored.
 
 ## Governance record
 
@@ -252,8 +252,8 @@ duplicate of that detail.
    mutation.
 2. Commit this documentation reconciliation safely, keeping `CLAUDE.md` untracked and never
    using `git add .`/`git add -A`.
-3. Audit and close the exact tomorrow-demo journey gaps, starting with Mailpit-backed SMTP
-   notification delivery and the local demo stack.
+3. Finish verification and documentation for the tomorrow-demo journey: Mailpit-backed SMTP
+   notification delivery, local demo stack, deterministic seed/reset, and V1 acceptance runner.
 4. Continue the Version 1 demo-completion effort per `docs/planning/roadmap.md`: Stage 13
    security hardening, Stage 14 local DevOps/demo stack, deterministic demo seed/reset, full
    regression testing, the black-box V1 acceptance flow, deployment preparation, final
@@ -261,6 +261,6 @@ duplicate of that detail.
    `main`.
 6. Keep dashboard visualization separate from detection, compliance calculation, risk scoring,
    AI explanation, AWS mutation, Jira creation, email delivery, and remediation execution.
-7. Keep notification delivery and remediation execution mock-only and gated on explicit human
-   approval; the scheduler worker must keep delegating to existing discovery/evaluation
-   services rather than duplicating their logic.
+7. Keep notification delivery approval-gated. The mock provider remains default/no-network;
+   Mailpit SMTP is local-demo-only. Remediation remains mock-only; the scheduler worker must keep
+   delegating to existing discovery/evaluation services rather than duplicating their logic.

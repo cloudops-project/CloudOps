@@ -143,9 +143,7 @@ class RemediationService:
         )
         return candidate
 
-    def _get_scoped(
-        self, organization_id: uuid.UUID, request_id: uuid.UUID
-    ) -> RemediationRequest:
+    def _get_scoped(self, organization_id: uuid.UUID, request_id: uuid.UUID) -> RemediationRequest:
         request = self.db.scalar(
             select(RemediationRequest).where(
                 RemediationRequest.id == request_id,
@@ -241,9 +239,7 @@ class RemediationService:
         )
         return request
 
-    def execute(
-        self, organization_id: uuid.UUID, request_id: uuid.UUID
-    ) -> RemediationRequest:
+    def execute(self, organization_id: uuid.UUID, request_id: uuid.UUID) -> RemediationRequest:
         """Attempt mock execution of an APPROVED remediation request exactly
         once per call. A retryable failure leaves the request APPROVED with
         an incremented attempt_count; the third failed attempt transitions

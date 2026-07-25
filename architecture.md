@@ -4,9 +4,11 @@ Stages 1-8 are independently clean-room verified, merged, and regression-tested 
 `889660ecb8a378d107f6737b4466b70362066793`. Stage 7 AI explanations are implemented with
 migration head `0009_stage7_ai_assistant` on `main`. Stages 9-11 (notifications, remediation,
 scheduler) are implemented, independently verified, and committed on
-`feature/v1-demo-completion` (migration head `0012_stage11_scheduler`), not yet merged into
-`main`. Stage 12 (audit query/export) is implemented and committed on that branch at `d0d24cd`
-and `9314f06`; it reuses the existing `AuditEvent` model and adds no migration.
+`feature/v1-demo-completion`; not yet merged into `main`. Stage 12 (audit query/export) is
+implemented and committed on that branch at `d0d24cd` and `9314f06`; it reuses the existing
+`AuditEvent` model and adds no migration. The current demo-readiness work adds migration
+`0013_demo_notification_delivery` for notification provider evidence fields plus a guarded
+local Mailpit/Compose/V1 acceptance path.
 
 ## Document role
 
@@ -25,7 +27,9 @@ docs/                  Product, architecture, engineering, design, planning, ope
 infrastructure/        Placeholders; no deployed Stage 1–3 infrastructure
 packages/              Shared-package placeholders
 tests/                 Cross-application test placeholders
-compose.verify.yml     Disposable PostgreSQL 16 verification database only, not a full demo stack
+compose.verify.yml     Disposable PostgreSQL 16 verification database only
+compose.demo.yml       Local demo stack with PostgreSQL, Mailpit, API, web, and manual scheduler tick
+compose.yml            Convenience alias for the local demo stack
 ```
 
 The implemented system is a Python/TypeScript monorepo. Discovery, evaluation, and the Stage 11
@@ -331,7 +335,8 @@ remains the sole write path, unchanged by Stage 12. No migration is required.
   -> 0008_stage6_risk_scoring -> 0009_stage7_ai_assistant (current head on `main`)
   -> 0010_stage9_notifications
   -> 0011_stage10_remediation
-  -> 0012_stage11_scheduler (current head on `feature/v1-demo-completion`)
+  -> 0012_stage11_scheduler
+  -> 0013_demo_notification_delivery (current demo-readiness worktree head)
 ```
 
 `0004_verification_repairs` backfills permanent external-ID reservations and adds the composite
@@ -339,9 +344,11 @@ tenant keys, lifecycle constraints, and AWS-account validation coordination fiel
 valid Stage 2/3 data is preserved.
 
 `0009_stage7_ai_assistant` is the current head on `main`; `main` has not been advanced past
-Stage 8. `0010`-`0012` exist only on `feature/v1-demo-completion` until that branch merges.
+Stage 8. `0010`-`0013` exist only on `feature/v1-demo-completion` until that branch merges.
 Stage 12 (audit query/export) adds no migration — it reuses the `AuditEvent` table that already
-existed at `0001_stage1`.
+existed at `0001_stage1`. `0013_demo_notification_delivery` adds nullable notification provider
+evidence fields for the local Mailpit demo path; it does not add dashboard, notification
+snapshot, or remediation persistence.
 
 ## Stage 9 notification flow
 
@@ -351,15 +358,15 @@ is idempotent via a five-column database uniqueness constraint
 (`organization_id, source_event_type, source_resource_id, channel, template_key`). Events start
 `PENDING_APPROVAL`. `approve()` requires the `NOTIFICATIONS_APPROVE` capability and is
 idempotent for an already-approved event. `deliver()` invokes the configured provider (the
-deterministic `MockNotificationProvider` by default; no real provider exists) at most once per
-call, increments `attempt_count`, and transitions to `DELIVERED` on success or, after a third
-failed attempt, to `FAILED`. There is no `REJECTED` state and no automatic delivery without
-approval. All routes are organization-scoped and RBAC-gated identically to `risk`/`compliance`.
-The workflow is: finding/risk event -> pending-approval notification -> authorized human
-approval -> simulated delivery -> delivered or failed state. Rules detect, risk scoring
-prioritizes, AI may draft explanatory wording only, humans approve, and the provider delivers
-(currently only a no-op mock). `NotificationsPage` implements the frontend history/approval
-view; both layers are committed on `feature/v1-demo-completion`.
+deterministic `MockNotificationProvider` by default; Mailpit SMTP only for the guarded local
+demo) at most once per call, increments `attempt_count`, and transitions to `DELIVERED` on
+success or, after a third failed attempt, to `FAILED`. There is no `REJECTED` state and no
+automatic delivery without approval. All routes are organization-scoped and RBAC-gated
+identically to `risk`/`compliance`. The workflow is: finding/risk event -> pending-approval
+notification -> authorized human approval -> provider delivery -> delivered or failed state.
+Rules detect, risk scoring prioritizes, AI may draft explanatory wording only, humans approve,
+and the provider delivers. `NotificationsPage` implements the frontend history/approval view;
+both layers are committed on `feature/v1-demo-completion`.
 
 ## Stage 10 remediation flow
 
@@ -404,11 +411,11 @@ Stage 4 detects findings; Stage 5 interprets persisted evidence for compliance; 
 existing deterministic results but must never detect, score, or mutate them. Stage 8 visualizes
 existing Stage 2-7 records through a read-only dashboard summary API and UI, and does not add
 dashboard-owned persistence or recalculate authoritative posture. Stages 9-11 are complete,
-verified, and committed on `feature/v1-demo-completion`; merging that branch into `main`, real
-delivery/execution providers, raw CloudTrail/CloudWatch event ingestion, a distributed
-queue/worker framework, and production infrastructure remain future work. Stage 12 completes the
-read-side audit layer. Tomorrow-demo readiness, Stage 13 security hardening, and Stage 14 local
-DevOps/demo stack work are the next priorities after Stage 12.
+verified, and committed on `feature/v1-demo-completion`; merging that branch into `main`,
+production delivery/execution providers, raw CloudTrail/CloudWatch event ingestion, a
+distributed queue/worker framework, and production infrastructure remain future work. Stage 12
+completes the read-side audit layer. Tomorrow-demo readiness, Stage 13 security hardening, and
+remaining Stage 14 local DevOps/demo stack work are the next priorities after Stage 12.
 
 ## Stage 8A dashboard read model
 

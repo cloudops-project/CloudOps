@@ -116,36 +116,42 @@ function renderRemediations(me: Me, fetchImpl: typeof fetch) {
 describe("Remediation page", () => {
   it("lists a pending-approval request and lets an owner approve it", async () => {
     let approved = false;
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/remediations/r1/approve")) {
-        approved = true;
-        return new Response(
-          JSON.stringify(
-            pendingRequest({
-              status: "approved",
-              approved_at: "2026-07-25T01:00:00Z",
-              approved_by_user_id: "u1",
-            }),
-          ),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }
-      if (url.includes("/api/v1/remediations?")) {
-        const body: Page<RemediationRequest> = {
-          items: [approved ? pendingRequest({ status: "approved" }) : pendingRequest()],
-          total: 1,
-          page: 1,
-          page_size: 10,
-        };
-        return new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      void init;
-      return new Response(JSON.stringify([]), { status: 200 });
-    });
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/remediations/r1/approve")) {
+          approved = true;
+          return new Response(
+            JSON.stringify(
+              pendingRequest({
+                status: "approved",
+                approved_at: "2026-07-25T01:00:00Z",
+                approved_by_user_id: "u1",
+              }),
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (url.includes("/api/v1/remediations?")) {
+          const body: Page<RemediationRequest> = {
+            items: [
+              approved
+                ? pendingRequest({ status: "approved" })
+                : pendingRequest(),
+            ],
+            total: 1,
+            page: 1,
+            page_size: 10,
+          };
+          return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        void init;
+        return new Response(JSON.stringify([]), { status: 200 });
+      },
+    );
     renderRemediations(owner, fetchMock);
 
     expect(
@@ -154,9 +160,13 @@ describe("Remediation page", () => {
     expect(
       await screen.findByText("Remediate EC2_SG_SSH_OPEN_TO_WORLD"),
     ).toBeInTheDocument();
-    expect(screen.getByText("pending approval")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("table")).getByText("pending approval"),
+    ).toBeInTheDocument();
 
-    const approveButton = await screen.findByRole("button", { name: "Approve" });
+    const approveButton = await screen.findByRole("button", {
+      name: "Approve",
+    });
     await userEvent.click(approveButton);
 
     await waitFor(() => expect(approved).toBe(true));
@@ -188,9 +198,15 @@ describe("Remediation page", () => {
     expect(
       await screen.findByText("Remediate EC2_SG_SSH_OPEN_TO_WORLD"),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Execute" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Execute" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lets a cloud engineer cancel their own pending request but not approve", async () => {
@@ -215,7 +231,9 @@ describe("Remediation page", () => {
     expect(
       await screen.findByText("Remediate EC2_SG_SSH_OPEN_TO_WORLD"),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
@@ -238,7 +256,9 @@ describe("Remediation page", () => {
     });
     renderRemediations(owner, fetchMock);
 
-    expect(await screen.findByText("No remediation requests.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No remediation requests."),
+    ).toBeInTheDocument();
   });
 
   it("shows an API error state without crashing the page", async () => {
@@ -270,7 +290,8 @@ describe("Remediation page", () => {
           JSON.stringify({
             error: {
               code: "remediation_invalid_transition",
-              message: "Cannot execute a remediation request in status 'pending_approval'.",
+              message:
+                "Cannot execute a remediation request in status 'pending_approval'.",
             },
           }),
           { status: 409, headers: { "Content-Type": "application/json" } },
@@ -278,7 +299,12 @@ describe("Remediation page", () => {
       }
       if (url.includes("/api/v1/remediations?")) {
         const body: Page<RemediationRequest> = {
-          items: [pendingRequest({ status: "approved", approved_at: "2026-07-25T01:00:00Z" })],
+          items: [
+            pendingRequest({
+              status: "approved",
+              approved_at: "2026-07-25T01:00:00Z",
+            }),
+          ],
           total: 1,
           page: 1,
           page_size: 10,
@@ -292,7 +318,9 @@ describe("Remediation page", () => {
     });
     renderRemediations(owner, fetchMock);
 
-    const executeButton = await screen.findByRole("button", { name: "Execute" });
+    const executeButton = await screen.findByRole("button", {
+      name: "Execute",
+    });
     await userEvent.click(executeButton);
 
     expect(
@@ -311,7 +339,13 @@ describe("Remediation page", () => {
       if (url.includes("/api/v1/remediations?")) {
         const body: Page<RemediationRequest> = {
           items: url.includes("status=succeeded")
-            ? [pendingRequest({ id: "r2", status: "succeeded", attempt_count: 1 })]
+            ? [
+                pendingRequest({
+                  id: "r2",
+                  status: "succeeded",
+                  attempt_count: 1,
+                }),
+              ]
             : [pendingRequest()],
           total: 1,
           page: 1,
@@ -367,9 +401,17 @@ describe("Remediation page", () => {
     expect(
       await screen.findByText("Remediate EC2_SG_SSH_OPEN_TO_WORLD"),
     ).toBeInTheDocument();
-    expect(within(screen.getByRole("table")).getByText("Succeeded")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Execute" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("table")).getByText("Succeeded"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Execute" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel" }),
+    ).not.toBeInTheDocument();
   });
 });

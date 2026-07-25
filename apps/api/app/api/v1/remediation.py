@@ -75,9 +75,7 @@ def remediation_detail(
         )
     )
     if item is None:
-        raise NotFoundError(
-            "remediation_request_not_found", "Remediation request was not found."
-        )
+        raise NotFoundError("remediation_request_not_found", "Remediation request was not found.")
     return item
 
 

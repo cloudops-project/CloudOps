@@ -86,9 +86,7 @@ def test_set_enabled_disable_clears_next_run_and_reenable_recomputes(db: Session
         organization.id, account.id, user, name="Scan", interval_minutes=30
     )
 
-    disabled = _service(db).set_enabled(
-        organization.id, schedule.id, user, enabled=False
-    )
+    disabled = _service(db).set_enabled(organization.id, schedule.id, user, enabled=False)
     assert disabled.enabled is False
     assert disabled.next_run_at is None
 
@@ -121,9 +119,7 @@ def test_run_schedule_disabled_is_rejected(db: Session) -> None:
     _service(db).set_enabled(organization.id, schedule.id, user, enabled=False)
 
     with pytest.raises(ConflictError):
-        _service(db).run_schedule(
-            organization.id, schedule.id, user, trigger=ScanRunTrigger.MANUAL
-        )
+        _service(db).run_schedule(organization.id, schedule.id, user, trigger=ScanRunTrigger.MANUAL)
 
 
 def test_manual_run_succeeds_and_records_jobs(db: Session, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -187,9 +183,7 @@ def test_overlap_protection_rejects_concurrent_run(
     db.commit()
 
     with pytest.raises(ConflictError):
-        _service(db).run_schedule(
-            organization.id, schedule.id, user, trigger=ScanRunTrigger.MANUAL
-        )
+        _service(db).run_schedule(organization.id, schedule.id, user, trigger=ScanRunTrigger.MANUAL)
 
 
 # ---------------------------------------------------------------------------

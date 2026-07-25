@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     aws_read_timeout_seconds: int = Field(default=30, ge=1, le=120)
     aws_max_retry_attempts: int = Field(default=3, ge=1, le=10)
     aws_retry_mode: Literal["standard", "adaptive"] = "standard"
+    notification_provider: Literal["mock", "smtp", "ses"] = "mock"
+    smtp_host: str = "localhost"
+    smtp_port: int = Field(default=1025, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from_email: str = "cloudops-demo@example.local"
+    smtp_from_name: str = "CloudOps Demo"
+    smtp_use_tls: bool = False
 
     @field_validator("jwt_secret_key")
     @classmethod

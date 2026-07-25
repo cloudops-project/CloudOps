@@ -7,8 +7,10 @@ Stage 8 (dashboard read model and UI) is merged in `main` at `889660ecb8a378d107
 through PR #10 (`feature/8-dashboard`) and a follow-up `feature/8-dashboard-ui` branch merge.
 
 Stages 9-12 (notifications, remediation, scheduler, audit query/export) are implemented,
-independently verified, and committed on `feature/v1-demo-completion` (HEAD `9314f06`;
-migration head `0012_stage11_scheduler`), not yet merged into `main`. Stage 12 backend
+independently verified, and committed on `feature/v1-demo-completion`, not yet merged into
+`main`. The current demo-readiness work adds Mailpit-only local SMTP delivery, a local demo
+Compose stack, deterministic seed/reset, and an 18-step V1 acceptance runner. Migration head on
+this worktree is `0013_demo_notification_delivery`. Stage 12 backend
 verification is clean (Ruff passed; Mypy passed, 142 source files; `test_audit_api.py` 8
 passed); frontend TypeScript, ESLint, Vitest (4 passed), and production build are clean.
 Stages 13-17 remain planning entries, with tomorrow-demo readiness as the immediate priority.
@@ -114,14 +116,16 @@ accessibility-aware presentation over the Stage 8A contract. Both merged into `m
 Delivered: an organization-scoped `NotificationEvent` persistence model and migration
 (`0010_stage9_notifications`, commit `d0b5676`); a deterministic mock/no-op delivery provider and
 `NotificationService` implementing create-on-critical-finding, approve, and deliver with a
-bounded 3-attempt retry state machine (commit `449e964`); an API layer
+bounded 3-attempt retry state machine (commit `449e964`); a guarded Mailpit-only SMTP provider
+path for the local demo; an API layer
 (`GET /notifications`, `GET /notifications/{id}`, `POST /notifications/{id}/approve`,
 `POST /notifications/{id}/deliver`) with dedicated `NOTIFICATIONS_READ`/`NOTIFICATIONS_APPROVE`
 RBAC capabilities (commit `cb42db9`); and a frontend notification history/approval page with
 filtering, pagination, and role-gated approve/deliver controls (commit `d1c8733`, combined with
 Stage 10 frontend). No notification is delivered without explicit human approval; the mock
-provider makes no real external delivery and no network calls. AWS SES is a possible future
-production provider, not yet implemented. Not yet done: merge into `main`.
+provider makes no real external delivery and no network calls. Mailpit SMTP is local-demo-only.
+AWS SES and production SMTP are future providers, not implemented. Not yet done: merge into
+`main`.
 
 ## Stage 10 — Remediation Workflow
 
@@ -178,9 +182,11 @@ Additional security hardening remains planned.
 
 ## Stage 14 — DevOps and IaC
 
-**Status: NOT STARTED**
+**Status: STARTED FOR LOCAL DEMO ONLY**
 
-Deployment automation and infrastructure-as-code remain planned.
+The current demo-readiness work adds a local Compose stack, API/web Dockerfiles, and a guarded
+deterministic demo seed/reset. Production deployment automation and infrastructure-as-code
+remain planned.
 
 ## Stage 15 — Testing
 
@@ -204,9 +210,9 @@ Final user/developer documentation and demo materials remain planned.
 
 1. Commit the documentation reconciliation that records Stage 12 as committed.
 2. Audit the exact tomorrow-demo journey and close P0 demo gaps.
-3. Add Mailpit-backed SMTP notification delivery while preserving mock delivery as the default
-   for tests and ordinary local development.
-4. Build the local demo stack, deterministic seed/reset flow, and black-box demo acceptance
+3. Verify Mailpit-backed SMTP notification delivery while preserving mock delivery as the
+   default for tests and ordinary local development.
+4. Verify the local demo stack, deterministic seed/reset flow, and black-box demo acceptance
    workflow before merging to `main`.
 5. Keep deterministic detection, compliance interpretation, risk scoring, advisory AI
    explanation, dashboard visualization, mock notification delivery, mock remediation

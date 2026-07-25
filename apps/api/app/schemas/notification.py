@@ -24,6 +24,8 @@ class NotificationEventResponse(ApiModel):
     delivered_at: datetime | None
     failed_at: datetime | None
     failure_reason: str | None
+    provider_key: str | None
+    provider_message_id: str | None
     created_at: datetime
     updated_at: datetime
 

@@ -47,8 +47,8 @@ equivalent governance evidence to PR #8.
 | Item | Verified value |
 | --- | --- |
 | Branch | `feature/v1-demo-completion`, created from `feature/9-notifications` |
-| Committed HEAD | `9314f06 feat(web): add audit log explorer` |
-| Migration head | `0012_stage11_scheduler` |
+| Committed HEAD | `5a6b00f docs: reconcile CloudOps demo readiness and Codex handoff` before the current demo-readiness changes |
+| Migration head | `0013_demo_notification_delivery` on the current demo-readiness worktree |
 | Stage 9 commits | `d0b5676`, `449e964`, `cb42db9` (backend), `d1c8733` (frontend, combined with Stage 10) |
 | Stage 10 commits | `bf29173`, `fc8908d`, `8ab8c83` (backend), `d1c8733` (frontend), `8916be9` (test fixture repair) |
 | Stage 11 commits | `24227ab`, `9fff532`, `8c14b55`, `55c451e` |
@@ -56,6 +56,7 @@ equivalent governance evidence to PR #8.
 | Stage 11 migration verification | `0010_stage9_notifications -> 0011_stage10_remediation` and `0011_stage10_remediation -> 0012_stage11_scheduler` upgraded successfully against the disposable verification database; `alembic current` reports `0012_stage11_scheduler`; `alembic check` reports no new operations; chain is linear with a single head |
 | Stage 11 frontend verification | TypeScript passed; ESLint passed; scheduler Vitest 5 passed; production build passed |
 | Stage 12 | Implemented and committed at `d0d24cd` and `9314f06`; targeted backend and frontend verification clean. |
+| Demo-readiness follow-up | Adds Mailpit-backed local SMTP delivery, a guarded local demo Compose stack, deterministic demo seed/reset, and an 18-step V1 demo black-box acceptance runner. |
 
 `main` itself has not moved past Stage 8; Stages 9-12 exist only on `feature/v1-demo-completion`
 until merged through normal review.
@@ -96,6 +97,8 @@ CloudOps/
 │   ├── operations/                Audit and operational guidance
 │   └── planning/                  Detailed phase plan and project memory
 ├── compose.verify.yml             Disposable PostgreSQL 16 verification service
+├── compose.demo.yml               Local demo stack with PostgreSQL, Mailpit, API, web, and manual scheduler tick
+├── compose.yml                    Convenience alias for the local demo stack
 ├── .env.example                   Environment-variable names only
 └── README.md                      Primary teammate setup and operating guide
 ```
@@ -185,6 +188,15 @@ Never commit `.env` files or real secrets.
 | `AWS_READ_TIMEOUT_SECONDS`      | `30`                                                           |
 | `AWS_MAX_RETRY_ATTEMPTS`        | `3`                                                            |
 | `AWS_RETRY_MODE`                | `standard`; `adaptive` is also accepted                        |
+| `AI_PROVIDER`                   | `mock`; deterministic no-network AI provider for local/test    |
+| `NOTIFICATION_PROVIDER`         | `mock`; use `smtp` only for the local Mailpit demo             |
+| `SMTP_HOST`                     | SMTP host for local Mailpit demo                               |
+| `SMTP_PORT`                     | SMTP port for local Mailpit demo                               |
+| `SMTP_USERNAME`                 | Optional SMTP username; keep empty for Mailpit                 |
+| `SMTP_PASSWORD`                 | Optional SMTP password; keep empty for Mailpit                 |
+| `SMTP_FROM_EMAIL`               | Sender address for SMTP demo messages                          |
+| `SMTP_FROM_NAME`                | Sender display name for SMTP demo messages                     |
+| `SMTP_USE_TLS`                  | `false` for local Mailpit                                      |
 
 ### Test-only variables
 
@@ -248,6 +260,52 @@ persistent local database, provision PostgreSQL separately and point `DATABASE_U
 Never run `down -v` or delete a development volume unless you intentionally accept data loss.
 Use a fresh Compose project name, such as `-p cloudops-clean-verify`, when an isolated
 clean-room database is required.
+
+## Local Version 1 demo stack
+
+The root `compose.demo.yml` starts a guarded local demo stack:
+
+- PostgreSQL `cloudops_demo` on `localhost:5432`
+- Mailpit SMTP on `localhost:1025`
+- Mailpit inbox UI on <http://localhost:8025>
+- API on <http://localhost:8000>
+- Web UI on <http://localhost:5173>
+- Manual scheduler tick via `docker compose -f compose.demo.yml --profile manual run --rm scheduler-worker`
+
+The API container applies Alembic migrations before starting. Its default demo configuration uses
+the deterministic mock AI provider, dummy AWS credentials with metadata lookup disabled, and the
+Mailpit-only SMTP notification provider. It must not be pointed at production or customer AWS
+resources.
+
+```powershell
+docker compose -f compose.demo.yml up --build
+```
+
+Seed or reset deterministic demo data from the repository root after the API dependencies are
+available locally:
+
+```powershell
+$env:APP_ENV="development"
+$env:DATABASE_URL="postgresql+psycopg://cloudops:cloudops_demo_password@localhost:5432/cloudops_demo"
+$env:JWT_SECRET_KEY="demo-only-jwt-secret-at-least-32-characters"
+$env:AWS_EC2_METADATA_DISABLED="true"
+$env:AWS_ACCESS_KEY_ID="demo"
+$env:AWS_SECRET_ACCESS_KEY="demo"
+$env:AWS_SESSION_TOKEN="demo"
+$env:AWS_DEFAULT_REGION="us-east-1"
+$env:AI_PROVIDER="mock"
+$env:NOTIFICATION_PROVIDER="smtp"
+$env:SMTP_HOST="localhost"
+$env:SMTP_PORT="1025"
+.\apps\api\.venv\Scripts\python.exe scripts\demo_seed.py --reset --deliver-email
+```
+
+The seed command refuses production mode and refuses database names outside `cloudops_demo*`.
+Generated demo output is deterministic and synthetic; no AWS discovery client is invoked by the
+seed script. The seeded credentials include an owner (`owner@cloudops-demo.local`) and a security
+analyst (`analyst@cloudops-demo.local`) using the printed demo password. When
+`--deliver-email` is used with Mailpit SMTP, the latest Mailpit message should show both the
+owner and the analyst/evaluation actor as recipients.
 
 ## Backend setup
 
@@ -490,8 +548,9 @@ alembic check
 
 There must be one head. On `main` that head is `0009_stage7_ai_assistant`. On
 `feature/v1-demo-completion` the linear chain continues through `0010_stage9_notifications`,
-`0011_stage10_remediation`, to `0012_stage11_scheduler` (current head on that branch). Stage 12
-adds no migration. Never edit a reviewed migration merely to make a stale local database agree;
+`0011_stage10_remediation`, `0012_stage11_scheduler`, and
+`0013_demo_notification_delivery` (current head on this demo-readiness worktree). Stage 12 adds
+no migration. Never edit a reviewed migration merely to make a stale local database agree;
 recreate only a disposable database.
 
 ### A port is already in use
@@ -674,9 +733,10 @@ Operating rules:
 - Stage 7 AI explanation is implemented as advisory drafting only; Jira/email outputs remain
   drafts and no delivery or ticket creation is implemented.
 - Live AWS validation is controlled sandbox work, not a requirement for automated tests.
-- Stage 9 notification delivery uses a deterministic mock/no-op provider only; no real email,
-  Slack, Teams, or webhook delivery is implemented. Delivery requires explicit human approval.
-  AWS SES is a possible future production provider; it is not implemented.
+- Stage 9 notification delivery uses the deterministic mock/no-op provider by default. The local
+  Version 1 demo may use Mailpit-backed SMTP after explicit human approval; production SMTP,
+  Slack, Teams, webhook, or AWS SES delivery remains unimplemented and requires separate
+  authorization.
 - Stage 10 remediation execution uses a deterministic mock executor only; no real AWS mutation
   is performed. Protected transitions (approve, reject, execute) require explicit human
   authorization. Rule evaluation remains the sole authority on whether a finding exists; AI may
@@ -688,9 +748,9 @@ Operating rules:
 - Stage 12 (audit query/export) reuses the existing `AuditEvent` persistence and
   `record_audit()` write path; it adds a read/query/export layer only and requires no migration.
   It is committed on `feature/v1-demo-completion` at `d0d24cd` and `9314f06`.
-- `compose.verify.yml` provides only a disposable PostgreSQL verification database. No API,
-  web, or worker Dockerfile and no full local demo Compose stack exist yet; that is planned
-  Stage 14 (DevOps/local demo environment) work.
+- `compose.verify.yml` provides only a disposable PostgreSQL verification database. The local
+  demo stack lives in `compose.demo.yml` and is intentionally separate from production deployment
+  or infrastructure-as-code.
 
 ## Safety summary
 
@@ -768,13 +828,15 @@ or, after three failed delivery attempts, `APPROVED -> FAILED`; there is no `REJ
 Creation is triggered only by a newly created `CRITICAL` finding and is defensively re-checked
 inside `NotificationService.create_for_critical_finding` regardless of the caller. No delivery
 occurs without an explicit `POST /api/v1/notifications/{id}/approve` by a user holding the
-`NOTIFICATIONS_APPROVE` capability. The only delivery provider implemented is a deterministic
-mock/no-op provider that performs no network calls; no real SMTP, AWS SES, SendGrid, Gmail, or
-Microsoft Graph delivery exists. AWS SES is a possible future production provider, not yet
-implemented. The workflow is: finding/risk event -> pending-approval notification -> authorized
-human approval -> simulated delivery -> delivered or failed state. Rules detect; risk scoring
-prioritizes; AI may draft explanatory wording but never authorizes delivery or sends anything;
-humans approve; a provider delivers. The frontend notification history/approval page
+`NOTIFICATIONS_APPROVE` capability. The deterministic mock/no-op provider remains the default
+for tests and ordinary local development. A Mailpit-backed SMTP provider exists only for the
+guarded local Version 1 demo path; it writes provider evidence without exposing raw SMTP
+exceptions. AWS SES, SendGrid, Gmail, Microsoft Graph, Slack, Teams, webhook, and production
+SMTP delivery remain unimplemented. The workflow is: finding/risk event -> pending-approval
+notification -> authorized human approval -> provider delivery -> delivered or failed state.
+Rules detect; risk scoring prioritizes; AI may draft explanatory wording but never authorizes
+delivery or sends anything; humans approve; a provider delivers. The frontend notification
+history/approval page
 (`NotificationsPage`, filtering, pagination, role-gated approve/deliver controls, and tests) is
 implemented. Backend and frontend are both committed on `feature/v1-demo-completion`; migration
 `0010_stage9_notifications`.
@@ -806,7 +868,8 @@ not a Celery/Redis/distributed-queue or permanent cron daemon; that infrastructu
 explicitly deferred (see `apps/worker/README.md`). The frontend `SchedulesPage` supports
 enable/disable, run-now, and a recent scan-run history view, role-gated to match backend RBAC.
 Backend and frontend are both committed on `feature/v1-demo-completion`; migration
-`0012_stage11_scheduler` (current head on that branch).
+`0012_stage11_scheduler` is the Stage 11 migration. The current demo-readiness worktree head is
+`0013_demo_notification_delivery`.
 
 ## Stage 12 — audit query/export
 
@@ -827,6 +890,6 @@ existing authenticated request/refresh flow.
 - Frontend: TypeScript passed; ESLint passed; Vitest (`audit.test.tsx`) 4 passed; production
   build passed
 
-Tomorrow-demo readiness now needs Mailpit-backed SMTP delivery, the local demo stack,
-deterministic seed/reset, and a black-box V1 acceptance flow. See `NEW_CHAT_CONTEXT.md` for the
-current demo-readiness plan.
+The demo-readiness follow-up adds Mailpit-backed SMTP delivery for the local demo, a guarded
+Compose demo stack, deterministic seed/reset, and an 18-step V1 acceptance runner. See
+`tests/end-to-end/README.md` for the command.

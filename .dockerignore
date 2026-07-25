@@ -1,0 +1,16 @@
+.git
+.agents
+.codex
+.mypy_cache
+.pytest_cache
+.ruff_cache
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+**/__pycache__
+**/.coverage
+**/dist
+**/node_modules
+**/.env
+CLAUDE.md

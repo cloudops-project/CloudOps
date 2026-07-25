@@ -33,9 +33,7 @@ def _headers(user: User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _schedule(
-    db: Session, interval_minutes: int = 30
-) -> tuple[ScanSchedule, Organization, User]:
+def _schedule(db: Session, interval_minutes: int = 30) -> tuple[ScanSchedule, Organization, User]:
     user, organization, account = _tenant(db)
     schedule = SchedulerService(db, get_settings()).create_schedule(
         organization.id, account.id, user, name="Nightly scan", interval_minutes=interval_minutes

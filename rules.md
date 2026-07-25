@@ -7,11 +7,10 @@ These rules govern current CloudOps development. More detailed policies remain u
 code.
 
 The governed baseline contains independently clean-room verified, merged Stages 1-8 at main
-commit `889660ecb8a378d107f6737b4466b70362066793`. Stages 9-11 (notifications, remediation,
-scheduler) are implemented, independently verified, and committed on
-`feature/v1-demo-completion` (migration head `0012_stage11_scheduler`), not yet merged into
-`main`. Stage 12 (audit query/export) is implemented and committed on that branch at `d0d24cd`
-and `9314f06`.
+commit `889660ecb8a378d107f6737b4466b70362066793`. Stages 9-12 (notifications, remediation,
+scheduler, audit query/export) are implemented and committed on `feature/v1-demo-completion`,
+not yet merged into `main`. The current demo-readiness work adds local Mailpit SMTP delivery
+and migration `0013_demo_notification_delivery`.
 
 ## Technology stack
 
@@ -54,10 +53,11 @@ partial indexes, composite foreign keys, or concurrency.
 - Rules evaluate persisted normalized data only; boto3 stays in discovery.
 - Compliance consumes persisted Stage 4 results; it never performs detection or live AWS calls.
 - Do not introduce raw event ingestion or real customer AWS mutation. Stage 7 AI must remain
-  advisory and draft-only. Stage 9 notification delivery is a deterministic mock/no-op provider
-  only and always requires explicit human approval; AWS SES is a possible future production
-  provider, not yet implemented. Stage 10 remediation execution is a deterministic mock executor
-  only and never mutates real AWS resources; it always requires explicit human approval for
+  advisory and draft-only. Stage 9 notification delivery defaults to a deterministic mock/no-op
+  provider and always requires explicit human approval; a Mailpit-only SMTP provider is allowed
+  for the guarded local demo. AWS SES and production SMTP are possible future providers, not yet
+  implemented. Stage 10 remediation execution is a deterministic mock executor only and never
+  mutates real AWS resources; it always requires explicit human approval for
   propose/approve/reject/cancel/execute transitions. Stage 11's scheduler delegates every run to
   the existing discovery/evaluation services and must not duplicate boto3 or rule-evaluation
   logic; it is a deterministic, synchronously invokable foundation, not a distributed queue or
@@ -139,9 +139,10 @@ partial indexes, composite foreign keys, or concurrency.
   gain write access, and `record_audit()` remains the only write path.
 - Audit export is bounded (currently 5,000 rows) and synchronous for Version 1; a background
   export job is future work and must not be implied as already implemented.
-- Remediation and notification delivery/execution remain mock-only for local/demo Version 1;
-  real AWS mutation, real SES/SMTP/webhook delivery, and any other real external side effect
-  require a new, explicitly authorized ADR before implementation.
+- Remediation execution remains mock-only for local/demo Version 1. Notification delivery uses
+  the mock provider by default; local Mailpit SMTP is permitted only for approved demo
+  notifications. Real AWS mutation, production SMTP, AWS SES, webhook delivery, and any other
+  real external side effect require new explicit authorization before implementation.
 
 ## Database and tenant rules
 
@@ -271,5 +272,5 @@ it has not actually reached.
 - Never persist provider credentials or expose raw provider failures.
 - Never use AI for findings, severity, compliance, or risk decisions.
 - Never execute remediation or send Jira/email output.
-- Never allow notification delivery to bypass explicit human approval; only the deterministic
-  mock/no-op provider may be used until a real provider is explicitly authorized.
+- Never allow notification delivery to bypass explicit human approval. Use the deterministic
+  mock/no-op provider by default; local Mailpit SMTP is allowed only for the guarded demo path.

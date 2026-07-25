@@ -41,7 +41,9 @@ const viewer: Me = {
   ],
 };
 
-function pendingEvent(overrides: Partial<NotificationEvent> = {}): NotificationEvent {
+function pendingEvent(
+  overrides: Partial<NotificationEvent> = {},
+): NotificationEvent {
   return {
     id: "n1",
     organization_id: "o1",
@@ -59,6 +61,8 @@ function pendingEvent(overrides: Partial<NotificationEvent> = {}): NotificationE
     delivered_at: null,
     failed_at: null,
     failure_reason: null,
+    provider_key: null,
+    provider_message_id: null,
     created_at: "2026-07-25T00:00:00Z",
     updated_at: "2026-07-25T00:00:00Z",
     ...overrides,
@@ -84,39 +88,55 @@ function renderNotifications(me: Me, fetchImpl: typeof fetch) {
 describe("Notifications page", () => {
   it("lists a pending-approval notification and lets an owner approve it", async () => {
     let approved = false;
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/notifications/n1/approve")) {
-        approved = true;
-        return new Response(
-          JSON.stringify(pendingEvent({ status: "approved", approved_at: "2026-07-25T01:00:00Z", approved_by_user_id: "u1" })),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }
-      if (url.includes("/api/v1/notifications?")) {
-        const body: Page<NotificationEvent> = {
-          items: [approved ? pendingEvent({ status: "approved" }) : pendingEvent()],
-          total: 1,
-          page: 1,
-          page_size: 10,
-        };
-        return new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      void init;
-      return new Response(JSON.stringify([]), { status: 200 });
-    });
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/notifications/n1/approve")) {
+          approved = true;
+          return new Response(
+            JSON.stringify(
+              pendingEvent({
+                status: "approved",
+                approved_at: "2026-07-25T01:00:00Z",
+                approved_by_user_id: "u1",
+              }),
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (url.includes("/api/v1/notifications?")) {
+          const body: Page<NotificationEvent> = {
+            items: [
+              approved ? pendingEvent({ status: "approved" }) : pendingEvent(),
+            ],
+            total: 1,
+            page: 1,
+            page_size: 10,
+          };
+          return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        void init;
+        return new Response(JSON.stringify([]), { status: 200 });
+      },
+    );
     renderNotifications(owner, fetchMock);
 
     expect(
       await screen.findByRole("heading", { name: "Notifications" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("critical_finding_created")).toBeInTheDocument();
-    expect(screen.getByText("pending approval")).toBeInTheDocument();
+    expect(
+      await screen.findByText("critical_finding_created"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("table")).getByText("pending approval"),
+    ).toBeInTheDocument();
 
-    const approveButton = await screen.findByRole("button", { name: "Approve" });
+    const approveButton = await screen.findByRole("button", {
+      name: "Approve",
+    });
     await userEvent.click(approveButton);
 
     await waitFor(() => expect(approved).toBe(true));
@@ -145,9 +165,15 @@ describe("Notifications page", () => {
     });
     renderNotifications(viewer, fetchMock);
 
-    expect(await screen.findByText("critical_finding_created")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Deliver" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("critical_finding_created"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Deliver" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows an empty state when no notifications exist", async () => {
@@ -201,7 +227,8 @@ describe("Notifications page", () => {
           JSON.stringify({
             error: {
               code: "notification_event_invalid_transition",
-              message: "Cannot approve a notification event in status 'delivered'.",
+              message:
+                "Cannot approve a notification event in status 'delivered'.",
             },
           }),
           { status: 409, headers: { "Content-Type": "application/json" } },
@@ -223,11 +250,15 @@ describe("Notifications page", () => {
     });
     renderNotifications(owner, fetchMock);
 
-    const approveButton = await screen.findByRole("button", { name: "Approve" });
+    const approveButton = await screen.findByRole("button", {
+      name: "Approve",
+    });
     await userEvent.click(approveButton);
 
     expect(
-      await screen.findByText("Cannot approve a notification event in status 'delivered'."),
+      await screen.findByText(
+        "Cannot approve a notification event in status 'delivered'.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Notifications" }),
@@ -240,7 +271,13 @@ describe("Notifications page", () => {
       if (url.includes("/api/v1/notifications?")) {
         const body: Page<NotificationEvent> = {
           items: url.includes("status=delivered")
-            ? [pendingEvent({ id: "n2", status: "delivered", attempt_count: 1 })]
+            ? [
+                pendingEvent({
+                  id: "n2",
+                  status: "delivered",
+                  attempt_count: 1,
+                }),
+              ]
             : [pendingEvent()],
           total: 1,
           page: 1,
@@ -293,9 +330,17 @@ describe("Notifications page", () => {
     });
     renderNotifications(owner, fetchMock);
 
-    expect(await screen.findByText("critical_finding_created")).toBeInTheDocument();
-    expect(within(screen.getByRole("table")).getByText("Delivered")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Deliver" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("critical_finding_created"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("table")).getByText("Delivered"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Deliver" }),
+    ).not.toBeInTheDocument();
   });
 });

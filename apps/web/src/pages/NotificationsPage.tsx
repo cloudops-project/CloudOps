@@ -72,6 +72,8 @@ function NotificationRow({
       <td className="px-3 py-3">{item.source_resource_type}</td>
       <td className="px-3 py-3">{item.channel}</td>
       <td className="px-3 py-3">{item.destination_reference ?? "—"}</td>
+      <td className="px-3 py-3">{item.provider_key ?? "pending"}</td>
+      <td className="px-3 py-3">{item.provider_message_id ?? "—"}</td>
       <td className="px-3 py-3">
         <StatusBadge status={item.status} />
       </td>
@@ -130,9 +132,7 @@ export function NotificationsPage() {
         page_size: "10",
       });
       if (status) params.set("status", status);
-      return api<Page<NotificationEvent>>(
-        `/api/v1/notifications?${params}`,
-      );
+      return api<Page<NotificationEvent>>(`/api/v1/notifications?${params}`);
     },
   });
   if (!organization) return <p>No organization selected.</p>;
@@ -146,7 +146,8 @@ export function NotificationsPage() {
         <p className="mt-2 text-slate-400">
           Critical findings generate a pending-approval notification event.
           Nothing is delivered until an authorized user approves it, and
-          delivery uses a deterministic mock provider only.
+          ordinary tests use the deterministic mock provider. The local demo
+          stack can route approved email through Mailpit.
         </p>
       </div>
       <div className="mt-8 flex flex-wrap gap-3">
@@ -187,6 +188,8 @@ export function NotificationsPage() {
                 <th className="px-3 py-2">Source</th>
                 <th className="px-3 py-2">Channel</th>
                 <th className="px-3 py-2">Recipient</th>
+                <th className="px-3 py-2">Provider</th>
+                <th className="px-3 py-2">Provider message</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Attempts</th>
                 <th className="px-3 py-2">Created</th>

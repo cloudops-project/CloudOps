@@ -504,10 +504,7 @@ export interface AIRequestRecord {
 
 export type NotificationChannel = "email";
 export type NotificationStatus =
-  | "pending_approval"
-  | "approved"
-  | "delivered"
-  | "failed";
+  "pending_approval" | "approved" | "delivered" | "failed";
 export interface NotificationEvent {
   id: string;
   organization_id: string;
@@ -525,6 +522,8 @@ export interface NotificationEvent {
   delivered_at: string | null;
   failed_at: string | null;
   failure_reason: string | null;
+  provider_key: string | null;
+  provider_message_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -568,9 +567,7 @@ export type RemediationStatus =
   | "succeeded"
   | "failed";
 export type RemediationExecutionMode =
-  | "mock_automation"
-  | "manual"
-  | "jira_draft";
+  "mock_automation" | "manual" | "jira_draft";
 export interface RemediationRequest {
   id: string;
   organization_id: string;

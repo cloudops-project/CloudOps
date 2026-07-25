@@ -98,3 +98,5 @@ class NotificationEvent(TimestampMixin, Base):
     delivered_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
     failed_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
     failure_reason: Mapped[str | None] = mapped_column(String(500))
+    provider_key: Mapped[str | None] = mapped_column(String(50))
+    provider_message_id: Mapped[str | None] = mapped_column(String(255))

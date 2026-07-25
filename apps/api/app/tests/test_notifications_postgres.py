@@ -384,6 +384,4 @@ def test_notification_event_cross_tenant_isolation(
         assert len(org_a_events) == 1
         assert len(org_b_events) == 1
         assert org_a_events[0].organization_id != org_b_events[0].organization_id
-        assert {event.id for event in org_a_events}.isdisjoint(
-            {event.id for event in org_b_events}
-        )
+        assert {event.id for event in org_a_events}.isdisjoint({event.id for event in org_b_events})
