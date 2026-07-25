@@ -1,6 +1,7 @@
 import {
   Bell,
   Building2,
+  CalendarClock,
   Cloud,
   Database,
   Gauge,
@@ -95,6 +96,13 @@ export function AppShell() {
           >
             <Wrench />
             Remediation
+          </Link>
+          <Link
+            className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+            to="/schedules"
+          >
+            <CalendarClock />
+            Schedules
           </Link>
           <Link
             className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"

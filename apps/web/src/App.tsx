@@ -21,6 +21,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { RemediationsPage } from "./pages/RemediationsPage";
 import { RiskPage } from "./pages/RiskPage";
+import { SchedulesPage } from "./pages/SchedulesPage";
 import { SecurityDashboardPage } from "./pages/SecurityDashboardPage";
 import { NotFoundPage, UnauthorizedPage } from "./pages/StatusPages";
 import {
@@ -71,6 +72,7 @@ export function App() {
           <Route path="/risk" element={<RiskPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/remediations" element={<RemediationsPage />} />
+          <Route path="/schedules" element={<SchedulesPage />} />
           <Route
             path="/security-dashboard"
             element={<SecurityDashboardPage />}

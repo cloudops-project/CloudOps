@@ -523,6 +523,37 @@ export interface NotificationEvent {
   updated_at: string;
 }
 
+export interface ScanSchedule {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  name: string;
+  interval_minutes: number;
+  enabled: boolean;
+  created_by_user_id: string | null;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type ScanRunTrigger = "manual" | "scheduled";
+export type ScanRunStatus = "pending" | "running" | "completed" | "failed";
+export interface ScanRun {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  schedule_id: string | null;
+  trigger: ScanRunTrigger;
+  status: ScanRunStatus;
+  discovery_job_id: string | null;
+  evaluation_job_id: string | null;
+  error_summary: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type RemediationStatus =
   | "pending_approval"
   | "approved"
