@@ -7,12 +7,13 @@
 ## Current repository and documentation release
 
 - Integration branch: `main`
-- Active feature branch: none; use `main` as the synchronized baseline
-- Current authoritative main SHA: `882ff531af07276c11e0d25664fdca033e09c7c7`
+- Active feature branch: `feature/8-dashboard`
+- Current authoritative main SHA: `01c3eb4bf9ed2d1770da697c158c5d08742430bd`
 - Verified Stage 6 feature SHA: `b0361b8efe9060ef6c498e1cebfede4baaa9947d`
 - Stage 6 merge commit: `f23e124813b5f65a8f85957c1dce57d95b9cf038`
 - Verified Stage 7 feature SHA: `9b5f4372359a32066787060ca839d5a68c5ab490`
 - Stage 7 merge commit: `882ff531af07276c11e0d25664fdca033e09c7c7`
+- Stage 7 documentation synchronization commit: `01c3eb4bf9ed2d1770da697c158c5d08742430bd`
 - Current Alembic head: `0009_stage7_ai_assistant`
 - PR #8 merged at `2026-07-24T19:19:02Z`.
 
@@ -26,6 +27,7 @@
 - Stage 6 Deterministic Risk Scoring: independently clean-room verified, merged, and
   regression-tested
 - Stage 7 AI Explanation Assistant: independently verified, merged, and post-merge verified
+- Stage 8A Dashboard read model: in progress on `feature/8-dashboard`
 
 ### Stage 6
 
@@ -178,11 +180,9 @@ CODEOWNER, automated CI, or repository-policy approval.
 
 ## Next immediate task
 
-1. Review this Stage 7 documentation synchronization PR and explicitly authorize it where
-   governance requires.
-2. Merge the documentation PR and synchronize local `main`.
-3. Reconfirm migration head `0009_stage7_ai_assistant`, the Stage 1-7 regression baseline, and
-   a clean worktree.
-4. Obtain explicit owner direction before creating any Stage 8 branch.
-5. Keep AI explanation separate from finding detection, compliance decisions, risk scoring,
-   AWS mutation, Jira creation, email delivery, and remediation execution.
+1. Complete the Stage 8A dashboard read-model/API contract on `feature/8-dashboard`.
+2. Keep Stage 8A read-only over Stage 2-7 authoritative records.
+3. Do not begin Stage 8B UI work until Stage 8A is closed or separately authorized.
+4. Do not begin Stage 9 notifications.
+5. Keep dashboard visualization separate from detection, compliance calculation, risk scoring,
+   AI explanation, AWS mutation, Jira creation, email delivery, and remediation execution.

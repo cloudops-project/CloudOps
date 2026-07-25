@@ -6,13 +6,15 @@ Use this file to resume work in a fresh AI chat. Detailed documents remain autho
 
 CloudOps is an AWS-focused multi-tenant SaaS for secure AWS onboarding, normalized inventory,
 deterministic findings, evidence-based compliance snapshots, deterministic risk scoring, and
-advisory AI explanations. Stages 1-7 are independently verified, merged, and regression-tested
-in `main` at `882ff531af07276c11e0d25664fdca033e09c7c7`. The current migration head is
-`0009_stage7_ai_assistant`. Stage 8 Dashboard work has not started.
+advisory AI explanations. Stages 1-7 are independently verified, merged, and regression-tested.
+Stage 7 product and documentation are synchronized in `main` through
+`01c3eb4bf9ed2d1770da697c158c5d08742430bd`. The current migration head is
+`0009_stage7_ai_assistant`. Stage 8A Dashboard read-model work has started on
+`feature/8-dashboard`; Stage 8 is not complete.
 
 - Repository: `D:\learn\cdac\cloudfix`
 - Remote: `https://github.com/cloudops-project/CloudOps.git`
-- Active feature branch: none; create future stage branches from verified `main`
+- Active feature branch: `feature/8-dashboard`
 
 ## Stage 6 deterministic risk boundary
 
@@ -251,12 +253,10 @@ technical detached verification, and the owner recorded:
 
 ## Current priorities
 
-1. Review this Stage 7 documentation synchronization PR and explicitly authorize it where
-   governance requires.
-2. Merge the documentation PR and synchronize local `main`.
-3. Reconfirm migration head `0009_stage7_ai_assistant`, the Stage 1-7 baseline, and a clean
-   worktree.
-4. Obtain explicit owner direction before creating any Stage 8 branch.
+1. Complete Stage 8A dashboard read-model/API verification on `feature/8-dashboard`.
+2. Keep dashboard work read-only over existing Stage 2-7 authoritative records.
+3. Do not begin Stage 8B UI work until Stage 8A is closed or separately authorized.
+4. Do not begin Stage 9 notifications.
 
 ## Stage 5 compliance boundary
 
@@ -302,12 +302,11 @@ Do not modify code yet. Identify contradictions or missing information before pr
 
 The new session must resolve any conflict between these files and current repository evidence
 before changing code. Never use real customer AWS accounts or credentials for automated tests.
-Stages advance sequentially: Stage 8 cannot begin until this documentation PR is
-reviewed/authorized, merged, `main` is synchronized, the verified Stage 7 baseline remains
-clean, and the owner explicitly directs Stage 8 to begin. Stage 4 detects findings; Stage 5
-interprets persisted deterministic evidence for compliance; Stage 6 prioritizes findings
+Stages advance sequentially: Stage 8A is now authorized and active, but Stage 8B UI work and
+Stage 9 notifications remain blocked until separately directed. Stage 4 detects findings; Stage
+5 interprets persisted deterministic evidence for compliance; Stage 6 prioritizes findings
 deterministically. AI may explain those outputs only and must not detect findings or calculate
-risk.
+risk. Stage 8 visualizes existing records only.
 
 ## Stage 7 handoff
 
@@ -317,4 +316,4 @@ Stage 7 is the bounded AI explanation assistant merged in `main` at
 `0009_stage7_ai_assistant`. It uses persisted deterministic records only, defaults to a
 no-network mock provider, validates structured drafts, preserves source hashes/references,
 redacts secrets and prompt injection, and never detects, scores, mutates, remediates, creates
-tickets, or sends email. Stage 8 Dashboard work is not started.
+tickets, or sends email. Stage 8A Dashboard work is active as a read-only dashboard contract.

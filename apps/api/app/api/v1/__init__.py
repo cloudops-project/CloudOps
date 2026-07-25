@@ -5,6 +5,7 @@ from app.api.v1 import (
     auth,
     aws_accounts,
     compliance,
+    dashboard,
     discovery,
     invitations,
     organizations,
@@ -22,3 +23,4 @@ router.include_router(discovery.router, tags=["asset-discovery"])
 router.include_router(security_findings.router, tags=["security-findings"])
 router.include_router(compliance.router, tags=["compliance"])
 router.include_router(risk.router, tags=["risk"])
+router.include_router(dashboard.router, tags=["dashboard"])

@@ -332,6 +332,123 @@ export interface RiskSummary {
   trend: OrganizationRisk[];
 }
 
+export interface DashboardCountItem {
+  key: string;
+  count: number;
+}
+export interface DashboardMetadata {
+  organization_id: string;
+  generated_at: string;
+  is_partial: boolean;
+  missing_sections: string[];
+}
+export interface DashboardAccountPosture {
+  total_accounts: number;
+  connected_accounts: number;
+  disconnected_accounts: number;
+  accounts_requiring_attention: number;
+}
+export interface DashboardAssetInventory {
+  total_assets: number;
+  active_assets: number;
+  inactive_assets: number;
+  counts_by_type: DashboardCountItem[];
+  counts_by_region: DashboardCountItem[];
+}
+export interface DashboardRecentFinding {
+  id: string;
+  aws_account_id: string;
+  asset_id: string | null;
+  rule_key: string;
+  severity: FindingSeverity;
+  status: FindingStatus;
+  service: string;
+  region: string | null;
+  last_seen_at: string;
+}
+export interface DashboardFindingPosture {
+  open_total: number;
+  resolved_total: number;
+  suppressed_total: number;
+  open_by_severity: DashboardCountItem[];
+  open_by_service: DashboardCountItem[];
+  open_by_account: DashboardCountItem[];
+  recent_critical_and_high_findings: DashboardRecentFinding[];
+}
+export interface DashboardCompliancePosture {
+  assessment_id: string | null;
+  framework_key: string | null;
+  framework_name: string | null;
+  framework_version: string | null;
+  assessment_status: "completed" | null;
+  evaluation_time: string | null;
+  controls_total: number;
+  passed: number;
+  failed: number;
+  not_assessed: number;
+  error: number;
+  pass_percentage: number | null;
+}
+export interface DashboardRiskTrendPoint {
+  assessment_id: string;
+  evaluation_time: string;
+  aggregate_score: number;
+  aggregate_priority: RiskPriority;
+}
+export interface DashboardAccountRiskHeatmapItem {
+  aws_account_id: string;
+  account_display_identifier: string;
+  score: number;
+  priority: RiskPriority;
+  findings_total: number;
+  critical_count: number;
+  high_count: number;
+}
+export interface DashboardRiskPosture {
+  assessment_id: string | null;
+  evaluation_time: string | null;
+  aggregate_score: number | null;
+  aggregate_priority: RiskPriority | null;
+  findings_total: number;
+  severity_counters: DashboardCountItem[];
+  highest_risk_accounts: DashboardAccountRiskHeatmapItem[];
+  trend: DashboardRiskTrendPoint[];
+}
+export interface DashboardFreshnessItem {
+  id: string | null;
+  status:
+    | DiscoveryStatus
+    | EvaluationStatus
+    | "completed"
+    | "failed"
+    | "pending"
+    | "running"
+    | null;
+  started_at: string | null;
+  finished_at: string | null;
+  evaluation_time: string | null;
+}
+export interface DashboardOperationalFreshness {
+  latest_completed_discovery: DashboardFreshnessItem | null;
+  latest_discovery: DashboardFreshnessItem | null;
+  latest_completed_evaluation: DashboardFreshnessItem | null;
+  latest_evaluation: DashboardFreshnessItem | null;
+  latest_completed_compliance_assessment: DashboardFreshnessItem | null;
+  latest_compliance_assessment: DashboardFreshnessItem | null;
+  latest_completed_risk_assessment: DashboardFreshnessItem | null;
+  latest_risk_assessment: DashboardFreshnessItem | null;
+}
+export interface DashboardSummary {
+  metadata: DashboardMetadata;
+  accounts: DashboardAccountPosture;
+  assets: DashboardAssetInventory;
+  findings: DashboardFindingPosture;
+  compliance: DashboardCompliancePosture;
+  risk: DashboardRiskPosture;
+  account_risk_heatmap: DashboardAccountRiskHeatmapItem[];
+  freshness: DashboardOperationalFreshness;
+}
+
 export type AITaskType =
   | "explain_finding"
   | "explain_business_impact"

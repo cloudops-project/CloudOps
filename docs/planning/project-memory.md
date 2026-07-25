@@ -2,17 +2,20 @@
 
 ## Last updated
 
-2026-07-25 - Stage 7 AI explanation assistant merged, post-merge verified, and ready for
-documentation synchronization review.
+2026-07-25 - Stage 7 AI explanation assistant merged, post-merge verified, documentation
+synchronized, and Stage 8A dashboard read-model work authorized.
 
 ## Current implementation
 
 Stages 1-7 are independently clean-room verified, merged, and regression-tested. PR #8 merged
 verified feature SHA `9b5f4372359a32066787060ca839d5a68c5ab490` at main commit
-`882ff531af07276c11e0d25664fdca033e09c7c7`. The current migration head is
-`0009_stage7_ai_assistant`; Stage 8 has not started.
+`882ff531af07276c11e0d25664fdca033e09c7c7`; Stage 7 documentation is synchronized through
+`01c3eb4bf9ed2d1770da697c158c5d08742430bd`. The current migration head is
+`0009_stage7_ai_assistant`; Stage 8A dashboard read-model work has started on
+`feature/8-dashboard`.
 
-The active integration branch is `main`; future stage work must branch from verified `main`.
+The active feature branch is `feature/8-dashboard`, created from verified `main`
+`01c3eb4bf9ed2d1770da697c158c5d08742430bd`.
 
 Alembic revision `0009_stage7_ai_assistant` follows `0008_stage6_risk_scoring` and adds
 versioned prompt templates, tenant-scoped AI requests, typed source references, immutable
@@ -63,10 +66,8 @@ tests use deterministic AWS doubles; controlled live-AWS validation remains oper
 
 ## Next task
 
-Review and explicitly authorize this Stage 7 documentation synchronization PR where required,
-merge it, synchronize `main`, reconfirm migration head `0009_stage7_ai_assistant`, the Stage
-1-7 baseline, and a clean worktree, then obtain explicit owner direction for Stage 8. Do not
-create Stage 8 code before that gate.
+Complete Stage 8A as a read-only dashboard contract over existing Stage 2-7 data, keep Stage 8B
+UI and Stage 8C release verification separate, and do not begin Stage 9 notifications.
 
 ## Stage 3 implementation snapshot
 

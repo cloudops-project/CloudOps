@@ -6,6 +6,8 @@ security findings, and evidence-based compliance assessments. It is intended for
 owners, administrators, security analysts, cloud engineers, auditors, and viewers.
 
 Stages 1-7 are implemented, independently clean-room verified, merged, and regression-tested.
+Stage 8A has started on `feature/8-dashboard` to add a read-only dashboard contract; Stage 8
+UI work remains future Stage 8B scope.
 Stage 4 deterministic rules detect findings from persisted inventory; Stage 5 interprets that deterministic evidence for
 compliance and never performs independent detection. Stage 6 prioritizes persisted findings
 using the deterministic, versioned `CLOUDOPS_RISK_V1` policy. Stage 7 explains existing
@@ -21,7 +23,7 @@ accounts.
 
 | Item                  | Verified value                                                             |
 | --------------------- | -------------------------------------------------------------------------- |
-| Integrated `main`     | `882ff531af07276c11e0d25664fdca033e09c7c7`                                 |
+| Integrated `main`     | `01c3eb4bf9ed2d1770da697c158c5d08742430bd`                                 |
 | Stage 6 feature SHA   | `b0361b8efe9060ef6c498e1cebfede4baaa9947d`                                 |
 | Stage 7 feature SHA   | `9b5f4372359a32066787060ca839d5a68c5ab490`                                 |
 | Migration head        | `0009_stage7_ai_assistant`                                                 |
@@ -112,8 +114,9 @@ git switch main
 git pull --ff-only origin main
 ```
 
-`main` contains the integrated Stage 7 baseline. Create a separate branch for every focused
-task or stage. Do not commit directly to `main`, force push, or rewrite shared history.
+`main` contains the integrated Stage 7 product and documentation baseline. Create a separate
+branch for every focused task or stage. Do not commit directly to `main`, force push, or
+rewrite shared history.
 
 ## Environment configuration
 
@@ -650,9 +653,8 @@ Operating rules:
 - Never bypass backend tenant/RBAC checks.
 - Never treat missing compliance evidence as `PASS`.
 - Never use AI to detect findings or determine risk scores.
-- Never begin Stage 8 before Stage 7 documentation is synchronized, local `main` is
-  synchronized, the Stage 7 regression baseline remains green, and the owner explicitly directs
-  Stage 8 to begin.
+- Stage 8A has started only as a bounded dashboard read-model and API-contract branch. Do not
+  mark Stage 8 complete until Stage 8B UI work and Stage 8C release verification finish.
 
 ## Stage 7 — AI explanation assistant
 
@@ -668,7 +670,8 @@ quoted data; prompt-like instructions inside evidence are neutralized. The
 assistant cannot detect or create findings, calculate or change risk, alter
 severity or compliance, execute remediation, create tickets, or send messages.
 
-Migration head: `0009_stage7_ai_assistant`. Stage 8 has not started.
+Migration head: `0009_stage7_ai_assistant`. Stage 8A dashboard API work has started; Stage 8
+is not complete.
 
 Stage 7 idempotency is scoped to `(organization_id, idempotency_key)`. A replay
 with the same canonical task, typed persisted source, source lifecycle/hash,
@@ -687,3 +690,23 @@ neutralized, secrets and credential-bearing URLs are redacted, and evidence is
 structurally labeled as untrusted data. These controls reduce prompt-injection
 risk; they do not claim absolute prevention. Every output string and collection
 is schema-bounded before persistence.
+
+## Stage 8A — dashboard read model
+
+Stage 8A starts from verified `main` commit `01c3eb4bf9ed2d1770da697c158c5d08742430bd`
+on branch `feature/8-dashboard`. It introduces the read-only
+`GET /api/v1/dashboard/summary` contract for organization security posture. The endpoint
+visualizes existing Stage 2-7 authoritative records and does not discover assets, evaluate
+rules, calculate compliance, calculate risk, invoke AI, call AWS, send notifications, execute
+remediation, create Jira issues, or persist dashboard-owned snapshots.
+
+The response is bounded and tenant-scoped. It includes metadata, AWS account posture, asset
+inventory distributions, finding posture, latest completed compliance posture, latest completed
+risk posture, account-risk heatmap data, immutable risk trend points, and operational freshness
+timestamps. Empty and partial organizations return explicit missing-section metadata rather than
+fabricated scores or percentages. Region/type/service/account distributions and recent finding
+lists use deterministic sorting and documented caps.
+
+Stage 8B remains responsible for the dashboard UI, KPI cards, charts, heatmap rendering,
+accessibility matrices, and organization-switch cache behavior. Stage 9 notifications have not
+started.

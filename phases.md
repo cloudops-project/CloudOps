@@ -2,9 +2,10 @@
 
 ## Current status
 
-Stages 1-7 are independently clean-room verified, merged, and regression-tested in `main` at
-`882ff531af07276c11e0d25664fdca033e09c7c7`. Stage 7 is implemented, post-merge verified, and
-merged. Stage 8 has not started.
+Stages 1-7 are independently clean-room verified, merged, and regression-tested in `main`.
+Stage 7 product and documentation are synchronized through
+`01c3eb4bf9ed2d1770da697c158c5d08742430bd`. Stage 8A dashboard read-model work has started on
+`feature/8-dashboard`; Stage 8 is not complete.
 
 ## Stage 0 — Planning and architecture
 
@@ -91,9 +92,13 @@ email. Migration `0009_stage7_ai_assistant` is the current head.
 
 ## Stage 8 — Dashboard
 
-**Status: NOT STARTED**
+**Status: STARTED — STAGE 8A READ MODEL IN PROGRESS**
 
-Expanded dashboards, reports, and export experiences remain planned.
+Stage 8A adds a read-only organization dashboard summary contract over existing Stage 2-7
+authoritative records. It does not add dashboard-owned persistence, recalculate findings,
+compliance, or risk, invoke AWS or AI providers, send notifications, execute remediation, or
+create Jira issues. Stage 8B will deliver the dashboard UI and accessibility matrices; Stage 8C
+will deliver integrated and detached release verification.
 
 ## Stage 9 — Notifications
 
@@ -152,11 +157,9 @@ Final user/developer documentation and demo materials remain planned.
 
 ## Immediate gate
 
-1. Review this Stage 7 documentation synchronization PR and authorize it where governance
-   requires it.
-2. Merge the documentation-only PR and synchronize local `main`.
-3. Confirm migration head `0009_stage7_ai_assistant`, the Stage 7 regression baseline, and a
-   clean worktree.
-4. Obtain explicit owner direction before creating any Stage 8 branch.
-5. Keep deterministic detection, compliance interpretation, risk scoring, and advisory AI
-   explanation separate.
+1. Complete Stage 8A dashboard read-model verification on `feature/8-dashboard`.
+2. Keep dashboard work read-only over existing Stage 2-7 records.
+3. Do not begin Stage 8B UI work until Stage 8A is reviewed or separately authorized.
+4. Do not begin Stage 9 notifications.
+5. Keep deterministic detection, compliance interpretation, risk scoring, advisory AI
+   explanation, and dashboard visualization separate.

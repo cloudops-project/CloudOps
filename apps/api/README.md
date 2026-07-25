@@ -57,6 +57,23 @@ default mock provider is deterministic and offline. AI consumes bounded
 persisted evidence only and cannot detect findings, score risk, mutate status,
 execute remediation, or deliver Jira/email drafts.
 
+## Stage 8A dashboard summary API
+
+Stage 8A adds `GET /api/v1/dashboard/summary` as a read-only, organization-scoped dashboard
+contract. It derives posture from existing AWS account, asset, finding, compliance, risk, and
+AI-era records without creating dashboard snapshot tables or changing Alembic head
+`0009_stage7_ai_assistant`.
+
+The response includes metadata, account posture, asset type/region distributions, finding
+status/severity/service/account summaries, recent critical/high findings without raw evidence,
+latest completed compliance posture, latest completed risk posture, account-risk heatmap data,
+bounded risk trend points, and operational freshness timestamps. Empty and partial states return
+explicit `missing_sections`; zero-denominator compliance percentages are `null`.
+
+All active tenant roles may read the summary through the normal organization membership gate.
+The endpoint does not invoke AWS, AI providers, notification transports, Jira integrations, or
+remediation code, and it does not recalculate findings, compliance, or risk.
+
 ## Stage 2 AWS onboarding
 
 Set `AWS_TRUSTED_PRINCIPAL_ARN` to the CloudOps AWS principal that customers may trust and
