@@ -19,6 +19,7 @@ import { MembersPage } from "./pages/MembersPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { RiskPage } from "./pages/RiskPage";
+import { SecurityDashboardPage } from "./pages/SecurityDashboardPage";
 import { NotFoundPage, UnauthorizedPage } from "./pages/StatusPages";
 import {
   ComplianceAssessmentPage,
@@ -66,6 +67,10 @@ export function App() {
           <Route path="/evaluations" element={<EvaluationJobsPage />} />
           <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/risk" element={<RiskPage />} />
+          <Route
+            path="/security-dashboard"
+            element={<SecurityDashboardPage />}
+          />
           <Route path="/ai" element={<AIAssistantPage />} />
           <Route
             path="/compliance/frameworks/:frameworkKey"
