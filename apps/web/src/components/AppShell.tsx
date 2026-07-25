@@ -1,4 +1,5 @@
 import {
+  Bell,
   Building2,
   Cloud,
   Database,
@@ -11,6 +12,7 @@ import {
   Sparkles,
   Users,
   UserRound,
+  Wrench,
 } from "lucide-react";
 import { Link, Outlet } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
@@ -79,6 +81,20 @@ export function AppShell() {
           >
             <Sparkles />
             AI Assistant
+          </Link>
+          <Link
+            className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+            to="/notifications"
+          >
+            <Bell />
+            Notifications
+          </Link>
+          <Link
+            className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+            to="/remediations"
+          >
+            <Wrench />
+            Remediation
           </Link>
           <Link
             className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"

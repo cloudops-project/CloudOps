@@ -16,8 +16,10 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { InviteMemberPage } from "./pages/InviteMemberPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MembersPage } from "./pages/MembersPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { RemediationsPage } from "./pages/RemediationsPage";
 import { RiskPage } from "./pages/RiskPage";
 import { SecurityDashboardPage } from "./pages/SecurityDashboardPage";
 import { NotFoundPage, UnauthorizedPage } from "./pages/StatusPages";
@@ -67,6 +69,8 @@ export function App() {
           <Route path="/evaluations" element={<EvaluationJobsPage />} />
           <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/risk" element={<RiskPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/remediations" element={<RemediationsPage />} />
           <Route
             path="/security-dashboard"
             element={<SecurityDashboardPage />}
