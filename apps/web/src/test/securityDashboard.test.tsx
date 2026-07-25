@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -288,7 +288,8 @@ describe("SecurityDashboardPage", () => {
     expect(
       await screen.findByRole("heading", { name: "Security posture" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("72")).toBeInTheDocument();
+    const riskSummary = await screen.findByRole("region", { name: "Risk" });
+    expect(within(riskSummary).getByText("72")).toBeInTheDocument();
     expect(screen.getByText("70%")).toBeInTheDocument();
     expect(screen.getByText("EC2_SG_SSH_OPEN_TO_WORLD")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
@@ -372,21 +373,38 @@ describe("SecurityDashboardPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
+    // AuthProvider seeds its `me` state from the `initialMe` prop via
+    // useState, which React only consults on a component's first mount.
+    // Rerendering the same AuthProvider element with a new `initialMe`
+    // value does not update its internal state, so a real organization
+    // switch must remount the provider (a fresh `key` forces this) rather
+    // than merely rerendering it with different props. The same QueryClient
+    // instance is kept across both renders so this still exercises real
+    // per-organization cache isolation, not a full app reset.
     const { rerender } = render(
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={["/security-dashboard"]}>
-          <AuthProvider initialMe={meFor("org-a")} restoreOnMount={false}>
+          <AuthProvider
+            key="org-a"
+            initialMe={meFor("org-a")}
+            restoreOnMount={false}
+          >
             <App />
           </AuthProvider>
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText("72")).toBeInTheDocument();
+    const riskSummaryA = await screen.findByRole("region", { name: "Risk" });
+    expect(within(riskSummaryA).getByText("72")).toBeInTheDocument();
 
     rerender(
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={["/security-dashboard"]}>
-          <AuthProvider initialMe={meFor("org-b")} restoreOnMount={false}>
+          <AuthProvider
+            key="org-b"
+            initialMe={meFor("org-b")}
+            restoreOnMount={false}
+          >
             <App />
           </AuthProvider>
         </MemoryRouter>
@@ -394,11 +412,19 @@ describe("SecurityDashboardPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.queryByText("72")).not.toBeInTheDocument();
+      const riskSummaryB = screen.getByRole("region", { name: "Risk" });
+      expect(within(riskSummaryB).queryByText("72")).not.toBeInTheDocument();
     });
     expect(
       await screen.findByText(/no completed risk assessment/i),
     ).toBeInTheDocument();
+
+    // Prove a real, distinct request for org-b's own data was made rather
+    // than the UI merely continuing to display org-a's cached result.
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("organization_id=org-b"),
+      expect.anything(),
+    );
   });
 
   it("clears the query cache on logout so protected dashboard state cannot leak", async () => {
@@ -416,7 +442,8 @@ describe("SecurityDashboardPage", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { client } = renderAt("/security-dashboard", me);
 
-    expect(await screen.findByText("72")).toBeInTheDocument();
+    const riskSummary = await screen.findByRole("region", { name: "Risk" });
+    expect(within(riskSummary).getByText("72")).toBeInTheDocument();
     expect(client.getQueryCache().getAll().length).toBeGreaterThan(0);
 
     const user = userEvent.setup();
@@ -429,16 +456,26 @@ describe("SecurityDashboardPage", () => {
 
   it("navigates to the security dashboard from the primary navigation", async () => {
     const me = meFor("org-nav");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        new Response(JSON.stringify(populatedSummary("org-nav")), {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/v1/dashboard/summary")) {
+        return new Response(JSON.stringify(populatedSummary("org-nav")), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        }),
-      ),
-    );
+        });
+      }
+      // The Stage 1 landing page (/dashboard) requests members, invitations,
+      // and audit events, each of which is an array-shaped response.
+      return new Response("[]", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
     renderAt("/dashboard", me);
+    expect(
+      await screen.findByRole("heading", { name: `Organization org-nav` }),
+    ).toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(
       screen.getByRole("link", { name: /security posture/i }),
