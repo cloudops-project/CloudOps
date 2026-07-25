@@ -5,10 +5,11 @@ administration, secure cross-account AWS onboarding, read-only asset discovery, 
 security findings, and evidence-based compliance assessments. It is intended for organization
 owners, administrators, security analysts, cloud engineers, auditors, and viewers.
 
-Stages 1-8 are implemented, independently clean-room verified, merged, and regression-tested.
-Stage 9 (notifications) has a complete backend on `feature/9-notifications`
-(persistence, service, and API layer); its frontend and merge into `main` remain outstanding.
-Stage 4 deterministic rules detect findings from persisted inventory; Stage 5 interprets that deterministic evidence for
+Stages 1-8 are implemented, independently clean-room verified, merged, and regression-tested in
+`main`. Stages 9-12 (notifications, remediation, scheduler, and audit query/export) are
+implemented and committed on `feature/v1-demo-completion`, independently verified on that
+branch, and not yet merged into `main`. Stage 4
+deterministic rules detect findings from persisted inventory; Stage 5 interprets that deterministic evidence for
 compliance and never performs independent detection. Stage 6 prioritizes persisted findings
 using the deterministic, versioned `CLOUDOPS_RISK_V1` policy. Stage 7 explains existing
 records and generates advisory drafts only. AI is not used for finding detection, compliance
@@ -26,10 +27,8 @@ accounts.
 | Integrated `main`     | `889660ecb8a378d107f6737b4466b70362066793`                                 |
 | Stage 6 feature SHA   | `b0361b8efe9060ef6c498e1cebfede4baaa9947d`                                 |
 | Stage 7 feature SHA   | `9b5f4372359a32066787060ca839d5a68c5ab490`                                 |
-| Stage 9 backend (unmerged, `feature/9-notifications`) | `d0b5676`, `449e964`, `cb42db9` |
 | Migration head (`main`) | `0009_stage7_ai_assistant`                                                |
-| Migration head (`feature/9-notifications`) | `0010_stage9_notifications`                            |
-| Backend/frontend/black-box/coverage counts | Not re-verified since Stage 7; re-run the full quality-gate sequence below before citing fresh numbers |
+| Backend/frontend/black-box/coverage counts on `main` | Not re-verified since Stage 7; re-run the full quality-gate sequence below before citing fresh numbers |
 | Dependencies/security | `pip check`, Python audit, npm audit, and security scans passed as of Stage 7 |
 
 PR #8 merged Stage 7 at `2026-07-24T19:19:02Z` with merge commit
@@ -42,6 +41,24 @@ Stage 8 merged via PR #10 (`feature/8-dashboard`) plus a follow-up `feature/8-da
 branch merge, reaching `main` at `889660ecb8a378d107f6737b4466b70362066793`. This record does
 not independently confirm PR #10's review/approval state; verify it before treating it as
 equivalent governance evidence to PR #8.
+
+### Active feature branch state (`feature/v1-demo-completion`, not yet merged into `main`)
+
+| Item | Verified value |
+| --- | --- |
+| Branch | `feature/v1-demo-completion`, created from `feature/9-notifications` |
+| Committed HEAD | `9314f06 feat(web): add audit log explorer` |
+| Migration head | `0012_stage11_scheduler` |
+| Stage 9 commits | `d0b5676`, `449e964`, `cb42db9` (backend), `d1c8733` (frontend, combined with Stage 10) |
+| Stage 10 commits | `bf29173`, `fc8908d`, `8ab8c83` (backend), `d1c8733` (frontend), `8916be9` (test fixture repair) |
+| Stage 11 commits | `24227ab`, `9fff532`, `8c14b55`, `55c451e` |
+| Stage 11 backend verification | Ruff passed; Mypy passed (140 source files); scheduler Pytest 22 passed; one non-blocking Starlette/httpx deprecation warning |
+| Stage 11 migration verification | `0010_stage9_notifications -> 0011_stage10_remediation` and `0011_stage10_remediation -> 0012_stage11_scheduler` upgraded successfully against the disposable verification database; `alembic current` reports `0012_stage11_scheduler`; `alembic check` reports no new operations; chain is linear with a single head |
+| Stage 11 frontend verification | TypeScript passed; ESLint passed; scheduler Vitest 5 passed; production build passed |
+| Stage 12 | Implemented and committed at `d0d24cd` and `9314f06`; targeted backend and frontend verification clean. |
+
+`main` itself has not moved past Stage 8; Stages 9-12 exist only on `feature/v1-demo-completion`
+until merged through normal review.
 
 ## Technology stack
 
@@ -342,6 +359,14 @@ Never use a production account or customer credentials for local testing.
 | Suppress findings           |   Yes |                          Yes |              Yes |             No |      No |     No |
 | View compliance             |   Yes |                          Yes |              Yes |            Yes |     Yes |    Yes |
 | Run compliance assessments  |   Yes |                          Yes |              Yes |            Yes |      No |     No |
+| View notifications          |   Yes |                          Yes |              Yes |            Yes |     Yes |    Yes |
+| Approve/deliver notifications |  Yes |                          Yes |              Yes |             No |      No |     No |
+| View remediation requests   |   Yes |                          Yes |              Yes |            Yes |     Yes |    Yes |
+| Propose/cancel remediation  |   Yes |                          Yes |              Yes |            Yes |      No |     No |
+| Approve/reject/execute remediation | Yes |                    Yes |              Yes |             No |      No |     No |
+| View schedules/scan runs    |   Yes |                          Yes |              Yes |            Yes |     Yes |    Yes |
+| Manage schedules/run-now    |   Yes |                          Yes |              Yes |            Yes |      No |     No |
+| Query/export audit events   |   Yes |                          Yes |               No |             No |     Yes |     No |
 
 Backend RBAC is authoritative; hidden frontend controls are not a security boundary. Active
 membership and tenant scope are required for every organization-owned operation.
@@ -463,8 +488,11 @@ alembic history
 alembic check
 ```
 
-There must be one head: `0009_stage7_ai_assistant`. Never edit a reviewed migration merely
-to make a stale local database agree; recreate only a disposable database.
+There must be one head. On `main` that head is `0009_stage7_ai_assistant`. On
+`feature/v1-demo-completion` the linear chain continues through `0010_stage9_notifications`,
+`0011_stage10_remediation`, to `0012_stage11_scheduler` (current head on that branch). Stage 12
+adds no migration. Never edit a reviewed migration merely to make a stale local database agree;
+recreate only a disposable database.
 
 ### A port is already in use
 
@@ -648,6 +676,21 @@ Operating rules:
 - Live AWS validation is controlled sandbox work, not a requirement for automated tests.
 - Stage 9 notification delivery uses a deterministic mock/no-op provider only; no real email,
   Slack, Teams, or webhook delivery is implemented. Delivery requires explicit human approval.
+  AWS SES is a possible future production provider; it is not implemented.
+- Stage 10 remediation execution uses a deterministic mock executor only; no real AWS mutation
+  is performed. Protected transitions (approve, reject, execute) require explicit human
+  authorization. Rule evaluation remains the sole authority on whether a finding exists; AI may
+  explain a remediation but never decides one is needed.
+- Stage 11's scheduler worker is a deterministic, synchronously invokable foundation, not a
+  Celery/Redis/distributed-queue or permanent cron daemon; that infrastructure choice remains
+  unapproved future work. It delegates every run to the existing discovery and evaluation
+  orchestration and performs no independent boto3 or rule-evaluation logic.
+- Stage 12 (audit query/export) reuses the existing `AuditEvent` persistence and
+  `record_audit()` write path; it adds a read/query/export layer only and requires no migration.
+  It is committed on `feature/v1-demo-completion` at `d0d24cd` and `9314f06`.
+- `compose.verify.yml` provides only a disposable PostgreSQL verification database. No API,
+  web, or worker Dockerfile and no full local demo Compose stack exist yet; that is planned
+  Stage 14 (DevOps/local demo environment) work.
 
 ## Safety summary
 
@@ -658,8 +701,10 @@ Operating rules:
 - Never treat missing compliance evidence as `PASS`.
 - Never use AI to detect findings or determine risk scores.
 - Never allow notification delivery to bypass explicit human approval.
-- Stage 9 backend (persistence, service, API) is complete on `feature/9-notifications`; its
-  frontend and merge into `main` remain outstanding.
+- Never allow remediation execution to bypass explicit human approval; execution is mock/
+  simulated only and never mutates real AWS resources.
+- Stages 9-12 (notifications, remediation, scheduler, audit query/export) are complete and committed on
+  `feature/v1-demo-completion`; merge into `main` remains outstanding.
 
 ## Stage 7 — AI explanation assistant
 
@@ -724,6 +769,64 @@ Creation is triggered only by a newly created `CRITICAL` finding and is defensiv
 inside `NotificationService.create_for_critical_finding` regardless of the caller. No delivery
 occurs without an explicit `POST /api/v1/notifications/{id}/approve` by a user holding the
 `NOTIFICATIONS_APPROVE` capability. The only delivery provider implemented is a deterministic
-mock/no-op provider; no real email, Slack, Teams, or webhook delivery exists. Migration head on
-`feature/9-notifications`: `0010_stage9_notifications`. The frontend notification history/
-approval page is not yet implemented.
+mock/no-op provider that performs no network calls; no real SMTP, AWS SES, SendGrid, Gmail, or
+Microsoft Graph delivery exists. AWS SES is a possible future production provider, not yet
+implemented. The workflow is: finding/risk event -> pending-approval notification -> authorized
+human approval -> simulated delivery -> delivered or failed state. Rules detect; risk scoring
+prioritizes; AI may draft explanatory wording but never authorizes delivery or sends anything;
+humans approve; a provider delivers. The frontend notification history/approval page
+(`NotificationsPage`, filtering, pagination, role-gated approve/deliver controls, and tests) is
+implemented. Backend and frontend are both committed on `feature/v1-demo-completion`; migration
+`0010_stage9_notifications`.
+
+## Stage 10 — remediation workflow
+
+Stage 10 adds a governed, approval-gated remediation lifecycle for a finding:
+`PENDING_APPROVAL -> APPROVED -> SUCCEEDED`, `APPROVED -> FAILED` after three failed mock
+execution attempts, or `PENDING_APPROVAL`/`APPROVED -> REJECTED`/`CANCELLED`. Proposal text is
+generated deterministically from the matching `SecurityRule` in the existing rule registry; no
+new detection logic is introduced. Execution uses a deterministic `MockRemediationExecutor` only
+and never mutates real AWS resources — `execution_mode` other than `mock_automation` cannot be
+executed in Version 1. Every protected transition (approve, reject, cancel, execute) requires a
+capability-gated authenticated actor and is tenant-isolated via a composite foreign key to the
+owning finding/account/organization. The frontend exposes a "Propose remediation" action from a
+finding's detail page and a dedicated remediation list/detail page with role-gated
+approve/reject/cancel/execute controls. Backend and frontend are both committed on
+`feature/v1-demo-completion`; migration `0011_stage10_remediation`.
+
+## Stage 11 — scheduler
+
+Stage 11 adds a scheduling foundation: `ScanSchedule` records an interval-based cadence for an
+AWS account, and `ScanRun` records one execution (manual or scheduled). Running a schedule always
+delegates to the existing `DiscoveryOrchestrator` and `EvaluationService` — it introduces no new
+boto3 or rule-evaluation logic. A partial unique index enforces overlap protection: only one
+pending/running scan may exist per AWS account at a time. The worker
+(`app/worker/scheduler_worker.py`) is a deterministic, synchronously invokable "tick" foundation,
+not a Celery/Redis/distributed-queue or permanent cron daemon; that infrastructure choice is
+explicitly deferred (see `apps/worker/README.md`). The frontend `SchedulesPage` supports
+enable/disable, run-now, and a recent scan-run history view, role-gated to match backend RBAC.
+Backend and frontend are both committed on `feature/v1-demo-completion`; migration
+`0012_stage11_scheduler` (current head on that branch).
+
+## Stage 12 — audit query/export
+
+Stage 12 adds a read/query/export layer over the existing `AuditEvent` persistence and
+`record_audit()` write path from earlier stages; **it requires no migration**. It adds
+`GET /api/v1/audit-events` (filters: event type, resource type, resource ID, actor user ID,
+result, start/end time; paginated) and `GET /api/v1/audit-events/export` (same filters, CSV,
+capped at 5,000 rows, kept synchronous rather than a background job). Both reuse the existing
+`AUDIT_READ` capability (owner, admin, auditor). The frontend `AuditPage` provides filter
+controls, pagination, and a CSV export button using a new `apiBlob()` helper that reuses the
+existing authenticated request/refresh flow.
+
+**Stage 12 is implemented and committed on `feature/v1-demo-completion` at `d0d24cd` and
+`9314f06`.** Its most recent verification:
+
+- Backend: Ruff passed; Mypy passed (142 source files); `test_audit_api.py` 8 passed; one
+  non-blocking Starlette/httpx deprecation warning
+- Frontend: TypeScript passed; ESLint passed; Vitest (`audit.test.tsx`) 4 passed; production
+  build passed
+
+Tomorrow-demo readiness now needs Mailpit-backed SMTP delivery, the local demo stack,
+deterministic seed/reset, and a black-box V1 acceptance flow. See `NEW_CHAT_CONTEXT.md` for the
+current demo-readiness plan.

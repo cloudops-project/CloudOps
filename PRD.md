@@ -10,10 +10,13 @@ future intent.
 
 CloudOps is a multi-tenant SaaS application for securely connecting AWS accounts and building a
 normalized inventory, deterministic security findings, and point-in-time compliance
-assessments, deterministic explainable risk scoring, advisory AI explanations, and an
-approval-gated critical-finding notification workflow. Stages 1-8 are independently
-clean-room verified, merged, and regression-tested. Stage 9's backend (persistence, service,
-and API) is complete on `feature/9-notifications`; its frontend is not yet implemented.
+assessments, deterministic explainable risk scoring, advisory AI explanations, an
+approval-gated critical-finding notification workflow, a governed mock remediation workflow, a
+scan-scheduling foundation, and an audit query/export layer. Stages 1-8 are independently
+clean-room verified, merged, and regression-tested in `main`. Stages 9-11 (notifications,
+remediation, scheduler, audit query/export) are implemented, independently verified, and
+committed on `feature/v1-demo-completion`, not yet merged into `main`. Stage 12 is committed at
+`d0d24cd` and `9314f06`; backend and frontend targeted verification are clean.
 
 ## Business goals
 
@@ -123,6 +126,50 @@ for deterministic checks; it does not ingest raw logs/events or perform full IAM
 - Stable findings with open, resolved, reopened, and suppressed lifecycle behavior
 - Bounded evidence, tenant-safe APIs, audit events, structured logs, and frontend workflows
 
+### Stage 9 — Notifications (implemented, committed on `feature/v1-demo-completion`)
+
+- Organization-scoped `NotificationEvent` pipeline triggered only by a newly created `CRITICAL`
+  finding
+- `PENDING_APPROVAL -> APPROVED -> DELIVERED`, or `APPROVED -> FAILED` after three failed
+  attempts; no `REJECTED` state
+- Delivery requires explicit human approval via the `NOTIFICATIONS_APPROVE` capability
+- Deterministic mock/no-op delivery provider only; no real SMTP, AWS SES, SendGrid, Gmail, or
+  Microsoft Graph delivery; the provider makes no network calls
+- Frontend notification history/approval page with filtering, pagination, and role-gated
+  approve/deliver controls
+
+### Stage 10 — Remediation workflow (implemented, committed on `feature/v1-demo-completion`)
+
+- Organization-scoped `RemediationRequest` lifecycle:
+  `PENDING_APPROVAL -> APPROVED -> SUCCEEDED`, `APPROVED -> FAILED` after three failed mock
+  execution attempts, or rejection/cancellation from an active state
+- Deterministic proposal text generated from the existing security-rule registry; no new
+  detection logic
+- Deterministic mock executor only; Version 1 never mutates real AWS resources
+- Human authorization required for propose/approve/reject/cancel/execute transitions
+- Frontend "Propose remediation" action on a finding's detail page, plus a remediation
+  list/detail page with role-gated approve/reject/cancel/execute controls
+
+### Stage 11 — Scheduler (implemented, committed on `feature/v1-demo-completion`)
+
+- `ScanSchedule` (interval cadence, next-run calculation, enable/disable) and `ScanRun`
+  (execution history, manual or scheduled trigger) persistence
+- Overlap protection: a database partial unique index allows only one pending/running scan per
+  AWS account
+- A deterministic, synchronously invokable scheduler worker foundation that delegates every run
+  to the existing discovery and evaluation orchestration; it is not a Celery/Redis/distributed
+  queue or a permanent cron daemon
+- Frontend schedules page with enable/disable, run-now, and recent scan-run history
+
+### Stage 12 — Audit query/export (implemented and committed on `feature/v1-demo-completion`)
+
+- Read/query/export layer over the existing `AuditEvent` persistence and `record_audit()` write
+  path from earlier stages; adds no migration
+- Filterable, paginated `GET /api/v1/audit-events` and a bounded (5,000-row) CSV
+  `GET /api/v1/audit-events/export`, both reusing the existing `AUDIT_READ` capability
+- Frontend audit explorer page with filters, pagination, and CSV export
+- Backend and frontend targeted verification are clean
+
 ## Current user journey
 
 1. Register or log in.
@@ -161,6 +208,12 @@ All application APIs are versioned under `/api/v1`.
   execution, history, and immutable snapshot details
 - Risk: policies, assessment execution/history/details, summaries, ranked findings,
   account/asset views, context read/update, and compensating-control lifecycle
+- Notifications: list/detail, approve, deliver (Stage 9)
+- Remediation: list/detail, propose, approve, reject, cancel, execute (Stage 10)
+- Scheduler: create/list/detail schedules, enable, disable, delete, run-now, list/detail scan
+  runs (Stage 11)
+- Audit: paginated/filtered query and bounded CSV export over existing audit events (Stage 12,
+  committed on `feature/v1-demo-completion`)
 - Operations: `/health` and database-backed `/ready`
 
 ## Current dashboard capabilities
@@ -169,22 +222,29 @@ The frontend provides organization identity and role context, member and invitat
 recent authentication/membership activity, member administration, AWS onboarding, asset
 inventory, discovery jobs, findings, rule catalog, evaluation jobs, compliance frameworks,
 control details, assessment history, deterministic risk summaries, component explanations,
-ranked findings, contexts, compensating controls, historical risk snapshots, and advisory AI
-draft workflows. Jira and email outputs remain drafts, and no remediation executor is exposed.
+ranked findings, contexts, compensating controls, historical risk snapshots, advisory AI
+draft workflows, a notification history/approval page, a remediation list/detail workflow, a
+scan-schedule page with run-now, and (pending commit) an audit explorer page with CSV export.
+Jira and email outputs remain drafts; remediation execution is mock/simulated only.
 
 ## Out of scope and not implemented
 
 - Complete framework coverage or compliance certification
 - Security recommendations
 - Real notification delivery (email, Slack, Teams, webhook) and ticketing; Stage 9 ships a
-  deterministic mock/no-op provider only
-- Remediation or customer-resource mutation
-- Scheduled/background discovery
+  deterministic mock/no-op provider only that makes no network calls; AWS SES is a possible
+  future production provider, not yet implemented
+- Real AWS remediation/mutation; Stage 10 ships a deterministic mock executor only
+- A Celery/Redis/distributed-queue or permanent cron-daemon scheduler; Stage 11 ships a
+  deterministic, synchronously invokable worker foundation only
 - Raw CloudWatch log or CloudTrail event ingestion, EventBridge, or deployment infrastructure
 - MFA, SSO/OIDC, password reset, and production invitation email delivery
-- Stage 9 frontend (notification history/approval UI); Stage 10 remediation workflow; Stage 11
-  scheduler; Stage 12 audit logs; Stage 13 security hardening; Stage 14 DevOps and IaC;
-  Stage 15 testing; Stage 16 deployment; and Stage 17 documentation and demo
+- A full local Docker demo stack (API/web/worker Dockerfiles, root `.dockerignore`, complete
+  `compose.yml`, deterministic demo-data bootstrapping); `compose.verify.yml` currently provides
+  only a disposable PostgreSQL verification database
+- Stage 13 security hardening; Stage 14 local DevOps/demo stack; deterministic demo seed/reset;
+  full regression and black-box V1 acceptance; deployment preparation; final documentation; and
+  the pull request integrating this branch into `main`
 
 ## Security and test boundaries
 
@@ -221,9 +281,13 @@ Stages 1-8 are independently clean-room verified and merged in `main` at
 `889660ecb8a378d107f6737b4466b70362066793`. Stage 7 feature SHA
 `9b5f4372359a32066787060ca839d5a68c5ab490` was merged by PR #8; Stage 8 merged via PR #10 plus a
 follow-up `feature/8-dashboard-ui` merge. The current migration head on `main` is
-`0009_stage7_ai_assistant`. Stage 9's backend (persistence, service, API) is complete on
-`feature/9-notifications` (migration head `0010_stage9_notifications`) but not yet merged; its
-frontend is not implemented. Stage 10-17 functionality is not implemented.
+`0009_stage7_ai_assistant`.
+
+Stages 9-12 (notifications, remediation, scheduler, audit query/export) are implemented,
+independently verified, and committed on `feature/v1-demo-completion` (HEAD `9314f06`;
+migration head `0012_stage11_scheduler`), not yet merged into `main`. Stages 13-17 (security hardening, local DevOps/demo stack,
+regression/acceptance testing, deployment preparation, and final documentation/demo) are not
+implemented.
 
 ## Stage 7 acceptance boundary
 

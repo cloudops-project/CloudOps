@@ -2,23 +2,39 @@
 
 ## Last updated
 
-2026-07-25
+2026-07-26 — Stages 9-11 (notifications, remediation, scheduler) implemented, independently
+verified, and committed on `feature/v1-demo-completion`. Stage 12 (audit query/export)
+implemented and committed on that branch at `d0d24cd` and `9314f06`; backend and frontend
+checks are clean. Documentation reconciled for Codex handoff and tomorrow-demo readiness.
 
 ## Current repository and documentation release
 
 - Integration branch: `main`
 - Active feature branch: `feature/v1-demo-completion` (based on `feature/9-notifications`)
-- Current authoritative main SHA: `889660ecb8a378d107f6737b4466b70362066793`
+- Current committed HEAD on the feature branch: `9314f06 feat(web): add audit log explorer`
+- Current authoritative main SHA: `889660ecb8a378d107f6737b4466b70362066793` (unchanged; `main`
+  has not advanced past Stage 8)
 - Verified Stage 6 feature SHA: `b0361b8efe9060ef6c498e1cebfede4baaa9947d`
 - Stage 6 merge commit: `f23e124813b5f65a8f85957c1dce57d95b9cf038`
 - Verified Stage 7 feature SHA: `9b5f4372359a32066787060ca839d5a68c5ab490`
 - Stage 7 merge commit: `882ff531af07276c11e0d25664fdca033e09c7c7`
 - Stage 8 merge commit: `889660ecb8a378d107f6737b4466b70362066793` (PR #10 plus a follow-up
   `feature/8-dashboard-ui` merge)
-- Stage 9 backend commits (not yet merged to `main`): `d0b5676` (persistence),
-  `449e964` (service), `cb42db9` (API)
-- Current Alembic head on `feature/9-notifications`: `0010_stage9_notifications`
+- Stage 9 commits (committed on `feature/v1-demo-completion`, not yet merged to `main`):
+  `d0b5676` (persistence), `449e964` (service), `cb42db9` (API), `d1c8733` (frontend, combined
+  with Stage 10)
+- Stage 10 commits: `bf29173` (persistence), `fc8908d` (service), `8ab8c83` (API), `d1c8733`
+  (frontend), `8916be9` (test fixture repair)
+- Stage 11 commits: `24227ab` (persistence), `9fff532` (service/worker), `8c14b55` (API),
+  `55c451e` (frontend)
+- Stage 12 commits: `d0d24cd` (audit API/query/export), `9314f06` (audit explorer UI)
+- Documentation reconciliation commit for this handoff: see the bottom of this file's "Repository
+  state" section, or `git log -1` on `feature/v1-demo-completion` at the time this file is read
+- Current Alembic head on `feature/v1-demo-completion`: `0012_stage11_scheduler`
 - PR #8 merged at `2026-07-24T19:19:02Z`.
+- `.git/index.lock` has recurred repeatedly and self-cleared or been cleared from Windows
+  multiple times this effort. Check `Test-Path .git\index.lock` before any mutating Git command;
+  never remove it automatically or retry blindly.
 
 ## Current implementation status
 
@@ -31,8 +47,19 @@
   regression-tested
 - Stage 7 AI Explanation Assistant: independently verified, merged, and post-merge verified
 - Stage 8 Dashboard (read model and UI): merged in `main`
-- Stage 9 Notifications: backend (model, service, API) complete on `feature/9-notifications`,
-  not yet merged; frontend not started
+- Stage 9 Notifications: complete (model, service, API, frontend), independently verified,
+  committed on `feature/v1-demo-completion`; not yet merged into `main`
+- Stage 10 Remediation Workflow: complete (model, service, API, frontend), independently
+  verified, committed on `feature/v1-demo-completion`; not yet merged into `main`
+- Stage 11 Scheduler: complete (model, service, worker, API, frontend), independently verified
+  (backend Ruff/Mypy/22 Pytest passed; migration chain verified through
+  `0012_stage11_scheduler` on the disposable PostgreSQL verification database; frontend
+  TypeScript/ESLint/5 Vitest/production build passed), committed on
+  `feature/v1-demo-completion`; not yet merged into `main`
+- Stage 12 Audit Query/Export: implemented and committed. Backend clean (Ruff, Mypy 142 source
+  files, `test_audit_api.py` 8 passed). Frontend TypeScript, ESLint, Vitest (4 passed), and
+  production build are clean. Codex is the active implementation agent for the tomorrow-demo
+  readiness work.
 
 ### Stage 6
 
@@ -77,6 +104,28 @@ Versioned frameworks and controls; rule-version-aware mappings; persisted per-ru
 evaluation summaries; account assessments; immutable control snapshots; PASS/FAIL/
 NOT_ASSESSED/ERROR semantics; suppression-safe failure behavior; tenant-safe APIs; compliance
 RBAC; structured logs and audit events; and an accessible compliance workflow.
+
+### Stage 9
+
+Organization-scoped `NotificationEvent` model and migration; `NotificationService`
+(create-on-critical-finding, approve, deliver with a bounded 3-attempt retry); deterministic
+mock/no-op delivery provider; API layer with `NOTIFICATIONS_READ`/`NOTIFICATIONS_APPROVE` RBAC;
+frontend history/approval page with filtering, pagination, and role-gated controls.
+
+### Stage 10
+
+Organization-scoped `RemediationRequest` model and migration; `RemediationService` and
+`MockRemediationExecutor` (propose/approve/reject/cancel/execute with a bounded 3-attempt
+execution retry); deterministic proposal text from the existing rule registry; API layer with
+5 dedicated RBAC capabilities; frontend remediation list/detail workflow plus a finding-detail
+"Propose remediation" action.
+
+### Stage 11
+
+`ScanSchedule`/`ScanRun` models and migration; `SchedulerService` and a deterministic
+single-tick worker delegating to the existing discovery/evaluation services; database-enforced
+overlap protection; API layer with `SCHEDULE_READ`/`SCHEDULE_MANAGE` RBAC; frontend schedules
+page with enable/disable, run-now, and scan-run history.
 
 ## Architecture decisions
 
@@ -163,9 +212,13 @@ Stage 7 is integrated in `main` through PR #8 at
 `889660ecb8a378d107f6737b4466b70362066793` through PR #10 and a follow-up
 `feature/8-dashboard-ui` merge; this record does not independently confirm PR #10's exact
 review/approval state and that should be verified before treating it as equivalent governance
-evidence to PRs #2/#4/#6/#8 below. Stage 9 backend work is complete on `feature/9-notifications`
-(`d0b5676`, `449e964`, `cb42db9`) but not yet merged into `main`. Generated output remains
-ignored.
+evidence to PRs #2/#4/#6/#8 below.
+
+Stages 9-12 (notifications, remediation, scheduler, audit query/export) are fully implemented
+and committed on `feature/v1-demo-completion` (HEAD `9314f06`), independently verified on that
+branch, and not yet merged into `main`. Stage 12 spans 10 files (4 backend, 6 frontend — see
+`NEW_CHAT_CONTEXT.md` for the exact list). `CLAUDE.md` has remained untracked throughout every
+commit on this branch and must stay that way. Generated output remains ignored.
 
 ## Governance record
 
@@ -191,13 +244,23 @@ CODEOWNER, automated CI, or repository-policy approval.
 
 ## Next immediate task
 
-1. Complete Stage 9 notifications frontend (history/approval page) on
-   `feature/v1-demo-completion`.
-2. Merge `feature/9-notifications` work into `main` through normal review once ready.
-3. Continue the Version 1 demo-completion effort: Stage 10 remediation workflow, Stage 11
-   scheduler, Stage 12 audit logs, essential security hardening, local Docker demo environment,
-   and end-to-end demo verification, per `docs/planning/roadmap.md`.
-4. Keep dashboard visualization separate from detection, compliance calculation, risk scoring,
+Development ownership has moved from Claude Code to Codex. Stage 12 is committed; the exact
+demo-readiness plan is recorded in `NEW_CHAT_CONTEXT.md`; this section is a short pointer, not a
+duplicate of that detail.
+
+1. Verify branch, HEAD, working-tree status, and `.git/index.lock` state before any Git
+   mutation.
+2. Commit this documentation reconciliation safely, keeping `CLAUDE.md` untracked and never
+   using `git add .`/`git add -A`.
+3. Audit and close the exact tomorrow-demo journey gaps, starting with Mailpit-backed SMTP
+   notification delivery and the local demo stack.
+4. Continue the Version 1 demo-completion effort per `docs/planning/roadmap.md`: Stage 13
+   security hardening, Stage 14 local DevOps/demo stack, deterministic demo seed/reset, full
+   regression testing, the black-box V1 acceptance flow, deployment preparation, final
+   documentation, and eventually a pull request merging `feature/v1-demo-completion` into
+   `main`.
+6. Keep dashboard visualization separate from detection, compliance calculation, risk scoring,
    AI explanation, AWS mutation, Jira creation, email delivery, and remediation execution.
-5. Keep notification delivery gated on explicit human approval; the mock provider must remain
-   the only delivery path until a real provider is explicitly authorized.
+7. Keep notification delivery and remediation execution mock-only and gated on explicit human
+   approval; the scheduler worker must keep delegating to existing discovery/evaluation
+   services rather than duplicating their logic.

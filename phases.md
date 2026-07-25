@@ -5,10 +5,13 @@
 Stages 1-7 are independently clean-room verified, merged, and regression-tested in `main`.
 Stage 8 (dashboard read model and UI) is merged in `main` at `889660ecb8a378d107f6737b4466b70362066793`
 through PR #10 (`feature/8-dashboard`) and a follow-up `feature/8-dashboard-ui` branch merge.
-Stage 9 (notifications) has a complete backend (persistence, service, and API layer) on
-`feature/9-notifications` at commits `d0b5676`, `449e964`, and `cb42db9`, not yet merged to
-`main`. Stage 9 frontend (notification history/approval UI) is not yet implemented. Stages 10-17
-remain not-started planning entries.
+
+Stages 9-12 (notifications, remediation, scheduler, audit query/export) are implemented,
+independently verified, and committed on `feature/v1-demo-completion` (HEAD `9314f06`;
+migration head `0012_stage11_scheduler`), not yet merged into `main`. Stage 12 backend
+verification is clean (Ruff passed; Mypy passed, 142 source files; `test_audit_api.py` 8
+passed); frontend TypeScript, ESLint, Vitest (4 passed), and production build are clean.
+Stages 13-17 remain planning entries, with tomorrow-demo readiness as the immediate priority.
 
 ## Stage 0 — Planning and architecture
 
@@ -106,36 +109,66 @@ accessibility-aware presentation over the Stage 8A contract. Both merged into `m
 
 ## Stage 9 — Notifications
 
-**Status: BACKEND COMPLETE ON `feature/9-notifications` — NOT MERGED; FRONTEND NOT STARTED**
+**Status: COMPLETE AND COMMITTED ON `feature/v1-demo-completion` — NOT MERGED TO `main`**
 
 Delivered: an organization-scoped `NotificationEvent` persistence model and migration
 (`0010_stage9_notifications`, commit `d0b5676`); a deterministic mock/no-op delivery provider and
 `NotificationService` implementing create-on-critical-finding, approve, and deliver with a
-bounded 3-attempt retry state machine (commit `449e964`); and an API layer
+bounded 3-attempt retry state machine (commit `449e964`); an API layer
 (`GET /notifications`, `GET /notifications/{id}`, `POST /notifications/{id}/approve`,
 `POST /notifications/{id}/deliver`) with dedicated `NOTIFICATIONS_READ`/`NOTIFICATIONS_APPROVE`
-RBAC capabilities (commit `cb42db9`). No notification is delivered without explicit human
-approval; the mock provider makes no real external delivery. Not yet implemented: a frontend
-notification history/approval page, and merge into `main`.
+RBAC capabilities (commit `cb42db9`); and a frontend notification history/approval page with
+filtering, pagination, and role-gated approve/deliver controls (commit `d1c8733`, combined with
+Stage 10 frontend). No notification is delivered without explicit human approval; the mock
+provider makes no real external delivery and no network calls. AWS SES is a possible future
+production provider, not yet implemented. Not yet done: merge into `main`.
 
 ## Stage 10 — Remediation Workflow
 
-**Status: NOT STARTED**
+**Status: COMPLETE AND COMMITTED ON `feature/v1-demo-completion` — NOT MERGED TO `main`**
 
-Governed remediation and customer-resource mutation are not implemented.
+Delivered: an organization-scoped `RemediationRequest` persistence model and migration
+(`0011_stage10_remediation`, commit `bf29173`); `RemediationService` and
+`MockRemediationExecutor` implementing propose/approve/reject/cancel/execute with a bounded
+3-attempt execution retry state machine (commit `fc8908d`); an API layer with dedicated
+`REMEDIATION_READ`/`REMEDIATION_REQUEST`/`REMEDIATION_APPROVE`/`REMEDIATION_REJECT`/
+`REMEDIATION_EXECUTE` RBAC capabilities (commit `8ab8c83`); a frontend remediation list/detail
+workflow and a finding-detail "Propose remediation" action (commit `d1c8733`); and a later test
+fixture repair (commit `8916be9`). Execution is mock/simulated only and never mutates real AWS
+resources. Proposal text is generated deterministically from the existing security-rule
+registry; no new detection logic exists. Not yet done: merge into `main`.
 
 ## Stage 11 — Scheduler
 
-**Status: NOT STARTED**
+**Status: COMPLETE AND COMMITTED ON `feature/v1-demo-completion` — NOT MERGED TO `main`**
 
-Scheduling, queues, and background-worker orchestration are not implemented.
+Delivered: `ScanSchedule`/`ScanRun` persistence and migration (`0012_stage11_scheduler`, commit
+`24227ab`); `SchedulerService` and a deterministic single-tick worker
+(`app/worker/scheduler_worker.py`) that delegates every run to the existing
+`DiscoveryOrchestrator`/`EvaluationService` (commit `9fff532`); an API layer with dedicated
+`SCHEDULE_READ`/`SCHEDULE_MANAGE` RBAC capabilities (commit `8c14b55`); and a frontend schedules
+page with enable/disable, run-now, and scan-run history (commit `55c451e`). A database partial
+unique index provides overlap protection (one active scan per AWS account). The worker is
+explicitly not a Celery/Redis/distributed-queue or cron-daemon implementation; that
+infrastructure choice remains deferred. Verified: Ruff passed; Mypy passed (140 source files);
+scheduler Pytest 22 passed; migration chain upgraded cleanly to this head against the disposable
+PostgreSQL verification database (`alembic check`: no new operations); frontend TypeScript,
+ESLint, Vitest (5 passed), and production build all passed. Not yet done: merge into `main`.
 
-## Stage 12 — Audit Logs
+## Stage 12 — Audit Query/Export
 
-**Status: NOT STARTED**
+**Status: COMPLETE AND COMMITTED ON `feature/v1-demo-completion` — NOT MERGED TO `main`**
 
-The extended audit timeline/archive is planned; current audit controls must not be described as
-absolutely immutable.
+Adds a read/query/export layer over the existing `AuditEvent` persistence and `record_audit()`
+write path; introduces no migration. Adds `GET /api/v1/audit-events` (filterable, paginated) and
+`GET /api/v1/audit-events/export` (same filters, CSV, capped at 5,000 rows, synchronous) reusing
+the existing `AUDIT_READ` capability, plus a frontend audit explorer page with filters,
+pagination, and CSV export.
+
+Committed in `d0d24cd` (backend query/export API and tests) and `9314f06` (frontend audit
+explorer). Current verification: backend Ruff passed, Mypy passed (142 source files),
+`test_audit_api.py` 8 passed, one non-blocking Starlette/httpx deprecation warning; frontend
+TypeScript, ESLint, Vitest (`audit.test.tsx`) 4 passed, and production build passed.
 
 ## Stage 13 — Security Hardening
 
@@ -169,9 +202,14 @@ Final user/developer documentation and demo materials remain planned.
 
 ## Immediate gate
 
-1. Complete Stage 8A dashboard read-model verification on `feature/8-dashboard`.
-2. Keep dashboard work read-only over existing Stage 2-7 records.
-3. Do not begin Stage 8B UI work until Stage 8A is reviewed or separately authorized.
-4. Do not begin Stage 9 notifications.
+1. Commit the documentation reconciliation that records Stage 12 as committed.
+2. Audit the exact tomorrow-demo journey and close P0 demo gaps.
+3. Add Mailpit-backed SMTP notification delivery while preserving mock delivery as the default
+   for tests and ordinary local development.
+4. Build the local demo stack, deterministic seed/reset flow, and black-box demo acceptance
+   workflow before merging to `main`.
 5. Keep deterministic detection, compliance interpretation, risk scoring, advisory AI
-   explanation, and dashboard visualization separate.
+   explanation, dashboard visualization, mock notification delivery, mock remediation
+   execution, and the scheduler's delegation-only design separate and unchanged by later stages.
+6. Merging `feature/v1-demo-completion` into `main` is tracked separately from stage
+   implementation and requires its own explicit review/authorization step.

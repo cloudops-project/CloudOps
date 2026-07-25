@@ -2,9 +2,11 @@
 
 Stages 1-8 are independently clean-room verified, merged, and regression-tested in `main` at
 `889660ecb8a378d107f6737b4466b70362066793`. Stage 7 AI explanations are implemented with
-migration head `0009_stage7_ai_assistant` on `main`. Stage 9 Notifications has a complete
-backend (persistence, service, API) on `feature/9-notifications` (migration head
-`0010_stage9_notifications`), not yet merged; its frontend is not yet implemented.
+migration head `0009_stage7_ai_assistant` on `main`. Stages 9-11 (notifications, remediation,
+scheduler) are implemented, independently verified, and committed on
+`feature/v1-demo-completion` (migration head `0012_stage11_scheduler`), not yet merged into
+`main`. Stage 12 (audit query/export) is implemented and committed on that branch at `d0d24cd`
+and `9314f06`; it reuses the existing `AuditEvent` model and adds no migration.
 
 ## Document role
 
@@ -16,17 +18,22 @@ designs remain under `docs/architecture/`.
 ```text
 apps/
   api/                 FastAPI application, Alembic migrations, backend tests
+  api/app/worker/      Stage 11 deterministic scheduler-tick entry point (scheduler_worker.py)
   web/                 React/Vite application and frontend tests
-  worker/              Placeholder; no executable worker implementation
+  worker/              Placeholder; no Celery/Redis or distributed-queue implementation
 docs/                  Product, architecture, engineering, design, planning, operations, ADRs
 infrastructure/        Placeholders; no deployed Stage 1–3 infrastructure
 packages/              Shared-package placeholders
 tests/                 Cross-application test placeholders
-compose.verify.yml     Disposable PostgreSQL 16 verification service
+compose.verify.yml     Disposable PostgreSQL 16 verification database only, not a full demo stack
 ```
 
-The implemented system is a Python/TypeScript monorepo. Discovery currently runs synchronously
-inside the API process; Celery/Redis and production deployment topology are future work.
+The implemented system is a Python/TypeScript monorepo. Discovery, evaluation, and the Stage 11
+scheduler's synchronous "tick" all run inside the API process's own dependencies; a distributed
+queue/worker framework and production deployment topology remain future work. `apps/worker/` is
+still the reserved placeholder for that future distributed-worker choice; the Stage 11 worker
+foundation lives under `apps/api/app/worker/` because it reuses the API's own database/service
+wiring directly.
 
 ## Runtime architecture
 
@@ -59,11 +66,11 @@ boundaries, invariants, and audit events. Repositories own persistence and tenan
 - **Database:** synchronous SQLAlchemy 2 sessions with PostgreSQL as the production target
 - **Migrations:** Alembic in `apps/api/alembic/`
 - **Models:** identity, tenancy, tokens, audit, AWS onboarding, assets, discovery jobs,
-  evaluation jobs, per-rule results, findings, compliance catalog, mappings, assessments, and
-  immutable snapshots
+  evaluation jobs, per-rule results, findings, compliance catalog, mappings, assessments,
+  immutable snapshots, `NotificationEvent`, `RemediationRequest`, `ScanSchedule`, and `ScanRun`
 - **Schemas:** explicit Pydantic v2 request/response models
 - **Services:** authentication, organizations, invitations, onboarding, discovery, evaluations,
-  finding lifecycle, and compliance assessment
+  finding lifecycle, compliance assessment, notifications, remediation, and scheduling
 - **Rules:** static typed registry under `app/security_rules`; no boto3, network, or filesystem
 - **Security:** Argon2, JWT validation, token hashing, centralized RBAC
 - **Logging:** request correlation and structured JSON-compatible events
@@ -78,9 +85,12 @@ React Hook Form, Zod, and Lucide React.
 - Refresh requests use credentials and are single-flight.
 - Failed refresh invalidates the in-memory token and user state.
 - `ProtectedRoute` controls authenticated navigation; backend authorization remains authoritative.
-- Page modules cover administration, AWS onboarding, inventory, findings, rules, and evaluations.
+- Page modules cover administration, AWS onboarding, inventory, findings, rules, evaluations,
+  notifications, remediation, scan schedules, and (pending commit) an audit explorer.
 - Compliance pages expose framework summaries, historical assessments, and a role-gated
   accessible assessment confirmation workflow.
+- `apiBlob()` in `api/client.ts` reuses the existing authenticated request/refresh-retry flow to
+  fetch binary responses (the Stage 12 CSV export) instead of JSON.
 
 ## Compliance flow
 
@@ -196,7 +206,13 @@ newer lifecycle state. Terminal counters, structured logs, and audit events are 
 | `AccountRiskSnapshot` / `account_risk_snapshots`                 | Immutable deterministic account aggregate                     |
 | `OrganizationRiskSnapshot` / `organization_risk_snapshots`       | Immutable deterministic organization aggregate                |
 | `CompensatingControl` / `compensating_controls`                  | Authorized bounded adjustment with reason and lifecycle       |
-| `NotificationEvent` / `notification_events`                      | Approval-gated critical-finding notification lifecycle (Stage 9, `feature/9-notifications` only) |
+| `NotificationEvent` / `notification_events`                      | Approval-gated critical-finding notification lifecycle (Stage 9) |
+| `RemediationRequest` / `remediation_requests`                    | Approval-gated mock remediation lifecycle for one finding (Stage 10) |
+| `ScanSchedule` / `scan_schedules`                                 | Interval cadence, enable/disable, next/last-run tracking for one AWS account (Stage 11) |
+| `ScanRun` / `scan_runs`                                           | One scheduled or manual scan execution, with overlap protection (Stage 11) |
+
+`AuditEvent` already existed before Stage 12 (see Audit architecture below); Stage 12 adds a
+read/query/export layer over it and introduces no new table.
 
 ## Database constraints and concurrency
 
@@ -224,6 +240,15 @@ newer lifecycle state. Terminal counters, structured logs, and audit events are 
 - PostgreSQL row locks serialize refresh rotation, invitation acceptance, final-owner changes,
   AWS account lifecycle mutations, and account-level asset lifecycle work.
 - Validation operation tokens stop stale STS results from overwriting newer account changes.
+- `NotificationEvent` idempotency uses a five-column unique constraint
+  (`organization_id, source_event_type, source_resource_id, channel, template_key`).
+- `RemediationRequest` uses a composite foreign key to `findings` (finding/account/organization
+  agreement) and a partial unique index allowing only one active (`pending_approval`/`approved`)
+  request per finding; a full lifecycle `CheckConstraint` enforces valid status/timestamp
+  combinations.
+- `ScanSchedule`/`ScanRun` use a composite foreign key to `aws_accounts`; `ScanRun` has a partial
+  unique index allowing only one active (`pending`/`running`) run per AWS account (overlap
+  protection) and a lifecycle `CheckConstraint` on status/timestamp combinations.
 
 ## Tenant isolation
 
@@ -237,10 +262,40 @@ ownership.
 
 Audit events include organization, actor, event type, resource, result, safe metadata, request
 context, and timestamp. Covered families include authentication, invitations, membership,
-organization creation, AWS account lifecycle, discovery, evaluation/finding, and compliance
-assessment lifecycles. Operational logs use correlation IDs and bounded structured fields;
-durable audit events remain separate. Passwords, hashes, raw tokens, authorization/cookie
-headers, AWS credentials, full policies, and unbounded evidence are excluded.
+organization creation, AWS account lifecycle, discovery, evaluation/finding, compliance
+assessment, notification, remediation, and scheduler lifecycles. Operational logs use
+correlation IDs and bounded structured fields; durable audit events remain separate. Passwords,
+hashes, raw tokens, authorization/cookie headers, AWS credentials, full policies, and unbounded
+evidence are excluded.
+
+CloudOps distinguishes four separate things that must not be conflated:
+
+- **Application logs** — bounded structured operational logs with correlation IDs, not a durable
+  security record.
+- **`AuditEvent` (this table)** — the durable, queryable, exportable record of accepted
+  user-visible lifecycle transitions inside CloudOps itself (who did what, to what, with what
+  result). Stage 12 adds the read/query/export layer over this existing table.
+- **AWS CloudTrail** — the customer's own AWS API call history. CloudOps does not ingest
+  CloudTrail events; Stage 3/4 only discover CloudTrail *trail configuration* (whether logging is
+  enabled, not its log content).
+- **AWS CloudWatch** — similarly, CloudOps discovers CloudWatch *alarm/log-group configuration*
+  metadata only, never raw metric or log-event content.
+
+Raw CloudTrail/CloudWatch log or event ingestion remains explicitly out of scope and future work;
+see PRD.md's "Out of scope" list. `AuditEvent` records are durable but must not be described as
+absolutely immutable; database controls and retention/archive guarantees must be stated
+precisely rather than assumed.
+
+### Stage 12 audit query/export read path
+
+`GET /api/v1/audit-events` and `GET /api/v1/audit-events/export` (`apps/api/app/api/v1/audit.py`)
+query the existing `AuditEvent` table directly with organization-scoped, RBAC-gated
+(`AUDIT_READ`) filters: event type, resource type, resource ID, actor user ID, result, and a
+start/end time range. The list endpoint is paginated identically to every other list endpoint in
+the API. The export endpoint reuses the same filters and streams a CSV response capped at 5,000
+rows, returned synchronously — a background export job is future work, not part of this read
+path. Neither endpoint writes to `AuditEvent`; `record_audit()` (`app/services/common.py`)
+remains the sole write path, unchanged by Stage 12. No migration is required.
 
 ## API routers
 
@@ -253,8 +308,14 @@ headers, AWS credentials, full policies, and unbounded evidence are excluded.
 - `compliance`: frameworks, controls, mappings/findings, summaries, assessments, snapshots
 - `risk`: policies, assessments, summaries, ranked findings, contexts, compensating controls,
   and immutable history
-- `notifications` (`feature/9-notifications` only, not yet merged): list/detail, approve,
-  deliver
+- `notifications` (Stage 9, committed on `feature/v1-demo-completion`, not yet merged):
+  list/detail, approve, deliver
+- `remediation` (Stage 10, committed on `feature/v1-demo-completion`, not yet merged):
+  list/detail, propose, approve, reject, cancel, execute
+- `scheduler` (Stage 11, committed on `feature/v1-demo-completion`, not yet merged):
+  create/list/detail/enable/disable/delete schedules, run-now, list/detail scan runs
+- `audit` (Stage 12, committed on `feature/v1-demo-completion`, not yet merged): paginated/filtered
+  query and bounded CSV export
 - `health`: liveness and readiness
 
 ## Migration chain
@@ -267,12 +328,20 @@ headers, AWS credentials, full policies, and unbounded evidence are excluded.
   -> 0005_stage4_rule_engine
   -> 0006_stage4_verification_repairs
   -> 0007_stage5_compliance_engine
-  -> 0008_stage6_risk_scoring -> 0009_stage7_ai_assistant (current head)
+  -> 0008_stage6_risk_scoring -> 0009_stage7_ai_assistant (current head on `main`)
+  -> 0010_stage9_notifications
+  -> 0011_stage10_remediation
+  -> 0012_stage11_scheduler (current head on `feature/v1-demo-completion`)
 ```
 
 `0004_verification_repairs` backfills permanent external-ID reservations and adds the composite
 tenant keys, lifecycle constraints, and AWS-account validation coordination fields. Existing
 valid Stage 2/3 data is preserved.
+
+`0009_stage7_ai_assistant` is the current head on `main`; `main` has not been advanced past
+Stage 8. `0010`-`0012` exist only on `feature/v1-demo-completion` until that branch merges.
+Stage 12 (audit query/export) adds no migration — it reuses the `AuditEvent` table that already
+existed at `0001_stage1`.
 
 ## Stage 9 notification flow
 
@@ -286,6 +355,47 @@ deterministic `MockNotificationProvider` by default; no real provider exists) at
 call, increments `attempt_count`, and transitions to `DELIVERED` on success or, after a third
 failed attempt, to `FAILED`. There is no `REJECTED` state and no automatic delivery without
 approval. All routes are organization-scoped and RBAC-gated identically to `risk`/`compliance`.
+The workflow is: finding/risk event -> pending-approval notification -> authorized human
+approval -> simulated delivery -> delivered or failed state. Rules detect, risk scoring
+prioritizes, AI may draft explanatory wording only, humans approve, and the provider delivers
+(currently only a no-op mock). `NotificationsPage` implements the frontend history/approval
+view; both layers are committed on `feature/v1-demo-completion`.
+
+## Stage 10 remediation flow
+
+`RemediationService.propose_for_finding` requires the finding to be `OPEN` and is idempotent for
+an already-active (`pending_approval`/`approved`) request on the same finding, using
+`begin_nested()` plus the partial unique index to resolve races deterministically rather than
+create duplicates. Proposal `title`/`summary`/`remediation_steps_json` are generated from the
+matching entry in the existing `SecurityRule` registry (`app/security_rules/`); no new detection
+logic is introduced. `approve()`/`reject()`/`cancel()` are capability-gated
+(`REMEDIATION_APPROVE`/`REMEDIATION_REJECT`/`REMEDIATION_REQUEST`) and idempotent for an
+already-terminal target state. `execute()` requires `APPROVED` status and
+`execution_mode == MOCK_AUTOMATION`; it delegates to `MockRemediationExecutor`
+(`app/services/remediation_executor.py`), increments `attempt_count`, and transitions to
+`SUCCEEDED` on success or, after a third failed attempt, to `FAILED` (otherwise remains
+`APPROVED` for retry). No AWS mutation occurs in any code path. `RemediationsPage` and a
+finding-detail "Propose remediation" action implement the frontend; both layers are committed on
+`feature/v1-demo-completion`.
+
+## Stage 11 scheduler flow
+
+`SchedulerService.create_schedule` computes `next_run_at = now + interval_minutes` (minimum 15
+minutes) for a tenant-scoped AWS account and is capability-gated (`SCHEDULE_MANAGE`).
+`run_schedule()` — called either by the manual "run now" API action or by the worker tick with
+`trigger=SCHEDULED` — inserts a `ScanRun` inside `begin_nested()`; the partial unique index on
+`scan_runs(aws_account_id)` for `pending`/`running` status raises a conflict if a scan is already
+active for that account (overlap protection), which becomes a `409` for a manual call or a
+silent skip for the worker (the next tick retries). A successful run delegates to
+`DiscoveryOrchestrator.start()` then `EvaluationService.start()` — the same services the manual
+"Run evaluation" button already calls — and records their job IDs on the `ScanRun`. Any
+`ConflictError`/`NotFoundError` from that delegation (for example, an unconnected account) marks
+the run `FAILED` with a sanitized `error_summary` rather than raising past the scheduler.
+`app/worker/scheduler_worker.py:tick()` finds enabled schedules whose `next_run_at` has elapsed
+and calls `run_schedule()` for each, acting as the schedule's creator. It is a deterministic,
+synchronously invokable single-tick entry point, not a queue consumer or daemon process.
+`SchedulesPage` implements the frontend; both layers are committed on
+`feature/v1-demo-completion`.
 
 ## Future work
 
@@ -293,9 +403,12 @@ Stage 4 detects findings; Stage 5 interprets persisted evidence for compliance; 
 `CLOUDOPS_RISK_V1` to prioritize those findings without network calls or AI. Stage 7 may explain
 existing deterministic results but must never detect, score, or mutate them. Stage 8 visualizes
 existing Stage 2-7 records through a read-only dashboard summary API and UI, and does not add
-dashboard-owned persistence or recalculate authoritative posture. Stage 9's backend is complete
-but its frontend, real delivery providers, raw event ingestion, scheduling, remediation, and
-production infrastructure remain future work.
+dashboard-owned persistence or recalculate authoritative posture. Stages 9-11 are complete,
+verified, and committed on `feature/v1-demo-completion`; merging that branch into `main`, real
+delivery/execution providers, raw CloudTrail/CloudWatch event ingestion, a distributed
+queue/worker framework, and production infrastructure remain future work. Stage 12 completes the
+read-side audit layer. Tomorrow-demo readiness, Stage 13 security hardening, and Stage 14 local
+DevOps/demo stack work are the next priorities after Stage 12.
 
 ## Stage 8A dashboard read model
 

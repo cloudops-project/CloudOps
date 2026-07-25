@@ -2,9 +2,12 @@
 
 ## Last updated
 
-2026-07-25 - Stage 8 (dashboard read model and UI) merged into `main`. Stage 9 (notifications)
-backend complete on `feature/9-notifications`, not yet merged; frontend not started. Version 1
-demo-completion effort underway on `feature/v1-demo-completion`.
+2026-07-26 - Stages 9-11 (notifications, remediation, scheduler) implemented, independently
+verified, and committed on `feature/v1-demo-completion` (HEAD `9314f06`; migration head
+`0012_stage11_scheduler`), not yet merged into `main`. Stage 12 (audit query/export) is
+implemented and committed at `d0d24cd` and `9314f06`; backend and frontend targeted
+verification are clean. This documentation pass records Codex handoff and tomorrow-demo
+readiness priorities.
 
 ## Current implementation
 
@@ -12,12 +15,46 @@ Stages 1-8 are independently clean-room verified, merged, and regression-tested 
 `889660ecb8a378d107f6737b4466b70362066793`. PR #8 merged verified Stage 7 feature SHA
 `9b5f4372359a32066787060ca839d5a68c5ab490` at commit `882ff531af07276c11e0d25664fdca033e09c7c7`;
 Stage 8 merged via PR #10 plus a follow-up `feature/8-dashboard-ui` merge. The current migration
-head on `main` is `0009_stage7_ai_assistant`. Stage 9 backend (persistence, service, API) is
-complete on `feature/9-notifications` at commits `d0b5676`, `449e964`, `cb42db9` (migration head
-`0010_stage9_notifications`), not yet merged; its frontend is not implemented.
+head on `main` is `0009_stage7_ai_assistant`.
+
+Stages 9-11 are complete (backend and frontend) and committed on `feature/v1-demo-completion`:
+Stage 9 at commits `d0b5676`, `449e964`, `cb42db9`, `d1c8733` (migration head
+`0010_stage9_notifications`); Stage 10 at commits `bf29173`, `fc8908d`, `8ab8c83`, `d1c8733`,
+`8916be9` (migration head `0011_stage10_remediation`); Stage 11 at commits `24227ab`, `9fff532`,
+`8c14b55`, `55c451e` (migration head `0012_stage11_scheduler`). Stage 12 is complete at
+`d0d24cd` and `9314f06` across 10 files. None of Stages 9-12 are yet merged into `main`.
 
 The active feature branch is `feature/v1-demo-completion`, created from `feature/9-notifications`
 (merge-base with `main`: `889660ecb8a378d107f6737b4466b70362066793`).
+
+### Verification commands and exact results run this effort
+
+Stage 11 backend: `python -m ruff check app` passed; `python -m mypy app` passed (140 source
+files); `python -m pytest app/tests/test_scheduler_service.py app/tests/test_scheduler_api.py`
+22 passed, 0 failed; one non-blocking Starlette/httpx deprecation warning.
+
+Stage 11 migrations (disposable PostgreSQL verification database, `compose.verify.yml`,
+database `cloudops_test`, user `cloudops`, host port `5433`): `alembic upgrade head` passed
+through `0010_stage9_notifications -> 0011_stage10_remediation -> 0012_stage11_scheduler`;
+`alembic current` reports `0012_stage11_scheduler`; `alembic check` reports no new operations;
+chain confirmed linear with a single head.
+
+Stage 11 frontend: `npx tsc --noEmit` passed; `npx eslint ...` passed; scheduler Vitest 5
+passed; `npm run build` passed.
+
+Stage 12 backend: Ruff passed; Mypy passed (142 source files); `pytest
+app/tests/test_audit_api.py` 8 passed; one non-blocking Starlette/httpx deprecation warning.
+
+Stage 12 frontend: TypeScript passed; ESLint passed after the unused-input repair; Vitest
+(`audit.test.tsx`) 4 passed; production build passed.
+
+### Codex handoff state
+
+Development ownership has moved to Codex. Stage 12 is committed; Codex's next actions are to
+commit this documentation reconciliation, audit the exact tomorrow-demo journey, implement
+Mailpit-backed SMTP delivery while preserving the mock provider, build the local demo stack, and
+add deterministic demo seed/reset plus black-box acceptance. `CLAUDE.md` must remain untracked;
+do not amend or repeat any commit listed above.
 
 Alembic revision `0009_stage7_ai_assistant` follows `0008_stage6_risk_scoring` and adds
 versioned prompt templates, tenant-scoped AI requests, typed source references, immutable
@@ -68,11 +105,14 @@ tests use deterministic AWS doubles; controlled live-AWS validation remains oper
 
 ## Next task
 
-Complete Stage 9 notifications frontend (history/approval page), merge Stage 9 into `main`
-through normal review, then continue Version 1 demo completion: Stage 10 remediation workflow,
-Stage 11 scheduler, Stage 12 audit logs, security hardening, local Docker demo environment, and
-end-to-end verification. Notification delivery must remain gated on explicit human approval and
-limited to the deterministic mock provider throughout.
+Stage 12 is now committed and verified on `feature/v1-demo-completion`. Continue Version 1 demo
+completion: Mailpit-backed SMTP notification delivery, Stage 13 security hardening, Stage 14
+local DevOps/demo stack, deterministic demo seed/reset, full regression testing, the black-box V1
+acceptance flow, deployment preparation, final documentation, and eventually a pull request
+merging `feature/v1-demo-completion` into `main`. Notification delivery and remediation
+execution must remain mock-only and gated on explicit human approval throughout; the scheduler
+must keep delegating to the existing discovery/evaluation services rather than duplicating
+their logic.
 
 ## Stage 3 implementation snapshot
 

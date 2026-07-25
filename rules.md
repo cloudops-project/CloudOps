@@ -7,8 +7,11 @@ These rules govern current CloudOps development. More detailed policies remain u
 code.
 
 The governed baseline contains independently clean-room verified, merged Stages 1-8 at main
-commit `889660ecb8a378d107f6737b4466b70362066793`. Stage 9 Notifications backend is complete on
-`feature/9-notifications` (not yet merged); its frontend is not started.
+commit `889660ecb8a378d107f6737b4466b70362066793`. Stages 9-11 (notifications, remediation,
+scheduler) are implemented, independently verified, and committed on
+`feature/v1-demo-completion` (migration head `0012_stage11_scheduler`), not yet merged into
+`main`. Stage 12 (audit query/export) is implemented and committed on that branch at `d0d24cd`
+and `9314f06`.
 
 ## Technology stack
 
@@ -50,9 +53,16 @@ partial indexes, composite foreign keys, or concurrency.
 - Frontend visibility is usability only; backend authorization is authoritative.
 - Rules evaluate persisted normalized data only; boto3 stays in discovery.
 - Compliance consumes persisted Stage 4 results; it never performs detection or live AWS calls.
-- Do not introduce remediation, raw event ingestion, customer AWS mutation, or real notification
-  delivery. Stage 7 AI must remain advisory and draft-only. Stage 9 notification delivery is a
-  deterministic mock/no-op provider only and always requires explicit human approval.
+- Do not introduce raw event ingestion or real customer AWS mutation. Stage 7 AI must remain
+  advisory and draft-only. Stage 9 notification delivery is a deterministic mock/no-op provider
+  only and always requires explicit human approval; AWS SES is a possible future production
+  provider, not yet implemented. Stage 10 remediation execution is a deterministic mock executor
+  only and never mutates real AWS resources; it always requires explicit human approval for
+  propose/approve/reject/cancel/execute transitions. Stage 11's scheduler delegates every run to
+  the existing discovery/evaluation services and must not duplicate boto3 or rule-evaluation
+  logic; it is a deterministic, synchronously invokable foundation, not a distributed queue or
+  cron daemon. Stage 12 reuses `AuditEvent`/`record_audit()` and must not introduce a second
+  write path for audit data.
 
 ## Security rules
 
@@ -102,6 +112,36 @@ partial indexes, composite foreign keys, or concurrency.
 - Active members may view organization-scoped inventory according to the capability map.
 - Owner/admin/security analyst/cloud engineer may run evaluations; auditor/viewer may not.
 - All active roles may view rules/findings. Owner/admin/security analyst may suppress findings.
+- Notifications: all active roles may read (`NOTIFICATIONS_READ`); owner/admin/security analyst
+  may approve/deliver (`NOTIFICATIONS_APPROVE`).
+- Remediation: all active roles may read (`REMEDIATION_READ`); owner/admin/security
+  analyst/cloud engineer may propose/cancel (`REMEDIATION_REQUEST`); owner/admin/security
+  analyst may approve/reject/execute.
+- Scheduling: all active roles may read (`SCHEDULE_READ`); owner/admin/security
+  analyst/cloud engineer may create/enable/disable/delete/run-now (`SCHEDULE_MANAGE`).
+- Audit query/export reuses the existing `AUDIT_READ` capability (owner, admin, auditor); no new
+  capability was added because the existing one already fit.
+- Every new endpoint must resolve organization scope through the existing centralized RBAC
+  dependency (`OrganizationService.require_capability`) before any service call; frontend
+  role-gating is a usability aid only and is never a substitute for this backend check.
+
+## Scheduling and audit invariants
+
+- A schedule's cadence never bypasses the existing discovery/evaluation authorization path: a
+  scheduled or manual run authorizes as the acting user (or, for the worker, the schedule's
+  creator) exactly as a manual "run evaluation" click would.
+- Only one pending/running scan run may exist per AWS account at a time (database partial unique
+  index); this overlap protection is enforced independently of whether the trigger was manual or
+  scheduled.
+- The scheduler worker must never duplicate boto3 discovery calls or rule-evaluation logic; it
+  may only delegate to `DiscoveryOrchestrator` and `EvaluationService`.
+- Audit query and export are read-only against the existing `AuditEvent` table; they must never
+  gain write access, and `record_audit()` remains the only write path.
+- Audit export is bounded (currently 5,000 rows) and synchronous for Version 1; a background
+  export job is future work and must not be implied as already implemented.
+- Remediation and notification delivery/execution remain mock-only for local/demo Version 1;
+  real AWS mutation, real SES/SMTP/webhook delivery, and any other real external side effect
+  require a new, explicitly authorized ADR before implementation.
 
 ## Database and tenant rules
 
@@ -196,9 +236,14 @@ A stage is done only when its scoped behavior, migrations, tests, security contr
 documentation, dependency audits, and independent verification pass; no later-stage executable
 scope is present; and no secrets or generated artifacts are committed.
 
-No stage may begin until its predecessor is independently verified, merged, regression-tested,
-and documentation-synchronized. Stage 10 remains blocked until Stage 9 (including its frontend)
-is independently verified, merged, regression-tested, and documentation-synchronized.
+No stage may begin until its predecessor is independently verified and documentation-synchronized
+on the active feature branch; merge into `main` is tracked separately and does not itself gate
+the next stage's implementation, per the explicit authorization governing
+`feature/v1-demo-completion`. Stages 9-12 are independently verified and committed on that
+branch. Tomorrow-demo readiness is the immediate priority before broader Stage 13/14 work. A
+later stage's code must never be started before its predecessor is at least
+implemented and its own gate is understood, and no stage may claim completion or commit status
+it has not actually reached.
 
 ## Deterministic risk policy
 
