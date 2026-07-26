@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from fastapi.testclient import TestClient
@@ -68,8 +68,11 @@ def test_discovery_clients_receive_bounded_timeout_and_retry_config(
 
 def test_every_iam_operation_handles_multiple_pages_and_duplicates() -> None:
     class IAM:
+        tag_calls: ClassVar[list[str]] = []
+
         def get_paginator(self, operation: str) -> Pages:
             if operation.endswith("_tags"):
+                self.tag_calls.append(operation)
                 return Pages([{"Tags": []}, {"Tags": []}])
             values = {
                 "list_users": ("Users", "UserId", "UserName", "U"),
@@ -100,6 +103,11 @@ def test_every_iam_operation_handles_multiple_pages_and_duplicates() -> None:
         AssetType.IAM_POLICY,
     ):
         assert len([item for item in assets if item.asset_type == asset_type]) == 2
+    # IAM groups do not support the tagging API; a regression that calls
+    # list_group_tags for either group asset must fail here.
+    assert IAM.tag_calls == ["list_user_tags"] * 2 + ["list_role_tags"] * 2 + [
+        "list_policy_tags"
+    ] * 2
 
 
 @pytest.mark.parametrize(

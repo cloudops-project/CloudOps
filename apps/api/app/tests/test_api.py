@@ -23,6 +23,23 @@ def test_health_and_readiness(client: TestClient) -> None:
     assert client.get("/ready").json() == {"status": "ready"}
 
 
+def test_security_headers_present_and_no_hsts_outside_production(client: TestClient) -> None:
+    response = client.get("/health")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert "permissions-policy" in response.headers
+    # The test app runs with APP_ENV=testing; HSTS must never be advertised
+    # over a connection that isn't guaranteed HTTPS.
+    assert "strict-transport-security" not in response.headers
+
+
+def test_auth_responses_are_not_cached(client: TestClient) -> None:
+    headers = register_and_login(client)
+    assert client.get("/api/v1/auth/me", headers=headers).headers.get("cache-control") == "no-store"
+
+
 def test_registration_duplicate_login_and_safe_response(
     client: TestClient, user_payload: dict[str, str]
 ) -> None:
@@ -38,6 +55,14 @@ def test_registration_duplicate_login_and_safe_response(
         },
     )
     assert good.status_code == 200
+    cookie = good.headers["set-cookie"].casefold()
+    assert "cloudops_refresh_token=" in cookie
+    assert "httponly" in cookie
+    assert "samesite=lax" in cookie
+    assert "path=/api/v1/auth" in cookie
+    assert "max-age=" in cookie
+    assert "expires=" in cookie
+    assert "secure" not in cookie
     bad = client.post(
         "/api/v1/auth/login",
         json={
@@ -75,6 +100,29 @@ def test_refresh_rotation_reuse_logout_and_password_change(client: TestClient, d
     assert client.post("/api/v1/auth/refresh").status_code == 401
     assert client.post("/api/v1/auth/logout").status_code == 204
     assert db.scalar(select(RefreshTokenSession)) is not None
+
+
+def test_refresh_and_logout_reject_mismatched_origin(client: TestClient) -> None:
+    register_and_login(client)
+    assert (
+        client.post(
+            "/api/v1/auth/refresh", headers={"origin": "https://attacker.example"}
+        ).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            "/api/v1/auth/logout", headers={"origin": "https://attacker.example"}
+        ).status_code
+        == 403
+    )
+    # A same-origin request (matching CORS_ALLOWED_ORIGINS) is unaffected.
+    assert (
+        client.post(
+            "/api/v1/auth/refresh", headers={"origin": "http://localhost:5173"}
+        ).status_code
+        == 200
+    )
 
 
 def test_logout_audit_uses_refresh_session_actor(client: TestClient, db: Session) -> None:
@@ -450,3 +498,41 @@ def test_owner_can_manage_non_final_owner(client: TestClient) -> None:
         ).status_code
         == 200
     )
+
+
+@pytest.mark.parametrize("operation", ["demote", "suspend", "remove"])
+def test_final_active_owner_cannot_be_changed(client: TestClient, operation: str) -> None:
+    owner = register_and_login(client, f"sole-owner-{operation}@example.com")
+    organization = client.post(
+        "/api/v1/organizations",
+        headers=owner,
+        json={"name": f"Sole Owner {operation}", "slug": f"sole-owner-{operation}"},
+    ).json()
+    organization_id = organization["id"]
+    owner_member_id = next(
+        item
+        for item in client.get(
+            f"/api/v1/organizations/{organization_id}/members", headers=owner
+        ).json()
+        if item["email"] == f"sole-owner-{operation}@example.com"
+    )["id"]
+
+    if operation == "demote":
+        response = client.patch(
+            f"/api/v1/organizations/{organization_id}/members/{owner_member_id}/role",
+            headers=owner,
+            json={"role": "admin"},
+        )
+    elif operation == "suspend":
+        response = client.patch(
+            f"/api/v1/organizations/{organization_id}/members/{owner_member_id}/status",
+            headers=owner,
+            json={"status": "suspended"},
+        )
+    else:
+        response = client.delete(
+            f"/api/v1/organizations/{organization_id}/members/{owner_member_id}",
+            headers=owner,
+        )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "last_owner"

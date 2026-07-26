@@ -184,12 +184,18 @@ def test_ec2_s3_iam_rds_normalization_and_pagination() -> None:
             ],
         }
 
+        tag_calls: ClassVar[list[str]] = []
+
         def get_paginator(self, operation: str) -> Paginator:
             return Paginator(self.pages[operation])
 
         def __getattr__(self, name: str) -> object:
             if name.startswith("list_") and name.endswith("_tags"):
-                return lambda **_kwargs: {"Tags": []}
+                def list_tags(**_kwargs: object) -> dict[str, list[dict[str, str]]]:
+                    self.tag_calls.append(name)
+                    return {"Tags": []}
+
+                return list_tags
             raise AttributeError(name)
 
     iam = IAMDiscoveryService().discover(lambda *_args: IAM(), [], "123456789012")
@@ -199,6 +205,9 @@ def test_ec2_s3_iam_rds_normalization_and_pagination() -> None:
         AssetType.IAM_GROUP,
         AssetType.IAM_POLICY,
     }
+    # IAM groups do not support the tagging API; a regression that calls
+    # list_group_tags (or any other tag operation for groups) must fail here.
+    assert IAM.tag_calls == ["list_user_tags", "list_role_tags", "list_policy_tags"]
     assert (
         next(item for item in iam if item.asset_type == AssetType.IAM_POLICY).metadata[
             "attachment_count"
