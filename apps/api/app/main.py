@@ -13,6 +13,7 @@ from app.logging.middleware import (
     AuthenticationRateLimitMiddleware,
     CookieOriginMiddleware,
     RequestContextMiddleware,
+    SecurityHeadersMiddleware,
 )
 
 
@@ -20,12 +21,15 @@ def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings.log_level)
     application = FastAPI(title=settings.app_name, version="1.0.0")
+    application.add_middleware(
+        SecurityHeadersMiddleware, hsts_enabled=settings.hsts_enabled
+    )
     application.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
     application.add_middleware(

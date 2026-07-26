@@ -3,9 +3,9 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
-from app.dependencies.auth import AppSettings, CurrentUser, DbSession
+from app.dependencies.auth import AppSettings, CurrentUser, DbSession, UserRateLimiter
 from app.exceptions.errors import NotFoundError
 from app.models import Asset, DiscoveryJob
 from app.models.enums import AssetType
@@ -23,6 +23,7 @@ from app.services.discovery import DiscoveryOrchestrator, json_safe
 from app.services.organizations import OrganizationService
 
 router = APIRouter()
+_start_rate_limit = UserRateLimiter("discovery_start", limit=5, window_seconds=60)
 
 
 def _asset_response(asset: Asset) -> AssetResponse:
@@ -50,6 +51,7 @@ def _asset_response(asset: Asset) -> AssetResponse:
     "/aws/accounts/{account_id}/discover",
     response_model=DiscoveryJobResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(_start_rate_limit)],
 )
 def start_discovery(
     account_id: uuid.UUID,

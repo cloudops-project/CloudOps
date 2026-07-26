@@ -6,10 +6,10 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func, select
 
-from app.dependencies.auth import CurrentUser, DbSession
+from app.dependencies.auth import CurrentUser, DbSession, UserRateLimiter
 from app.models import AuditEvent
 from app.models.enums import AuditResult
 from app.schemas.audit import AuditEventListResponse, AuditEventResponse
@@ -17,6 +17,10 @@ from app.security.rbac import Capability
 from app.services.organizations import OrganizationService
 
 router = APIRouter()
+
+# Bounds repeated large synchronous exports (each up to EXPORT_MAX_ROWS) per
+# user; see UserRateLimiter for the single-process caveat.
+_export_rate_limit = UserRateLimiter("audit_export", limit=10, window_seconds=60)
 
 EXPORT_MAX_ROWS = 5_000
 EXPORT_COLUMNS = (
@@ -29,6 +33,15 @@ EXPORT_COLUMNS = (
     "result",
     "created_at",
 )
+_FORMULA_TRIGGER_CHARS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value: str) -> str:
+    """Prefix a leading apostrophe if the value could be interpreted as a
+    spreadsheet formula when the export is opened in Excel/Sheets."""
+    if value and value[0] in _FORMULA_TRIGGER_CHARS:
+        return f"'{value}"
+    return value
 
 
 @router.get("/audit-events", response_model=AuditEventListResponse)
@@ -77,7 +90,7 @@ def list_audit_events(
     )
 
 
-@router.get("/audit-events/export")
+@router.get("/audit-events/export", dependencies=[Depends(_export_rate_limit)])
 def export_audit_events(
     user: CurrentUser,
     db: DbSession,
@@ -124,8 +137,8 @@ def export_audit_events(
                 str(item.id),
                 str(item.organization_id) if item.organization_id else "",
                 str(item.actor_user_id) if item.actor_user_id else "",
-                item.event_type,
-                item.resource_type,
+                _csv_safe(item.event_type),
+                _csv_safe(item.resource_type),
                 str(item.resource_id) if item.resource_id else "",
                 item.result.value,
                 item.created_at.isoformat(),

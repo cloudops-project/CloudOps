@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
-from app.dependencies.auth import AppSettings, CurrentUser, DbSession
+from app.dependencies.auth import AppSettings, CurrentUser, DbSession, UserRateLimiter
 from app.exceptions.errors import AuthenticationError
 from app.repositories.data import Repository
 from app.schemas.auth import (
@@ -17,6 +17,7 @@ from app.schemas.auth import (
 from app.services.auth import AuthService
 
 router = APIRouter()
+_password_change_rate_limit = UserRateLimiter("password_change", limit=5, window_seconds=60)
 
 
 def _client(request: Request) -> tuple[str | None, str | None]:
@@ -33,6 +34,7 @@ def _set_cookie(response: Response, raw: str, settings: AppSettings) -> None:
         domain=settings.cookie_domain,
         path=f"{settings.api_v1_prefix}/auth",
         max_age=settings.refresh_token_expire_days * 86400,
+        expires=settings.refresh_token_expire_days * 86400,
     )
 
 
@@ -112,7 +114,11 @@ def me(user: CurrentUser, db: DbSession) -> MeResponse:
     return MeResponse(user=UserResponse.model_validate(user), organizations=organizations)
 
 
-@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/change-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_password_change_rate_limit)],
+)
 def change_password(
     payload: ChangePasswordRequest,
     response: Response,

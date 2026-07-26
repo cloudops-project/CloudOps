@@ -3,10 +3,10 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 
-from app.dependencies.auth import CurrentUser, DbSession
+from app.dependencies.auth import CurrentUser, DbSession, UserRateLimiter
 from app.exceptions.errors import NotFoundError
 from app.models import RemediationRequest
 from app.models.enums import RemediationStatus
@@ -20,6 +20,7 @@ from app.services.organizations import OrganizationService
 from app.services.remediation import RemediationService
 
 router = APIRouter()
+_execution_rate_limit = UserRateLimiter("remediation_execution", limit=10, window_seconds=60)
 
 
 def _require(
@@ -136,7 +137,11 @@ def cancel_remediation(
     return request
 
 
-@router.post("/remediations/{request_id}/execute", response_model=RemediationRequestResponse)
+@router.post(
+    "/remediations/{request_id}/execute",
+    response_model=RemediationRequestResponse,
+    dependencies=[Depends(_execution_rate_limit)],
+)
 def execute_remediation(
     request_id: uuid.UUID,
     user: CurrentUser,

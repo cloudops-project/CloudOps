@@ -3,10 +3,10 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 
-from app.dependencies.auth import CurrentUser, DbSession
+from app.dependencies.auth import CurrentUser, DbSession, UserRateLimiter
 from app.exceptions.errors import NotFoundError
 from app.models import NotificationEvent
 from app.models.enums import NotificationChannel, NotificationStatus
@@ -16,6 +16,7 @@ from app.services.notifications import NotificationService
 from app.services.organizations import OrganizationService
 
 router = APIRouter()
+_delivery_rate_limit = UserRateLimiter("notification_delivery", limit=10, window_seconds=60)
 
 
 def _require_read(db: DbSession, user: CurrentUser, organization_id: uuid.UUID) -> None:
@@ -97,7 +98,11 @@ def approve_notification(
     return event
 
 
-@router.post("/notifications/{event_id}/deliver", response_model=NotificationEventResponse)
+@router.post(
+    "/notifications/{event_id}/deliver",
+    response_model=NotificationEventResponse,
+    dependencies=[Depends(_delivery_rate_limit)],
+)
 def deliver_notification(
     event_id: uuid.UUID,
     user: CurrentUser,

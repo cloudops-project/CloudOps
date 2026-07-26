@@ -25,7 +25,7 @@ ROLE_ARN_PATTERN = re.compile(
     r"^arn:(aws|aws-us-gov|aws-cn):iam::(?P<account_id>[0-9]{12}):role/(?P<role>[A-Za-z0-9+=,.@_/-]{1,512})$"
 )
 PRINCIPAL_ARN_PATTERN = re.compile(
-    r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:(root|role/[A-Za-z0-9+=,.@_/-]+)$"
+    r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:(root|role/[A-Za-z0-9+=,.@_/-]+|user/[A-Za-z0-9+=,.@_/-]+)$"
 )
 
 

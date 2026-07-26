@@ -365,7 +365,6 @@ class IAMDiscoveryService:
                     tag_method = {
                         AssetType.IAM_USER: "list_user_tags",
                         AssetType.IAM_ROLE: "list_role_tags",
-                        AssetType.IAM_GROUP: "list_group_tags",
                         AssetType.IAM_POLICY: "list_policy_tags",
                     }.get(asset_type)
                     tags: dict[str, str] = {}
@@ -373,11 +372,12 @@ class IAMDiscoveryService:
                         argument = {
                             AssetType.IAM_USER: "UserName",
                             AssetType.IAM_ROLE: "RoleName",
-                            AssetType.IAM_GROUP: "GroupName",
                             AssetType.IAM_POLICY: "PolicyArn",
                         }[asset_type]
                         value = (
-                            item[name_key] if asset_type != AssetType.IAM_POLICY else item["Arn"]
+                            item[name_key]
+                            if asset_type != AssetType.IAM_POLICY
+                            else item["Arn"]
                         )
                         tags = iam_tags(client, tag_method, argument, value)
                     metadata = {"path": item.get("Path"), "creation_date": item.get("CreateDate")}

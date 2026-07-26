@@ -1,11 +1,51 @@
 from __future__ import annotations
 
+import ipaddress
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
 from botocore.config import Config  # type: ignore[import-untyped]
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _validate_origin(origin: str) -> None:
+    try:
+        parsed = urlsplit(origin)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError(f"CORS_ALLOWED_ORIGINS contains a malformed origin: {origin!r}") from exc
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError(f"CORS_ALLOWED_ORIGINS contains a malformed origin: {origin!r}")
+    host = parsed.hostname
+    if "*" in host or len(host) > 253:
+        raise ValueError(f"CORS_ALLOWED_ORIGINS contains a malformed origin: {origin!r}")
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        labels = host.split(".")
+        if any(
+            not label
+            or len(label) > 63
+            or label[0] == "-"
+            or label[-1] == "-"
+            or not all(character.isalnum() or character == "-" for character in label)
+            for label in labels
+        ):
+            raise ValueError(
+                f"CORS_ALLOWED_ORIGINS contains a malformed origin: {origin!r}"
+            ) from None
+    if port is not None and not 1 <= port <= 65535:
+        raise ValueError(f"CORS_ALLOWED_ORIGINS contains an invalid port: {origin!r}")
 
 
 class Settings(BaseSettings):
@@ -30,6 +70,7 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     cookie_domain: str | None = None
+    hsts_enabled: bool = False
     log_level: str = "INFO"
     frontend_url: str = "http://localhost:5173"
     auth_rate_limit_per_minute: int = Field(default=10, ge=1, le=1000)
@@ -63,11 +104,34 @@ class Settings(BaseSettings):
             raise ValueError("API_V1_PREFIX must start with '/' and omit a trailing slash")
         return value
 
+    @field_validator("cors_allowed_origins")
+    @classmethod
+    def validate_cors_allowed_origins(cls, value: str) -> str:
+        origins = [origin.strip() for origin in value.split(",") if origin.strip()]
+        for origin in origins:
+            if origin == "*":
+                raise ValueError(
+                    "CORS_ALLOWED_ORIGINS must not contain a wildcard; "
+                    "the API sends allow_credentials=True, and a wildcard origin "
+                    "combined with credentials is a cross-origin misconfiguration"
+                )
+            _validate_origin(origin)
+        return value
+
     def model_post_init(self, __context: object) -> None:
         if self.app_env == "production" and not self.cookie_secure:
             raise ValueError("COOKIE_SECURE must be true in production")
         if self.cookie_samesite == "none" and not self.cookie_secure:
             raise ValueError("COOKIE_SECURE must be true when COOKIE_SAMESITE is none")
+        if self.app_env == "production" and any(
+            urlsplit(origin).scheme != "https" for origin in self.allowed_origins
+        ):
+            raise ValueError("Production CORS_ALLOWED_ORIGINS must use HTTPS")
+        if self.hsts_enabled and (self.app_env != "production" or not self.cookie_secure):
+            raise ValueError(
+                "HSTS_ENABLED requires APP_ENV=production and COOKIE_SECURE=true; "
+                "enable it only when HTTPS is guaranteed by deployment"
+            )
 
     @property
     def allowed_origins(self) -> list[str]:

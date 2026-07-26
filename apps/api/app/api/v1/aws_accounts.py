@@ -3,9 +3,9 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
-from app.dependencies.auth import AppSettings, CurrentUser, DbSession
+from app.dependencies.auth import AppSettings, CurrentUser, DbSession, UserRateLimiter
 from app.models import AWSAccount
 from app.schemas.aws_account import (
     AWSAccountCreate,
@@ -16,6 +16,12 @@ from app.schemas.aws_account import (
 from app.services.aws_onboarding import AWSOnboardingService
 
 router = APIRouter()
+
+# AWS STS AssumeRole/GetCallerIdentity calls out to the customer's AWS
+# account; this bounds retry-storm/probing behavior against both AWS and
+# the connected account, independent of the AWS-side throttling AWS itself
+# may already apply.
+_validate_rate_limit = UserRateLimiter("aws_account_validate", limit=10, window_seconds=60)
 
 
 def _detail(service: AWSOnboardingService, account: AWSAccount) -> AWSAccountDetailResponse:
@@ -76,7 +82,11 @@ def update_account(
     return _detail(service, account)
 
 
-@router.post("/accounts/{account_id}/validate", response_model=AWSAccountDetailResponse)
+@router.post(
+    "/accounts/{account_id}/validate",
+    response_model=AWSAccountDetailResponse,
+    dependencies=[Depends(_validate_rate_limit)],
+)
 def validate_connection(
     account_id: uuid.UUID, user: CurrentUser, db: DbSession, settings: AppSettings
 ) -> AWSAccountDetailResponse:

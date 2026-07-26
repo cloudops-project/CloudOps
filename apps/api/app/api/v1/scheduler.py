@@ -3,10 +3,10 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, select
 
-from app.dependencies.auth import AppSettings, CurrentUser, DbSession
+from app.dependencies.auth import AppSettings, CurrentUser, DbSession, UserRateLimiter
 from app.exceptions.errors import NotFoundError
 from app.models import ScanRun, ScanSchedule
 from app.models.enums import ScanRunStatus, ScanRunTrigger
@@ -22,6 +22,7 @@ from app.services.organizations import OrganizationService
 from app.services.scheduler import SchedulerService
 
 router = APIRouter()
+_run_rate_limit = UserRateLimiter("schedule_run", limit=5, window_seconds=60)
 
 
 def _require(
@@ -131,7 +132,11 @@ def delete_schedule(
     SchedulerService(db, settings).delete_schedule(organization_id, schedule_id, user)
 
 
-@router.post("/schedules/{schedule_id}/run", response_model=ScanRunResponse)
+@router.post(
+    "/schedules/{schedule_id}/run",
+    response_model=ScanRunResponse,
+    dependencies=[Depends(_run_rate_limit)],
+)
 def run_schedule_now(
     schedule_id: uuid.UUID,
     user: CurrentUser,

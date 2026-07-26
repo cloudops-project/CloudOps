@@ -1,15 +1,20 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.api.v1.organizations import member_response
-from app.dependencies.auth import AppSettings, CurrentUser, DbSession
+from app.dependencies.auth import AppSettings, CurrentUser, DbSession, UserRateLimiter
 from app.schemas.invitation import InvitationAccept
 from app.schemas.organization import MemberResponse
 from app.services.invitations import InvitationService
 
 router = APIRouter()
+_accept_rate_limit = UserRateLimiter("invitation_accept", limit=10, window_seconds=60)
 
 
-@router.post("/accept", response_model=MemberResponse)
+@router.post(
+    "/accept",
+    response_model=MemberResponse,
+    dependencies=[Depends(_accept_rate_limit)],
+)
 def accept(
     payload: InvitationAccept, user: CurrentUser, db: DbSession, settings: AppSettings
 ) -> MemberResponse:

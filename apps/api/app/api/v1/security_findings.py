@@ -3,10 +3,10 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 
-from app.dependencies.auth import CurrentUser, DbSession
+from app.dependencies.auth import CurrentUser, DbSession, UserRateLimiter
 from app.exceptions.errors import NotFoundError
 from app.models import Asset, EvaluationJob, Finding
 from app.models.enums import (
@@ -36,6 +36,7 @@ from app.services.evaluations import EvaluationService
 from app.services.organizations import OrganizationService
 
 router = APIRouter()
+_evaluation_rate_limit = UserRateLimiter("evaluation_start", limit=10, window_seconds=60)
 
 
 def _rule_response(rule: SecurityRule) -> RuleResponse:
@@ -132,6 +133,7 @@ def get_rule(
     "/aws/accounts/{account_id}/evaluate",
     response_model=EvaluationJobResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(_evaluation_rate_limit)],
 )
 def start_evaluation(
     account_id: uuid.UUID,
