@@ -239,9 +239,11 @@ hover. Desktop layouts use a 240px sidebar and a bounded content region.
 
 The Stage 6 risk dashboard, Stage 7 AI assistant workflow, Stage 8 security dashboard, Stage 9
 notifications page, Stage 10 remediation workflow, Stage 11 schedules page, and Stage 12 audit
-explorer are implemented. The design system reserves future space for Stage 13
-security-hardening UI (if any) and Stage 14 demo/operations tooling; those views must not be presented as
-implemented.
+explorer are implemented. The local Version 1 demo runbook (`demo_v1.md`) now documents browser
+profile setup, role demonstrations, Mailpit invitation/notification checks, remediation,
+scheduling, and audit-export presentation flow. The design system reserves future space for
+Stage 13 security-hardening UI (if any) and production Stage 14 operations tooling; those views
+must not be presented as implemented.
 
 ## Stage 7 response design
 

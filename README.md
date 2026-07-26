@@ -99,6 +99,7 @@ CloudOps/
 ├── compose.verify.yml             Disposable PostgreSQL 16 verification service
 ├── compose.demo.yml               Local demo stack with PostgreSQL, Mailpit, API, web, and manual scheduler tick
 ├── compose.yml                    Convenience alias for the local demo stack
+├── demo_v1.md                     Human-operated local Version 1 demo runbook
 ├── .env.example                   Environment-variable names only
 └── README.md                      Primary teammate setup and operating guide
 ```
@@ -278,34 +279,39 @@ Mailpit-only SMTP notification provider. It must not be pointed at production or
 resources.
 
 ```powershell
-docker compose -f compose.demo.yml up --build
+.\scripts\demo_start.ps1
+.\scripts\demo_reset.ps1
 ```
 
-Seed or reset deterministic demo data from the repository root after the API dependencies are
-available locally:
-
-```powershell
-$env:APP_ENV="development"
-$env:DATABASE_URL="postgresql+psycopg://cloudops:cloudops_demo_password@localhost:5432/cloudops_demo"
-$env:JWT_SECRET_KEY="demo-only-jwt-secret-at-least-32-characters"
-$env:AWS_EC2_METADATA_DISABLED="true"
-$env:AWS_ACCESS_KEY_ID="demo"
-$env:AWS_SECRET_ACCESS_KEY="demo"
-$env:AWS_SESSION_TOKEN="demo"
-$env:AWS_DEFAULT_REGION="us-east-1"
-$env:AI_PROVIDER="mock"
-$env:NOTIFICATION_PROVIDER="smtp"
-$env:SMTP_HOST="localhost"
-$env:SMTP_PORT="1025"
-.\apps\api\.venv\Scripts\python.exe scripts\demo_seed.py --reset --deliver-email
-```
+The helper scripts validate Compose configuration, build and start the stack, check API/web/
+Mailpit readiness, and run the deterministic seed inside the API container. The Docker demo does
+not require a host Python virtual environment or host Node installation.
 
 The seed command refuses production mode and refuses database names outside `cloudops_demo*`.
 Generated demo output is deterministic and synthetic; no AWS discovery client is invoked by the
-seed script. The seeded credentials include an owner (`owner@cloudops-demo.local`) and a security
-analyst (`analyst@cloudops-demo.local`) using the printed demo password. When
+seed script. The seeded credentials include an owner (`owner@cloudops-demo.testmail.com`) and a security
+analyst (`analyst@cloudops-demo.testmail.com`) plus a cloud engineer
+(`engineer@cloudops-demo.testmail.com`) using the printed demo password. When
 `--deliver-email` is used with Mailpit SMTP, the latest Mailpit message should show both the
 owner and the analyst/evaluation actor as recipients.
+
+For the full tomorrow-demo path, including invitation emails in Mailpit, browser profiles,
+fallback data, remediation, scheduling, audit export, troubleshooting, and the speaker script,
+see `demo_v1.md`.
+
+Latest local demo verification on `feature/v1-demo-completion`:
+
+- Docker: `compose.demo.yml config`, manual profile config, build, start, readiness check,
+  restart rehearsal, cold start with demo volume reset, deterministic reseed, and manual
+  scheduler tick all passed.
+- Mailpit: security notification delivery and invitation-email delivery were verified through
+  the Mailpit API.
+- V1 acceptance: `tests/end-to-end/verify_v1_demo.py` completed 18 PASS, 0 FAIL.
+- Backend: 522 tests passed, 0 failed, 0 skipped; coverage 96.44%; Ruff, Mypy (144 source
+  files), startup/import, Alembic current/check, and `pip check` passed.
+- Frontend: TypeScript, ESLint, 112 Vitest tests, and production build passed.
+- Dependency audits: online `npm audit` was blocked by environment policy pending explicit
+  npm-audit metadata-egress authorization; do not record it as passed.
 
 ## Backend setup
 
@@ -890,6 +896,8 @@ existing authenticated request/refresh flow.
 - Frontend: TypeScript passed; ESLint passed; Vitest (`audit.test.tsx`) 4 passed; production
   build passed
 
-The demo-readiness follow-up adds Mailpit-backed SMTP delivery for the local demo, a guarded
-Compose demo stack, deterministic seed/reset, and an 18-step V1 acceptance runner. See
-`tests/end-to-end/README.md` for the command.
+The demo-readiness follow-up adds Mailpit-backed SMTP delivery for the local demo, development-
+only Mailpit invitation emails, a guarded Compose demo stack, deterministic Docker-only
+seed/reset helper scripts, `demo_v1.md`, and an 18-step V1 acceptance runner. See
+`tests/end-to-end/README.md` for the automated command and `demo_v1.md` for the human demo
+runbook.

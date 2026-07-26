@@ -1,4 +1,4 @@
-﻿# Product Roadmap
+# Product Roadmap
 
 ## Purpose and audience
 
@@ -26,22 +26,20 @@ An internal foundation demonstration follows Stage 3; a read-only detection alph
 query/export — backend and frontend, with targeted verification complete (Ruff, Mypy, targeted
 Pytest, migration lifecycle where applicable, TypeScript, ESLint, Vitest, production build).
 
-**Immediate tomorrow-demo priority:** add real local Mailpit-backed SMTP notification delivery
-while preserving the mock provider, build the local demo stack, add deterministic demo
-seed/reset, and run a black-box V1 acceptance flow.
+**Immediate tomorrow-demo priority:** verify the implemented local Mailpit-backed SMTP
+notification and invitation delivery, guarded local demo stack, deterministic demo seed/reset,
+root `demo_v1.md` runbook, and black-box V1 acceptance flow.
 
 **Current local-demo caveat:** the read-side workflows for notifications, remediation,
-scheduling, and audit export are functionally complete, but notification delivery is still the
-deterministic mock provider until the Mailpit path is implemented.
+scheduling, and audit export are functionally complete. The deterministic mock provider remains
+the default/no-network provider; the Mailpit SMTP path is guarded local-demo-only and still
+requires final rehearsal evidence before the branch can be called demo-ready.
 
-**Remaining P0/P1 work, roughly in order:** Mailpit-backed demo email and local demo stack (P0)
--> Stage 13 security hardening (P0: JWT edge cases, tenant-boundary/IDOR checks, RBAC coverage
-for every Stage 9-12 endpoint, safe error/metadata handling) -> Stage 14 local DevOps/demo stack
-(P1: `compose.verify.yml`
-today is a disposable PostgreSQL verification database only; API/web/worker Dockerfiles, a root
-`.dockerignore`, and a full `compose.yml` do not exist yet) -> deterministic demo seed/reset
-(P1) -> full regression and the black-box V1 acceptance flow (P0) -> deployment preparation and
-final documentation (P1) -> pull request merging `feature/v1-demo-completion` into `main` (P0).
+**Remaining P0/P1 work, roughly in order:** finish demo-stack/Mailpit/seed/runbook rehearsal
+evidence (P0) -> Stage 13 security hardening (P0: JWT edge cases, tenant-boundary/IDOR checks,
+RBAC coverage for every Stage 9-12 endpoint, safe error/metadata handling) -> full regression
+and the black-box V1 acceptance flow (P0) -> deployment preparation and final documentation
+(P1) -> pull request merging `feature/v1-demo-completion` into `main` (P0).
 
 **Future production work, not Version 1:** real notification delivery (e.g. AWS SES), real
 remediation execution against customer AWS accounts, a distributed-queue/cron-daemon scheduler,

@@ -4,8 +4,16 @@
 
 2026-07-26 - Stages 9-12 are implemented and committed on `feature/v1-demo-completion`, not yet
 merged into `main`. The current demo-readiness work adds guarded Mailpit SMTP notification
-delivery, migration `0013_demo_notification_delivery`, a local PostgreSQL/Mailpit/API/web
-Compose stack, deterministic demo seed/reset, and an 18-step V1 demo acceptance runner.
+delivery, development-only Mailpit invitation emails, migration `0013_demo_notification_delivery`,
+a local PostgreSQL/Mailpit/API/web Compose stack, Docker-only helper scripts, deterministic demo
+seed/reset, the root `demo_v1.md` runbook, and an 18-step V1 demo acceptance runner.
+
+Current demo-readiness verification: Docker demo config/build/start/readiness/restart/cold-start/
+reset passed; manual scheduler tick passed; Mailpit security notification and invitation email
+delivery were verified; V1 acceptance completed 18 PASS, 0 FAIL; backend completed 522 passed,
+0 failed, 0 skipped with 96.44% coverage; Mypy checked 144 source files; frontend TypeScript,
+ESLint, 112 Vitest tests, and production build passed. Online npm audit is blocked pending
+explicit metadata-egress authorization.
 
 ## Current implementation
 
@@ -50,8 +58,9 @@ Stage 12 frontend: TypeScript passed; ESLint passed after the unused-input repai
 
 Development ownership has moved to Codex. Stage 12 is committed; Codex's current demo-readiness
 work implements Mailpit-backed local SMTP delivery while preserving the mock provider as the
-default, builds the local demo stack, and adds deterministic demo seed/reset plus black-box
-acceptance. `CLAUDE.md` must remain untracked; do not amend or repeat any commit listed above.
+default, builds the local demo stack, adds development-only Mailpit invitation emails, and adds
+deterministic Docker-only demo seed/reset plus black-box acceptance. `CLAUDE.md` must remain
+untracked; do not amend or repeat any commit listed above.
 
 Alembic revision `0009_stage7_ai_assistant` follows `0008_stage6_risk_scoring` and adds
 versioned prompt templates, tenant-scoped AI requests, typed source references, immutable
@@ -103,9 +112,9 @@ tests use deterministic AWS doubles; controlled live-AWS validation remains oper
 ## Next task
 
 Stage 12 is now committed and verified on `feature/v1-demo-completion`. Continue Version 1 demo
-completion by finishing verification of Mailpit-backed local SMTP notification delivery, the
-local DevOps/demo stack, deterministic demo seed/reset, the black-box V1 acceptance flow, full
-regression testing, deployment preparation, final documentation, and eventually a pull request
+completion by finishing verification of Mailpit-backed local SMTP notification and invitation
+delivery, the local DevOps/demo stack, deterministic demo seed/reset, the black-box V1
+acceptance flow, `demo_v1.md`, full regression testing, deployment preparation, final documentation, and eventually a pull request
 merging `feature/v1-demo-completion` into `main`. Notification delivery remains approval-gated;
 the mock provider remains default/no-network and Mailpit SMTP is local-demo-only. Remediation
 execution remains mock-only, and the scheduler must keep delegating to existing discovery/

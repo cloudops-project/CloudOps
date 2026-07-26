@@ -3,8 +3,17 @@
 ## Last updated
 
 2026-07-26 — Stages 9-12 are committed on `feature/v1-demo-completion`. The current
-demo-readiness work adds guarded Mailpit SMTP notification delivery, a local PostgreSQL/Mailpit/
-API/web Compose stack, deterministic demo seed/reset, and an 18-step V1 demo acceptance runner.
+demo-readiness work adds guarded Mailpit SMTP notification delivery, development-only Mailpit
+invitation emails, a local PostgreSQL/Mailpit/API/web Compose stack, Docker-only helper scripts,
+deterministic demo seed/reset, the root `demo_v1.md` runbook, and an 18-step V1 demo acceptance
+runner.
+
+Current demo-readiness verification: Docker demo config/build/start/readiness/restart/cold-start/
+reset passed; manual scheduler tick passed; Mailpit security notification and invitation email
+delivery were verified; V1 acceptance completed 18 PASS, 0 FAIL; backend completed 522 passed,
+0 failed, 0 skipped with 96.44% coverage; Mypy checked 144 source files; frontend TypeScript,
+ESLint, 112 Vitest tests, and production build passed. Online npm audit is blocked pending
+explicit metadata-egress authorization.
 
 ## Current repository and documentation release
 
@@ -215,8 +224,9 @@ evidence to PRs #2/#4/#6/#8 below.
 
 Stages 9-12 (notifications, remediation, scheduler, audit query/export) are fully implemented
 and committed on `feature/v1-demo-completion`. The current worktree adds the V1 demo-readiness
-follow-up: Mailpit SMTP delivery metadata, local demo Compose/Docker files, a deterministic
-demo seed/reset script, and the 18-step V1 demo black-box runner. `CLAUDE.md` has remained
+follow-up: Mailpit SMTP delivery metadata, development-only Mailpit invitation emails, local
+demo Compose/Docker files, deterministic Docker-only seed/reset helper scripts, the root
+`demo_v1.md` runbook, and the 18-step V1 demo black-box runner. `CLAUDE.md` has remained
 untracked throughout every commit on this branch and must stay that way. Generated output
 remains ignored.
 
@@ -253,7 +263,8 @@ duplicate of that detail.
 2. Commit this documentation reconciliation safely, keeping `CLAUDE.md` untracked and never
    using `git add .`/`git add -A`.
 3. Finish verification and documentation for the tomorrow-demo journey: Mailpit-backed SMTP
-   notification delivery, local demo stack, deterministic seed/reset, and V1 acceptance runner.
+   notification and invitation delivery, local demo stack, deterministic seed/reset,
+   `demo_v1.md`, and V1 acceptance runner.
 4. Continue the Version 1 demo-completion effort per `docs/planning/roadmap.md`: Stage 13
    security hardening, Stage 14 local DevOps/demo stack, deterministic demo seed/reset, full
    regression testing, the black-box V1 acceptance flow, deployment preparation, final

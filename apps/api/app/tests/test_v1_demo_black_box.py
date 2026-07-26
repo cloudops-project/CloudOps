@@ -187,6 +187,21 @@ def test_v1_demo_acceptance_flow(
                     Asset(
                         organization_id=uuid.UUID(organization["id"]),
                         aws_account_id=uuid.UUID(account["id"]),
+                        asset_type=AssetType.EC2_INSTANCE,
+                        resource_id=f"instance-{marker}",
+                        name="Synthetic EC2 instance",
+                        region="us-east-1",
+                        status="active",
+                        metadata_json={
+                            "state": "running",
+                            "public_ip": "203.0.113.20",
+                            "imds_v2_required": False,
+                            "synthetic": True,
+                        },
+                    ),
+                    Asset(
+                        organization_id=uuid.UUID(organization["id"]),
+                        aws_account_id=uuid.UUID(account["id"]),
                         asset_type=AssetType.CLOUDTRAIL_TRAIL,
                         resource_id=f"trail-{marker}",
                         name="Synthetic trail",
@@ -204,12 +219,39 @@ def test_v1_demo_acceptance_flow(
                         status="active",
                         metadata_json={"public_access_block": False, "synthetic": True},
                     ),
+                    Asset(
+                        organization_id=uuid.UUID(organization["id"]),
+                        aws_account_id=uuid.UUID(account["id"]),
+                        asset_type=AssetType.IAM_USER,
+                        resource_id=f"iam-user-{marker}",
+                        name="Synthetic IAM user",
+                        region="global",
+                        status="active",
+                        metadata_json={
+                            "console_access": True,
+                            "mfa_enabled": False,
+                            "active_key_created_at": ["2025-01-01T00:00:00Z"],
+                            "attached_policy_arns": ["arn:aws:iam::aws:policy/AdministratorAccess"],
+                            "inline_policy_documents": [
+                                {
+                                    "Statement": {
+                                        "Effect": "Allow",
+                                        "Action": "*",
+                                        "Resource": "*",
+                                    }
+                                }
+                            ],
+                            "synthetic": True,
+                        },
+                    ),
                 ]
             )
             db.commit()
 
     recorder.record(
-        4, "Two synthetic assets seeded; no AWS discovery route invoked", seed_inventory
+        4,
+        "Synthetic EC2, S3, IAM, and CloudTrail assets seeded; no AWS discovery route invoked",
+        seed_inventory,
     )
 
     recorder.record(
@@ -230,7 +272,7 @@ def test_v1_demo_acceptance_flow(
         response = client.get(
             "/api/v1/assets", headers=headers, params={"organization_id": organization["id"]}
         )
-        _assert(response.status_code == 200 and response.json()["total"] == 2, response.text)
+        _assert(response.status_code == 200 and response.json()["total"] == 4, response.text)
 
     recorder.record(6, "Asset list returned the seeded synthetic inventory", view_assets)
 

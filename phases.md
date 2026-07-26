@@ -8,8 +8,9 @@ through PR #10 (`feature/8-dashboard`) and a follow-up `feature/8-dashboard-ui` 
 
 Stages 9-12 (notifications, remediation, scheduler, audit query/export) are implemented,
 independently verified, and committed on `feature/v1-demo-completion`, not yet merged into
-`main`. The current demo-readiness work adds Mailpit-only local SMTP delivery, a local demo
-Compose stack, deterministic seed/reset, and an 18-step V1 acceptance runner. Migration head on
+`main`. The current demo-readiness work adds Mailpit-only local SMTP delivery, development-only
+Mailpit invitation emails, a local demo Compose stack, Docker-only demo helper scripts,
+deterministic seed/reset, the root `demo_v1.md` runbook, and an 18-step V1 acceptance runner. Migration head on
 this worktree is `0013_demo_notification_delivery`. Stage 12 backend
 verification is clean (Ruff passed; Mypy passed, 142 source files; `test_audit_api.py` 8
 passed); frontend TypeScript, ESLint, Vitest (4 passed), and production build are clean.
@@ -184,9 +185,9 @@ Additional security hardening remains planned.
 
 **Status: STARTED FOR LOCAL DEMO ONLY**
 
-The current demo-readiness work adds a local Compose stack, API/web Dockerfiles, and a guarded
-deterministic demo seed/reset. Production deployment automation and infrastructure-as-code
-remain planned.
+The current demo-readiness work adds a local Compose stack, API/web Dockerfiles, Docker-only
+PowerShell helper scripts, and a guarded deterministic demo seed/reset. Production deployment
+automation and infrastructure-as-code remain planned.
 
 ## Stage 15 — Testing
 

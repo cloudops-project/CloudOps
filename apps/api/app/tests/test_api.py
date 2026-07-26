@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models import AuditEvent, OrganizationInvitation, RefreshTokenSession
 from app.models.enums import AuditResult
+from app.services.notification_provider import (
+    NotificationDeliveryOutcome,
+    NotificationDeliveryResult,
+)
 from app.tests.conftest import register_and_login
 
 
@@ -303,6 +307,55 @@ def test_invitation_token_visibility_by_environment(
         assert ("development_token" in response.json()) is token_expected
     finally:
         configured.app_env = original
+
+
+def test_development_smtp_invitation_sends_mailpit_link(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent: list[dict[str, object]] = []
+
+    class CapturingProvider:
+        key = "smtp"
+
+        def deliver(self, **kwargs: object) -> NotificationDeliveryResult:
+            sent.append(dict(kwargs))
+            return NotificationDeliveryResult(outcome=NotificationDeliveryOutcome.SUCCESS)
+
+    configured = get_settings()
+    original_env = configured.app_env
+    original_provider = configured.notification_provider
+    original_frontend = configured.frontend_url
+    configured.app_env = "development"
+    configured.notification_provider = "smtp"
+    configured.frontend_url = "http://localhost:5173"
+    monkeypatch.setattr(
+        "app.services.invitations.notification_provider_from_settings",
+        lambda settings: CapturingProvider(),
+    )
+    try:
+        owner = register_and_login(client, "smtp-invite-owner@example.com")
+        organization_id = client.post(
+            "/api/v1/organizations",
+            headers=owner,
+            json={"name": "SMTP Invitations", "slug": "smtp-invitations"},
+        ).json()["id"]
+        response = client.post(
+            f"/api/v1/organizations/{organization_id}/invitations",
+            headers=owner,
+            json={"email": "engineer-demo@example.com", "role": "cloud_engineer"},
+        )
+        assert response.status_code == 201, response.text
+        raw = response.json()["development_token"]
+        assert raw
+        assert len(sent) == 1
+        assert sent[0]["recipients"] == ["engineer-demo@example.com"]
+        assert sent[0]["subject"] == "CloudOps demo invitation"
+        assert f"/invitations/accept?token={raw}" in str(sent[0]["text_body"])
+        assert "LOCAL DEMO ONLY" in str(sent[0]["text_body"])
+    finally:
+        configured.app_env = original_env
+        configured.notification_provider = original_provider
+        configured.frontend_url = original_frontend
 
 
 @pytest.mark.parametrize("operation", ["demote", "suspend", "remove"])

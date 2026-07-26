@@ -14,8 +14,17 @@ Stages 1-8 are independently verified, merged, and regression-tested in `main` t
 `main`). Stages 9-12 (notifications, remediation, scheduler, audit query/export) are
 implemented and committed on `feature/v1-demo-completion`, not yet merged into `main`. The
 current demo-readiness work adds migration head `0013_demo_notification_delivery` for local
-notification provider evidence. Stage 12 (audit query/export) is implemented and committed on
-that branch at `d0d24cd` and `9314f06`.
+notification provider evidence, Docker-only demo helper scripts, development-only Mailpit
+invitation emails, deterministic fallback users/data, and the root `demo_v1.md` runbook. Stage
+12 (audit query/export) is implemented and committed on that branch at `d0d24cd` and `9314f06`.
+
+Current demo-readiness verification evidence from this Codex run: Docker demo config/build/
+start/readiness/restart/cold-start/reset passed; manual scheduler tick passed; Mailpit security
+notification and invitation email delivery were verified through the Mailpit API; V1 acceptance
+completed 18 PASS, 0 FAIL; backend completed 522 passed, 0 failed, 0 skipped with 96.44%
+coverage; Mypy checked 144 source files; frontend TypeScript/ESLint/112 Vitest tests/production
+build passed. Online npm audit remains blocked by environment policy until explicit
+metadata-egress authorization is provided.
 
 - Repository: `D:\learn\cdac\cloudfix`
 - Remote: `https://github.com/cloudops-project/CloudOps.git`
@@ -174,7 +183,9 @@ Do not run Alembic for Stage 12 — it adds no persistence migration.
    invokable scheduler tick, and a Mailpit-only SMTP path for the local demo. It is not
    production deployment or infrastructure-as-code.
 3. Deterministic demo seed and reset workflow — implemented by `scripts/demo_seed.py`, which
-   refuses production mode and refuses databases outside `cloudops_demo*`.
+   refuses production mode and refuses databases outside `cloudops_demo*`; Docker helpers
+   `scripts/demo_start.ps1`, `scripts/demo_check.ps1`, `scripts/demo_reset.ps1`, and
+   `scripts/demo_stop.ps1` run the local stack without host Python or Node.
 4. Full regression testing.
 5. Black-box V1 acceptance flow covering: start local environment; log in; view dashboard; view
    assets; view findings; view compliance; view risk; open an AI explanation; view
@@ -182,7 +193,7 @@ Do not run Alembic for Stage 12 — it adds no persistence migration.
    request remediation; approve remediation; execute mock remediation; view schedules; trigger
    run-now; view the audit trail; export the audit CSV.
 6. Deployment preparation.
-7. Final operations, user, and demo documentation.
+7. Final operations, user, and demo documentation, including the root `demo_v1.md` runbook.
 8. Final repository and GitHub integration through a pull request merging
    `feature/v1-demo-completion` into `main`.
 

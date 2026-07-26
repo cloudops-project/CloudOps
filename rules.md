@@ -10,7 +10,8 @@ The governed baseline contains independently clean-room verified, merged Stages 
 commit `889660ecb8a378d107f6737b4466b70362066793`. Stages 9-12 (notifications, remediation,
 scheduler, audit query/export) are implemented and committed on `feature/v1-demo-completion`,
 not yet merged into `main`. The current demo-readiness work adds local Mailpit SMTP delivery
-and migration `0013_demo_notification_delivery`.
+and migration `0013_demo_notification_delivery`, Docker-only demo helpers, development-only
+Mailpit invitation messages, and the root `demo_v1.md` runbook.
 
 ## Technology stack
 
@@ -55,8 +56,9 @@ partial indexes, composite foreign keys, or concurrency.
 - Do not introduce raw event ingestion or real customer AWS mutation. Stage 7 AI must remain
   advisory and draft-only. Stage 9 notification delivery defaults to a deterministic mock/no-op
   provider and always requires explicit human approval; a Mailpit-only SMTP provider is allowed
-  for the guarded local demo. AWS SES and production SMTP are possible future providers, not yet
-  implemented. Stage 10 remediation execution is a deterministic mock executor only and never
+  for the guarded local demo. Development invitation messages may be sent to Mailpit only in the
+  local demo path; production invitation email remains deferred. AWS SES and production SMTP are
+  possible future providers, not yet implemented. Stage 10 remediation execution is a deterministic mock executor only and never
   mutates real AWS resources; it always requires explicit human approval for
   propose/approve/reject/cancel/execute transitions. Stage 11's scheduler delegates every run to
   the existing discovery/evaluation services and must not duplicate boto3 or rule-evaluation

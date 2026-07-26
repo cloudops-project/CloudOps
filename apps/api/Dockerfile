@@ -10,6 +10,7 @@ COPY apps/api/pyproject.toml ./
 COPY apps/api/alembic.ini ./
 COPY apps/api/alembic ./alembic
 COPY apps/api/app ./app
+COPY scripts/demo_seed.py /app/scripts/demo_seed.py
 
 RUN python -m pip install --upgrade pip \
     && python -m pip install -e .

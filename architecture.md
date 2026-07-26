@@ -8,7 +8,8 @@ scheduler) are implemented, independently verified, and committed on
 implemented and committed on that branch at `d0d24cd` and `9314f06`; it reuses the existing
 `AuditEvent` model and adds no migration. The current demo-readiness work adds migration
 `0013_demo_notification_delivery` for notification provider evidence fields plus a guarded
-local Mailpit/Compose/V1 acceptance path.
+local Mailpit/Compose/V1 acceptance path, development-only Mailpit invitation messages, and
+the root `demo_v1.md` runbook.
 
 ## Document role
 
@@ -365,7 +366,9 @@ automatic delivery without approval. All routes are organization-scoped and RBAC
 identically to `risk`/`compliance`. The workflow is: finding/risk event -> pending-approval
 notification -> authorized human approval -> provider delivery -> delivered or failed state.
 Rules detect, risk scoring prioritizes, AI may draft explanatory wording only, humans approve,
-and the provider delivers. `NotificationsPage` implements the frontend history/approval view;
+and the provider delivers. In local development/demo mode only, invitation creation can also
+send a Mailpit SMTP invitation message while still returning the development token; production
+invitation email remains deferred. `NotificationsPage` implements the frontend history/approval view;
 both layers are committed on `feature/v1-demo-completion`.
 
 ## Stage 10 remediation flow

@@ -47,8 +47,9 @@ from app.services.risk import RiskService
 from app.services.scheduler import SchedulerService
 
 
-DEMO_EMAIL = "owner@cloudops-demo.local"
-DEMO_ANALYST_EMAIL = "analyst@cloudops-demo.local"
+DEMO_EMAIL = "owner@cloudops-demo.testmail.com"
+DEMO_ANALYST_EMAIL = "analyst@cloudops-demo.testmail.com"
+DEMO_ENGINEER_EMAIL = "engineer@cloudops-demo.testmail.com"
 DEMO_PASSWORD = "CloudOps-Demo-Password-123!"
 DEMO_ORG_SLUG = "cloudops-demo"
 DEMO_ACCOUNT_ID = "123456789012"
@@ -97,6 +98,16 @@ def _seed_demo(*, deliver_email: bool) -> dict[str, object]:
         )
         db.add(analyst)
         db.flush()
+        engineer = User(
+            email=DEMO_ENGINEER_EMAIL,
+            normalized_email=normalize_email(DEMO_ENGINEER_EMAIL),
+            password_hash=hash_password(DEMO_PASSWORD),
+            full_name="CloudOps Demo Engineer",
+            status=UserStatus.ACTIVE,
+            email_verified_at=now,
+        )
+        db.add(engineer)
+        db.flush()
         organization = Organization(
             name="CloudOps Demo",
             slug=DEMO_ORG_SLUG,
@@ -122,6 +133,15 @@ def _seed_demo(*, deliver_email: bool) -> dict[str, object]:
                 joined_at=now,
             )
         )
+        db.add(
+            OrganizationMembership(
+                organization_id=organization.id,
+                user_id=engineer.id,
+                role=OrganizationRole.CLOUD_ENGINEER,
+                status=MembershipStatus.ACTIVE,
+                joined_at=now,
+            )
+        )
         account = AWSAccount(
             organization_id=organization.id,
             name="Demo AWS Account",
@@ -143,6 +163,22 @@ def _seed_demo(*, deliver_email: bool) -> dict[str, object]:
             )
         )
         assets = [
+            Asset(
+                organization_id=organization.id,
+                aws_account_id=account.id,
+                asset_type=AssetType.EC2_INSTANCE,
+                resource_id="i-demo-unencrypted",
+                arn=f"arn:aws:ec2:us-east-1:{DEMO_ACCOUNT_ID}:instance/i-demo-unencrypted",
+                name="demo-unencrypted-instance",
+                region="us-east-1",
+                status="active",
+                metadata_json={
+                    "state": "running",
+                    "public_ip": "203.0.113.10",
+                    "imds_v2_required": False,
+                    "synthetic": True,
+                },
+            ),
             Asset(
                 organization_id=organization.id,
                 aws_account_id=account.id,
@@ -185,6 +221,32 @@ def _seed_demo(*, deliver_email: bool) -> dict[str, object]:
                             "from_port": 22,
                             "to_port": 22,
                             "cidr_ipv4": "0.0.0.0/0",
+                        }
+                    ],
+                    "synthetic": True,
+                },
+            ),
+            Asset(
+                organization_id=organization.id,
+                aws_account_id=account.id,
+                asset_type=AssetType.IAM_USER,
+                resource_id="demo-admin-user",
+                arn=f"arn:aws:iam::{DEMO_ACCOUNT_ID}:user/demo-admin-user",
+                name="demo-admin-user",
+                region="global",
+                status="active",
+                metadata_json={
+                    "console_access": True,
+                    "mfa_enabled": False,
+                    "active_key_created_at": ["2025-01-01T00:00:00Z"],
+                    "attached_policy_arns": ["arn:aws:iam::aws:policy/AdministratorAccess"],
+                    "inline_policy_documents": [
+                        {
+                            "Statement": {
+                                "Effect": "Allow",
+                                "Action": "*",
+                                "Resource": "*",
+                            }
                         }
                     ],
                     "synthetic": True,
@@ -235,6 +297,7 @@ def _seed_demo(*, deliver_email: bool) -> dict[str, object]:
         return {
             "email": DEMO_EMAIL,
             "analyst_email": DEMO_ANALYST_EMAIL,
+            "engineer_email": DEMO_ENGINEER_EMAIL,
             "password": DEMO_PASSWORD,
             "organization_id": str(organization.id),
             "organization_slug": organization.slug,

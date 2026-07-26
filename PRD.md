@@ -239,11 +239,11 @@ Jira and email outputs remain drafts; remediation execution is mock/simulated on
   deterministic, synchronously invokable worker foundation only
 - Raw CloudWatch log or CloudTrail event ingestion, EventBridge, or deployment infrastructure
 - MFA, SSO/OIDC, password reset, and production invitation email delivery
-- A full local Docker demo stack (API/web/worker Dockerfiles, root `.dockerignore`, complete
-  `compose.yml`, deterministic demo-data bootstrapping); `compose.verify.yml` currently provides
-  only a disposable PostgreSQL verification database
-- Stage 13 security hardening; Stage 14 local DevOps/demo stack; deterministic demo seed/reset;
-  full regression and black-box V1 acceptance; deployment preparation; final documentation; and
+- Production deployment/IaC. A guarded local Docker demo stack, Docker-only seed/reset helpers,
+  Mailpit SMTP demo delivery, and `demo_v1.md` are implemented on
+  `feature/v1-demo-completion`; final rehearsal evidence is still being completed.
+- Stage 13 security hardening; full regression and black-box V1 acceptance; deployment
+  preparation; final documentation; and
   the pull request integrating this branch into `main`
 
 ## Security and test boundaries
@@ -284,10 +284,10 @@ follow-up `feature/8-dashboard-ui` merge. The current migration head on `main` i
 `0009_stage7_ai_assistant`.
 
 Stages 9-12 (notifications, remediation, scheduler, audit query/export) are implemented,
-independently verified, and committed on `feature/v1-demo-completion` (HEAD `9314f06`;
-migration head `0012_stage11_scheduler`), not yet merged into `main`. Stages 13-17 (security hardening, local DevOps/demo stack,
-regression/acceptance testing, deployment preparation, and final documentation/demo) are not
-implemented.
+independently verified, and committed on `feature/v1-demo-completion`; the current demo-readiness
+work advances the branch beyond `9314f06` and uses migration head
+`0013_demo_notification_delivery`, not yet merged into `main`. Stages 13 and 15-17 remain
+future work; Stage 14 is started for the local demo stack only.
 
 ## Stage 7 acceptance boundary
 

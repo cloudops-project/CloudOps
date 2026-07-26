@@ -75,3 +75,7 @@ misdescribed steps, and exits nonzero unless every step passes.
 It writes `v1-demo-black-box.json` and `v1-demo-black-box.md` under
 `%TEMP%\cloudops-v1-demo` by default. Set `V1_DEMO_OUTPUT_DIR` to another temporary path when
 verification evidence needs an isolated location. Do not commit generated evidence.
+
+For the human-operated tomorrow-demo runbook, Docker-only startup/reset helpers, Mailpit
+invitation-email path, fallback-data route, remediation/scheduling/audit presentation script,
+and troubleshooting guide, see the repository-root `demo_v1.md`.
