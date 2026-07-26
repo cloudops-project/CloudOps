@@ -105,15 +105,16 @@ export function AppShell() {
             <CalendarClock />
             Schedules
           </Link>
-          {organizationRole && ["owner", "admin", "auditor"].includes(organizationRole) && (
-            <Link
-              className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
-              to="/audit"
-            >
-              <ClipboardList />
-              Audit log
-            </Link>
-          )}
+          {organizationRole &&
+            ["owner", "admin", "auditor"].includes(organizationRole) && (
+              <Link
+                className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+                to="/audit"
+              >
+                <ClipboardList />
+                Audit log
+              </Link>
+            )}
           <Link
             className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
             to="/dashboard"

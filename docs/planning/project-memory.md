@@ -12,8 +12,11 @@ Current demo-readiness verification: Docker demo config/build/start/readiness/re
 reset passed; manual scheduler tick passed; Mailpit security notification and invitation email
 delivery were verified; V1 acceptance completed 18 PASS, 0 FAIL; backend completed 522 passed,
 0 failed, 0 skipped with 96.44% coverage; Mypy checked 144 source files; frontend TypeScript,
-ESLint, 112 Vitest tests, and production build passed. Online npm audit is blocked pending
-explicit metadata-egress authorization.
+ESLint, 112 Vitest tests, and production build passed. Dependency audits passed after explicit
+metadata-egress authorization: Python `pip-audit` checked 80 installed non-editable
+distributions with 0 known vulnerabilities, and frontend `npm audit
+--registry=https://registry.npmjs.org --json` checked 381 dependencies with 0 vulnerabilities
+after the reviewed development-only ESLint upgrade to 10.8.0.
 
 ## Current implementation
 

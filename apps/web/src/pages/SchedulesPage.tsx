@@ -35,7 +35,9 @@ function ScheduleRow({
       await invalidate();
     },
     onError: (err: unknown) =>
-      setError(err instanceof ApiError ? err.message : "Unable to update schedule."),
+      setError(
+        err instanceof ApiError ? err.message : "Unable to update schedule.",
+      ),
   });
   const runNow = useMutation({
     mutationFn: () =>
@@ -52,15 +54,20 @@ function ScheduleRow({
   });
   const remove = useMutation({
     mutationFn: () =>
-      api<void>(`/api/v1/schedules/${item.id}?organization_id=${organizationId}`, {
-        method: "DELETE",
-      }),
+      api<void>(
+        `/api/v1/schedules/${item.id}?organization_id=${organizationId}`,
+        {
+          method: "DELETE",
+        },
+      ),
     onSuccess: async () => {
       setError(null);
       await invalidate();
     },
     onError: (err: unknown) =>
-      setError(err instanceof ApiError ? err.message : "Unable to delete schedule."),
+      setError(
+        err instanceof ApiError ? err.message : "Unable to delete schedule.",
+      ),
   });
 
   const busy = toggle.isPending || runNow.isPending || remove.isPending;
@@ -71,7 +78,9 @@ function ScheduleRow({
       <td className="px-3 py-3">Every {item.interval_minutes} min</td>
       <td className="px-3 py-3">{item.enabled ? "Enabled" : "Disabled"}</td>
       <td className="px-3 py-3">
-        {item.last_run_at ? new Date(item.last_run_at).toLocaleString() : "Never"}
+        {item.last_run_at
+          ? new Date(item.last_run_at).toLocaleString()
+          : "Never"}
       </td>
       <td className="px-3 py-3">
         {item.enabled && item.next_run_at
@@ -147,7 +156,9 @@ function CreateScheduleForm({
       await queryClient.invalidateQueries({ queryKey: ["schedules"] });
     },
     onError: (err: unknown) =>
-      setError(err instanceof ApiError ? err.message : "Unable to create schedule."),
+      setError(
+        err instanceof ApiError ? err.message : "Unable to create schedule.",
+      ),
   });
 
   return (
@@ -189,7 +200,9 @@ function CreateScheduleForm({
         <button
           className="button"
           disabled={
-            !accountId || name.trim().length === 0 || Number(intervalMinutes) < 15 ||
+            !accountId ||
+            name.trim().length === 0 ||
+            Number(intervalMinutes) < 15 ||
             create.isPending
           }
           onClick={() => create.mutate()}
@@ -209,13 +222,17 @@ function CreateScheduleForm({
 export function SchedulesPage() {
   const organization = useAuth().me?.organizations[0];
   const [page, setPage] = useState(1);
-  const mayManage = Boolean(organization && manageRoles.includes(organization.role));
+  const mayManage = Boolean(
+    organization && manageRoles.includes(organization.role),
+  );
 
   const accounts = useQuery({
     queryKey: ["aws-accounts", organization?.id],
     enabled: Boolean(organization) && mayManage,
     queryFn: () =>
-      api<AWSAccount[]>(`/api/v1/aws/accounts?organization_id=${organization!.id}`),
+      api<AWSAccount[]>(
+        `/api/v1/aws/accounts?organization_id=${organization!.id}`,
+      ),
   });
   const schedules = useQuery({
     queryKey: ["schedules", organization?.id, page],
@@ -243,10 +260,9 @@ export function SchedulesPage() {
           Scheduled scans
         </h1>
         <p className="mt-2 text-slate-400">
-          Each schedule runs the existing discovery and evaluation pipeline on
-          a cadence. No new AWS calls or mutation logic exist here — a
-          scheduled run behaves exactly like clicking "Run evaluation"
-          manually.
+          Each schedule runs the existing discovery and evaluation pipeline on a
+          cadence. No new AWS calls or mutation logic exist here — a scheduled
+          run behaves exactly like clicking "Run evaluation" manually.
         </p>
       </div>
       {mayManage && (

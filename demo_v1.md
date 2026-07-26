@@ -480,4 +480,7 @@ No panic path:
 - Password reset, email verification delivery, MFA, SSO, production deployment/IaC, and external
   production hardening remain future work.
 - Compliance export is not implemented; audit CSV export is implemented.
-- Online dependency audits require explicit metadata-egress authorization in this environment.
+- Dependency audits passed after explicit metadata-egress authorization: Python `pip-audit`
+  checked 80 installed non-editable distributions with 0 known vulnerabilities; frontend
+  `npm audit --registry=https://registry.npmjs.org --json` checked 381 dependencies with 0
+  vulnerabilities after the reviewed development-only ESLint upgrade to 10.8.0.

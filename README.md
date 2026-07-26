@@ -310,8 +310,10 @@ Latest local demo verification on `feature/v1-demo-completion`:
 - Backend: 522 tests passed, 0 failed, 0 skipped; coverage 96.44%; Ruff, Mypy (144 source
   files), startup/import, Alembic current/check, and `pip check` passed.
 - Frontend: TypeScript, ESLint, 112 Vitest tests, and production build passed.
-- Dependency audits: online `npm audit` was blocked by environment policy pending explicit
-  npm-audit metadata-egress authorization; do not record it as passed.
+- Dependency audits: `pip-audit` checked 80 installed non-editable Python distributions with 0
+  known vulnerabilities; `npm audit --registry=https://registry.npmjs.org --json` checked 381
+  frontend dependencies with 0 vulnerabilities after the reviewed development-only ESLint
+  upgrade to 10.8.0.
 
 ## Backend setup
 

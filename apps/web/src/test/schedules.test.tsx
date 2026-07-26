@@ -81,39 +81,41 @@ function renderSchedules(me: Me, fetchImpl: typeof fetch) {
 describe("Schedules page", () => {
   it("lists a schedule and lets an owner disable it", async () => {
     let enabled = true;
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/schedules/s1/disable")) {
-        enabled = false;
-        return new Response(JSON.stringify(schedule({ enabled: false })), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      if (url.includes("/api/v1/schedules?")) {
-        const body: Page<ScanSchedule> = {
-          items: [schedule({ enabled })],
-          total: 1,
-          page: 1,
-          page_size: 10,
-        };
-        return new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      if (url.includes("/api/v1/scan-runs?")) {
-        return new Response(JSON.stringify(emptyRuns()), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      if (url.includes("/api/v1/aws/accounts?")) {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/schedules/s1/disable")) {
+          enabled = false;
+          return new Response(JSON.stringify(schedule({ enabled: false })), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        if (url.includes("/api/v1/schedules?")) {
+          const body: Page<ScanSchedule> = {
+            items: [schedule({ enabled })],
+            total: 1,
+            page: 1,
+            page_size: 10,
+          };
+          return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        if (url.includes("/api/v1/scan-runs?")) {
+          return new Response(JSON.stringify(emptyRuns()), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        if (url.includes("/api/v1/aws/accounts?")) {
+          return new Response(JSON.stringify([]), { status: 200 });
+        }
+        void init;
         return new Response(JSON.stringify([]), { status: 200 });
-      }
-      void init;
-      return new Response(JSON.stringify([]), { status: 200 });
-    });
+      },
+    );
     renderSchedules(owner, fetchMock);
 
     expect(
@@ -122,7 +124,9 @@ describe("Schedules page", () => {
     expect(await screen.findByText("Nightly scan")).toBeInTheDocument();
     expect(screen.getByText("Enabled")).toBeInTheDocument();
 
-    const disableButton = await screen.findByRole("button", { name: "Disable" });
+    const disableButton = await screen.findByRole("button", {
+      name: "Disable",
+    });
     await userEvent.click(disableButton);
 
     await waitFor(() => expect(enabled).toBe(false));
@@ -161,8 +165,12 @@ describe("Schedules page", () => {
     expect(
       screen.queryByRole("button", { name: "Create schedule" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Disable" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Run now" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Disable" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Run now" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows an empty state when there are no schedules", async () => {
@@ -282,7 +290,9 @@ describe("Schedules page", () => {
     });
     renderSchedules(owner, fetchMock);
 
-    expect(await screen.findByText("aws_account_not_connected")).toBeInTheDocument();
+    expect(
+      await screen.findByText("aws_account_not_connected"),
+    ).toBeInTheDocument();
     expect(screen.getByText("scheduled")).toBeInTheDocument();
   });
 });

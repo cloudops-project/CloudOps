@@ -28,7 +28,9 @@ export function AuditPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  const canRead = Boolean(organization && readRoles.includes(organization.role));
+  const canRead = Boolean(
+    organization && readRoles.includes(organization.role),
+  );
 
   const queryString = () => {
     const params = new URLSearchParams({
@@ -37,7 +39,8 @@ export function AuditPage() {
       page_size: "25",
     });
     if (filters.event_type) params.set("event_type", filters.event_type);
-    if (filters.resource_type) params.set("resource_type", filters.resource_type);
+    if (filters.resource_type)
+      params.set("resource_type", filters.resource_type);
     if (filters.result) params.set("result", filters.result);
     if (filters.start_time)
       params.set("start_time", new Date(filters.start_time).toISOString());
@@ -49,7 +52,8 @@ export function AuditPage() {
   const events = useQuery({
     queryKey: ["audit-events", organization?.id, filters, page],
     enabled: Boolean(organization) && canRead,
-    queryFn: () => api<Page<AuditEvent>>(`/api/v1/audit-events?${queryString()}`),
+    queryFn: () =>
+      api<Page<AuditEvent>>(`/api/v1/audit-events?${queryString()}`),
   });
 
   const update = (key: keyof typeof filters, value: string) => {
@@ -62,7 +66,9 @@ export function AuditPage() {
     setExporting(true);
     setExportError(null);
     try {
-      const blob = await apiBlob(`/api/v1/audit-events/export?${queryString()}`);
+      const blob = await apiBlob(
+        `/api/v1/audit-events/export?${queryString()}`,
+      );
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -71,7 +77,9 @@ export function AuditPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       setExportError(
-        err instanceof ApiError ? err.message : "Unable to export audit events.",
+        err instanceof ApiError
+          ? err.message
+          : "Unable to export audit events.",
       );
     } finally {
       setExporting(false);
@@ -99,11 +107,15 @@ export function AuditPage() {
           </h1>
           <p className="mt-2 text-slate-400">
             Every recorded security-relevant action for this organization.
-            Export produces a CSV of up to 5,000 matching rows for the
-            current filters.
+            Export produces a CSV of up to 5,000 matching rows for the current
+            filters.
           </p>
         </div>
-        <button className="button" disabled={exporting} onClick={() => void exportCsv()}>
+        <button
+          className="button"
+          disabled={exporting}
+          onClick={() => void exportCsv()}
+        >
           {exporting ? "Exporting…" : "Export CSV"}
         </button>
       </div>
@@ -182,12 +194,16 @@ export function AuditPage() {
             <tbody>
               {events.data?.items.map((item) => (
                 <tr key={item.id}>
-                  <td className="px-3 py-3 font-mono text-sm">{item.event_type}</td>
+                  <td className="px-3 py-3 font-mono text-sm">
+                    {item.event_type}
+                  </td>
                   <td className="px-3 py-3">{item.resource_type}</td>
                   <td className="px-3 py-3">
                     <ResultBadge result={item.result} />
                   </td>
-                  <td className="px-3 py-3">{item.actor_user_id ?? "System"}</td>
+                  <td className="px-3 py-3">
+                    {item.actor_user_id ?? "System"}
+                  </td>
                   <td className="px-3 py-3">
                     {new Date(item.created_at).toLocaleString()}
                   </td>

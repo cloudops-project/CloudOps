@@ -23,8 +23,10 @@ start/readiness/restart/cold-start/reset passed; manual scheduler tick passed; M
 notification and invitation email delivery were verified through the Mailpit API; V1 acceptance
 completed 18 PASS, 0 FAIL; backend completed 522 passed, 0 failed, 0 skipped with 96.44%
 coverage; Mypy checked 144 source files; frontend TypeScript/ESLint/112 Vitest tests/production
-build passed. Online npm audit remains blocked by environment policy until explicit
-metadata-egress authorization is provided.
+build passed. Dependency audits passed after explicit metadata-egress authorization: Python
+`pip-audit` checked 80 installed non-editable distributions with 0 known vulnerabilities, and
+frontend `npm audit --registry=https://registry.npmjs.org --json` checked 381 dependencies with
+0 vulnerabilities after the reviewed development-only ESLint upgrade to 10.8.0.
 
 - Repository: `D:\learn\cdac\cloudfix`
 - Remote: `https://github.com/cloudops-project/CloudOps.git`

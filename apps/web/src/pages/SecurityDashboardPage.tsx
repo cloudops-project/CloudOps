@@ -24,7 +24,9 @@ function Bar({ items, total }: { items: DashboardCountItem[]; total: number }) {
         return (
           <li key={item.key}>
             <div className="flex justify-between text-sm">
-              <span className="capitalize">{item.key.replaceAll("_", " ")}</span>
+              <span className="capitalize">
+                {item.key.replaceAll("_", " ")}
+              </span>
               <span className="text-slate-400">{item.count}</span>
             </div>
             <div
@@ -184,9 +186,15 @@ export function SecurityDashboardPage() {
             </h2>
           </div>
           <p className="mb-2 text-sm text-slate-400">By type</p>
-          <Bar items={data.assets.counts_by_type} total={data.assets.total_assets} />
+          <Bar
+            items={data.assets.counts_by_type}
+            total={data.assets.total_assets}
+          />
           <p className="mb-2 mt-4 text-sm text-slate-400">By region</p>
-          <Bar items={data.assets.counts_by_region} total={data.assets.total_assets} />
+          <Bar
+            items={data.assets.counts_by_region}
+            total={data.assets.total_assets}
+          />
         </section>
 
         <section className="card" aria-labelledby="finding-distribution-title">
@@ -197,9 +205,15 @@ export function SecurityDashboardPage() {
             </h2>
           </div>
           <p className="mb-2 text-sm text-slate-400">By severity</p>
-          <Bar items={data.findings.open_by_severity} total={data.findings.open_total} />
+          <Bar
+            items={data.findings.open_by_severity}
+            total={data.findings.open_total}
+          />
           <p className="mb-2 mt-4 text-sm text-slate-400">By service</p>
-          <Bar items={data.findings.open_by_service} total={data.findings.open_total} />
+          <Bar
+            items={data.findings.open_by_service}
+            total={data.findings.open_total}
+          />
         </section>
       </div>
 
@@ -258,7 +272,9 @@ export function SecurityDashboardPage() {
             </h2>
           </div>
           {data.compliance.assessment_id === null ? (
-            <p className="text-slate-400">No completed compliance assessment.</p>
+            <p className="text-slate-400">
+              No completed compliance assessment.
+            </p>
           ) : (
             <>
               <p className="text-3xl font-extrabold">
@@ -267,11 +283,12 @@ export function SecurityDashboardPage() {
                   : `${data.compliance.pass_percentage}%`}
               </p>
               <p className="text-sm text-slate-400">
-                {data.compliance.framework_name} v{data.compliance.framework_version}
+                {data.compliance.framework_name} v
+                {data.compliance.framework_version}
               </p>
               <p className="mt-2 text-sm text-slate-400">
-                {data.compliance.passed} passed, {data.compliance.failed} failed,{" "}
-                {data.compliance.not_assessed} not assessed
+                {data.compliance.passed} passed, {data.compliance.failed}{" "}
+                failed, {data.compliance.not_assessed} not assessed
               </p>
             </>
           )}
@@ -307,7 +324,10 @@ export function SecurityDashboardPage() {
                     .map((point) => point.aggregate_score)
                     .join(", then ")}`}
                 >
-                  Trend: {data.risk.trend.map((point) => point.aggregate_score).join(" → ")}
+                  Trend:{" "}
+                  {data.risk.trend
+                    .map((point) => point.aggregate_score)
+                    .join(" → ")}
                 </p>
               )}
             </>
@@ -343,7 +363,9 @@ export function SecurityDashboardPage() {
               <tbody>
                 {data.account_risk_heatmap.map((item) => (
                   <tr key={item.aws_account_id}>
-                    <td className="px-3 py-2">{item.account_display_identifier}</td>
+                    <td className="px-3 py-2">
+                      {item.account_display_identifier}
+                    </td>
                     <td className="px-3 py-2">{item.score}</td>
                     <td className="px-3 py-2 uppercase">{item.priority}</td>
                     <td className="px-3 py-2">{item.critical_count}</td>
@@ -369,7 +391,10 @@ export function SecurityDashboardPage() {
                 "Last compliance assessment",
                 data.freshness.latest_completed_compliance_assessment,
               ],
-              ["Last risk assessment", data.freshness.latest_completed_risk_assessment],
+              [
+                "Last risk assessment",
+                data.freshness.latest_completed_risk_assessment,
+              ],
             ] as const
           ).map(([label, item]) => (
             <div key={label}>

@@ -112,7 +112,9 @@ describe("Audit page", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      fetchMock.mock.calls.some(([input]) => String(input).includes("/audit-events")),
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).includes("/audit-events"),
+      ),
     ).toBe(false);
   });
 
@@ -140,7 +142,13 @@ describe("Audit page", () => {
       if (url.includes("/api/v1/audit-events?")) {
         const body: Page<AuditEvent> = {
           items: url.includes("event_type=scheduler.run.failed")
-            ? [event({ id: "e2", event_type: "scheduler.run.failed", result: "failed" })]
+            ? [
+                event({
+                  id: "e2",
+                  event_type: "scheduler.run.failed",
+                  result: "failed",
+                }),
+              ]
             : [event()],
           total: 1,
           page: 1,
@@ -159,8 +167,6 @@ describe("Audit page", () => {
     const input = screen.getByLabelText("Event type");
     await userEvent.type(input, "scheduler.run.failed");
 
-    expect(
-      await screen.findByText("scheduler.run.failed"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("scheduler.run.failed")).toBeInTheDocument();
   });
 });

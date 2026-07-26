@@ -365,11 +365,9 @@ export function FindingDetailsPage() {
   );
   const canProposeRemediation = Boolean(
     role &&
-      ["owner", "admin", "security_analyst", "cloud_engineer"].includes(role),
+    ["owner", "admin", "security_analyst", "cloud_engineer"].includes(role),
   );
-  const [remediationError, setRemediationError] = useState<string | null>(
-    null,
-  );
+  const [remediationError, setRemediationError] = useState<string | null>(null);
   const proposeRemediation = useMutation({
     mutationFn: () =>
       api<RemediationRequest>(
@@ -379,7 +377,9 @@ export function FindingDetailsPage() {
     onSuccess: () => setRemediationError(null),
     onError: (err: unknown) =>
       setRemediationError(
-        err instanceof ApiError ? err.message : "Unable to propose remediation.",
+        err instanceof ApiError
+          ? err.message
+          : "Unable to propose remediation.",
       ),
   });
   const suppress = useMutation({

@@ -58,7 +58,9 @@ function RemediationRow({
       await invalidate();
     },
     onError: (err: unknown) => {
-      setError(err instanceof ApiError ? err.message : "Approval failed safely.");
+      setError(
+        err instanceof ApiError ? err.message : "Approval failed safely.",
+      );
     },
   });
   const reject = useMutation({
@@ -74,7 +76,9 @@ function RemediationRow({
       await invalidate();
     },
     onError: (err: unknown) => {
-      setError(err instanceof ApiError ? err.message : "Rejection failed safely.");
+      setError(
+        err instanceof ApiError ? err.message : "Rejection failed safely.",
+      );
     },
   });
   const cancel = useMutation({
@@ -88,7 +92,9 @@ function RemediationRow({
       await invalidate();
     },
     onError: (err: unknown) => {
-      setError(err instanceof ApiError ? err.message : "Cancellation failed safely.");
+      setError(
+        err instanceof ApiError ? err.message : "Cancellation failed safely.",
+      );
     },
   });
   const execute = useMutation({
@@ -102,12 +108,17 @@ function RemediationRow({
       await invalidate();
     },
     onError: (err: unknown) => {
-      setError(err instanceof ApiError ? err.message : "Execution failed safely.");
+      setError(
+        err instanceof ApiError ? err.message : "Execution failed safely.",
+      );
     },
   });
 
   const busy =
-    approve.isPending || reject.isPending || cancel.isPending || execute.isPending;
+    approve.isPending ||
+    reject.isPending ||
+    cancel.isPending ||
+    execute.isPending;
   const terminal =
     item.status === "rejected" ||
     item.status === "cancelled" ||
@@ -155,7 +166,8 @@ function RemediationRow({
             </button>
           )}
           {mayCancel &&
-            (item.status === "pending_approval" || item.status === "approved") && (
+            (item.status === "pending_approval" ||
+              item.status === "approved") && (
               <button
                 className="button-secondary"
                 disabled={busy}
@@ -174,7 +186,8 @@ function RemediationRow({
           )}
           {item.status === "rejected" && (
             <span className="text-slate-400">
-              Rejected{item.rejection_reason ? `: ${item.rejection_reason}` : ""}
+              Rejected
+              {item.rejection_reason ? `: ${item.rejection_reason}` : ""}
             </span>
           )}
           {item.status === "cancelled" && (
