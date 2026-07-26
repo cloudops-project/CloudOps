@@ -2,20 +2,50 @@
 
 ## Last updated
 
-2026-07-24
+2026-07-26 — Stages 9-12 are committed on `feature/v1-demo-completion`. The current
+demo-readiness work adds guarded Mailpit SMTP notification delivery, development-only Mailpit
+invitation emails, a local PostgreSQL/Mailpit/API/web Compose stack, Docker-only helper scripts,
+deterministic demo seed/reset, the root `demo_v1.md` runbook, and an 18-step V1 demo acceptance
+runner.
+
+Current demo-readiness verification: Docker demo config/build/start/readiness/restart/cold-start/
+reset passed; manual scheduler tick passed; Mailpit security notification and invitation email
+delivery were verified; V1 acceptance completed 18 PASS, 0 FAIL; backend completed 522 passed,
+0 failed, 0 skipped with 96.44% coverage; Mypy checked 144 source files; frontend TypeScript,
+ESLint, 112 Vitest tests, and production build passed. Dependency audits passed after explicit
+metadata-egress authorization: Python `pip-audit` checked 80 installed non-editable
+distributions with 0 known vulnerabilities, and frontend `npm audit
+--registry=https://registry.npmjs.org --json` checked 381 dependencies with 0 vulnerabilities
+after the reviewed development-only ESLint upgrade to 10.8.0.
 
 ## Current repository and documentation release
 
 - Integration branch: `main`
-- Active feature branch: `feature/8-dashboard`
-- Current authoritative main SHA: `01c3eb4bf9ed2d1770da697c158c5d08742430bd`
+- Active feature branch: `feature/v1-demo-completion` (based on `feature/9-notifications`)
+- Current committed HEAD on the feature branch: `9314f06 feat(web): add audit log explorer`
+- Current authoritative main SHA: `889660ecb8a378d107f6737b4466b70362066793` (unchanged; `main`
+  has not advanced past Stage 8)
 - Verified Stage 6 feature SHA: `b0361b8efe9060ef6c498e1cebfede4baaa9947d`
 - Stage 6 merge commit: `f23e124813b5f65a8f85957c1dce57d95b9cf038`
 - Verified Stage 7 feature SHA: `9b5f4372359a32066787060ca839d5a68c5ab490`
 - Stage 7 merge commit: `882ff531af07276c11e0d25664fdca033e09c7c7`
-- Stage 7 documentation synchronization commit: `01c3eb4bf9ed2d1770da697c158c5d08742430bd`
-- Current Alembic head: `0009_stage7_ai_assistant`
+- Stage 8 merge commit: `889660ecb8a378d107f6737b4466b70362066793` (PR #10 plus a follow-up
+  `feature/8-dashboard-ui` merge)
+- Stage 9 commits (committed on `feature/v1-demo-completion`, not yet merged to `main`):
+  `d0b5676` (persistence), `449e964` (service), `cb42db9` (API), `d1c8733` (frontend, combined
+  with Stage 10)
+- Stage 10 commits: `bf29173` (persistence), `fc8908d` (service), `8ab8c83` (API), `d1c8733`
+  (frontend), `8916be9` (test fixture repair)
+- Stage 11 commits: `24227ab` (persistence), `9fff532` (service/worker), `8c14b55` (API),
+  `55c451e` (frontend)
+- Stage 12 commits: `d0d24cd` (audit API/query/export), `9314f06` (audit explorer UI)
+- Documentation reconciliation commit for this handoff: see the bottom of this file's "Repository
+  state" section, or `git log -1` on `feature/v1-demo-completion` at the time this file is read
+- Current Alembic head on `feature/v1-demo-completion`: `0013_demo_notification_delivery`
 - PR #8 merged at `2026-07-24T19:19:02Z`.
+- `.git/index.lock` has recurred repeatedly and self-cleared or been cleared from Windows
+  multiple times this effort. Check `Test-Path .git\index.lock` before any mutating Git command;
+  never remove it automatically or retry blindly.
 
 ## Current implementation status
 
@@ -27,7 +57,20 @@
 - Stage 6 Deterministic Risk Scoring: independently clean-room verified, merged, and
   regression-tested
 - Stage 7 AI Explanation Assistant: independently verified, merged, and post-merge verified
-- Stage 8A Dashboard read model: in progress on `feature/8-dashboard`
+- Stage 8 Dashboard (read model and UI): merged in `main`
+- Stage 9 Notifications: complete (model, service, API, frontend), independently verified,
+  committed on `feature/v1-demo-completion`; not yet merged into `main`
+- Stage 10 Remediation Workflow: complete (model, service, API, frontend), independently
+  verified, committed on `feature/v1-demo-completion`; not yet merged into `main`
+- Stage 11 Scheduler: complete (model, service, worker, API, frontend), independently verified
+  (backend Ruff/Mypy/22 Pytest passed; migration chain verified through
+  `0012_stage11_scheduler` on the disposable PostgreSQL verification database; frontend
+  TypeScript/ESLint/5 Vitest/production build passed), committed on
+  `feature/v1-demo-completion`; not yet merged into `main`
+- Stage 12 Audit Query/Export: implemented and committed. Backend clean (Ruff, Mypy 142 source
+  files, `test_audit_api.py` 8 passed). Frontend TypeScript, ESLint, Vitest (4 passed), and
+  production build are clean. Codex is the active implementation agent for the tomorrow-demo
+  readiness work.
 
 ### Stage 6
 
@@ -72,6 +115,28 @@ Versioned frameworks and controls; rule-version-aware mappings; persisted per-ru
 evaluation summaries; account assessments; immutable control snapshots; PASS/FAIL/
 NOT_ASSESSED/ERROR semantics; suppression-safe failure behavior; tenant-safe APIs; compliance
 RBAC; structured logs and audit events; and an accessible compliance workflow.
+
+### Stage 9
+
+Organization-scoped `NotificationEvent` model and migration; `NotificationService`
+(create-on-critical-finding, approve, deliver with a bounded 3-attempt retry); deterministic
+mock/no-op delivery provider; API layer with `NOTIFICATIONS_READ`/`NOTIFICATIONS_APPROVE` RBAC;
+frontend history/approval page with filtering, pagination, and role-gated controls.
+
+### Stage 10
+
+Organization-scoped `RemediationRequest` model and migration; `RemediationService` and
+`MockRemediationExecutor` (propose/approve/reject/cancel/execute with a bounded 3-attempt
+execution retry); deterministic proposal text from the existing rule registry; API layer with
+5 dedicated RBAC capabilities; frontend remediation list/detail workflow plus a finding-detail
+"Propose remediation" action.
+
+### Stage 11
+
+`ScanSchedule`/`ScanRun` models and migration; `SchedulerService` and a deterministic
+single-tick worker delegating to the existing discovery/evaluation services; database-enforced
+overlap protection; API layer with `SCHEDULE_READ`/`SCHEDULE_MANAGE` RBAC; frontend schedules
+page with enable/disable, run-now, and scan-run history.
 
 ## Architecture decisions
 
@@ -154,7 +219,19 @@ was regression-tested:
 
 Stage 7 is integrated in `main` through PR #8 at
 `882ff531af07276c11e0d25664fdca033e09c7c7`. Documentation synchronization is isolated on
-`docs/stage7-completion`. Generated output remains ignored.
+`docs/stage7-completion`. Stage 8 (dashboard read model and UI) is integrated in `main` at
+`889660ecb8a378d107f6737b4466b70362066793` through PR #10 and a follow-up
+`feature/8-dashboard-ui` merge; this record does not independently confirm PR #10's exact
+review/approval state and that should be verified before treating it as equivalent governance
+evidence to PRs #2/#4/#6/#8 below.
+
+Stages 9-12 (notifications, remediation, scheduler, audit query/export) are fully implemented
+and committed on `feature/v1-demo-completion`. The current worktree adds the V1 demo-readiness
+follow-up: Mailpit SMTP delivery metadata, development-only Mailpit invitation emails, local
+demo Compose/Docker files, deterministic Docker-only seed/reset helper scripts, the root
+`demo_v1.md` runbook, and the 18-step V1 demo black-box runner. `CLAUDE.md` has remained
+untracked throughout every commit on this branch and must stay that way. Generated output
+remains ignored.
 
 ## Governance record
 
@@ -180,9 +257,24 @@ CODEOWNER, automated CI, or repository-policy approval.
 
 ## Next immediate task
 
-1. Complete the Stage 8A dashboard read-model/API contract on `feature/8-dashboard`.
-2. Keep Stage 8A read-only over Stage 2-7 authoritative records.
-3. Do not begin Stage 8B UI work until Stage 8A is closed or separately authorized.
-4. Do not begin Stage 9 notifications.
-5. Keep dashboard visualization separate from detection, compliance calculation, risk scoring,
+Development ownership has moved from Claude Code to Codex. Stage 12 is committed; the exact
+demo-readiness plan is recorded in `NEW_CHAT_CONTEXT.md`; this section is a short pointer, not a
+duplicate of that detail.
+
+1. Verify branch, HEAD, working-tree status, and `.git/index.lock` state before any Git
+   mutation.
+2. Commit this documentation reconciliation safely, keeping `CLAUDE.md` untracked and never
+   using `git add .`/`git add -A`.
+3. Finish verification and documentation for the tomorrow-demo journey: Mailpit-backed SMTP
+   notification and invitation delivery, local demo stack, deterministic seed/reset,
+   `demo_v1.md`, and V1 acceptance runner.
+4. Continue the Version 1 demo-completion effort per `docs/planning/roadmap.md`: Stage 13
+   security hardening, Stage 14 local DevOps/demo stack, deterministic demo seed/reset, full
+   regression testing, the black-box V1 acceptance flow, deployment preparation, final
+   documentation, and eventually a pull request merging `feature/v1-demo-completion` into
+   `main`.
+6. Keep dashboard visualization separate from detection, compliance calculation, risk scoring,
    AI explanation, AWS mutation, Jira creation, email delivery, and remediation execution.
+7. Keep notification delivery approval-gated. The mock provider remains default/no-network;
+   Mailpit SMTP is local-demo-only. Remediation remains mock-only; the scheduler worker must keep
+   delegating to existing discovery/evaluation services rather than duplicating their logic.

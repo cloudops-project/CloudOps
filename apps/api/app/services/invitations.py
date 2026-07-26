@@ -9,11 +9,17 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.exceptions.errors import ConflictError, ForbiddenError, NotFoundError
 from app.models import OrganizationInvitation, OrganizationMembership, User
-from app.models.enums import InvitationStatus, MembershipStatus, OrganizationRole
+from app.models.enums import (
+    InvitationStatus,
+    MembershipStatus,
+    NotificationChannel,
+    OrganizationRole,
+)
 from app.repositories.data import Repository
 from app.security.rbac import Capability, can_assign_role
 from app.security.tokens import generate_opaque_token, hash_opaque_token
 from app.services.common import is_expired, normalize_email, now_utc, record_audit
+from app.services.notification_provider import notification_provider_from_settings
 from app.services.organizations import OrganizationService
 
 
@@ -64,6 +70,7 @@ class InvitationService:
             resource_id=invitation.id,
             metadata={"role": role.value},
         )
+        self._send_development_invitation_email(invitation, raw)
         try:
             self.db.commit()
         except IntegrityError as exc:
@@ -73,6 +80,35 @@ class InvitationService:
             ) from exc
         self.db.refresh(invitation)
         return invitation, raw if self.settings.app_env in {"development", "testing"} else None
+
+    def _send_development_invitation_email(
+        self, invitation: OrganizationInvitation, raw_token: str
+    ) -> None:
+        """Best-effort Mailpit invitation email for the local demo only."""
+
+        if self.settings.app_env != "development" or self.settings.notification_provider != "smtp":
+            return
+        accept_url = (
+            f"{self.settings.frontend_url.rstrip('/')}/invitations/accept?token={raw_token}"
+        )
+        provider = notification_provider_from_settings(self.settings)
+        provider.deliver(
+            channel=NotificationChannel.EMAIL,
+            destination_reference=invitation.email,
+            recipients=[invitation.email],
+            subject="CloudOps demo invitation",
+            text_body=(
+                "You have been invited to join the CloudOps local demo organization.\n\n"
+                f"Role: {invitation.role.value}\n"
+                f"Accept invitation: {accept_url}\n\n"
+                "LOCAL DEMO ONLY — do not reuse this token in production."
+            ),
+            template_key="development_invitation",
+            context={
+                "organization_id": str(invitation.organization_id),
+                "invitation_id": str(invitation.id),
+            },
+        )
 
     def list(self, organization_id: uuid.UUID, actor: User) -> list[OrganizationInvitation]:
         self.organizations.require_capability(

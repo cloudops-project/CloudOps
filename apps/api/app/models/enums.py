@@ -216,3 +216,41 @@ class RuleCategory(StrEnum):
     PATCHING = "patching"
     RESILIENCE = "resilience"
     TRANSPORT = "transport"
+
+
+class NotificationChannel(StrEnum):
+    EMAIL = "email"
+
+
+class NotificationStatus(StrEnum):
+    PENDING_APPROVAL = "pending_approval"
+    APPROVED = "approved"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+
+
+class RemediationStatus(StrEnum):
+    PENDING_APPROVAL = "pending_approval"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class RemediationExecutionMode(StrEnum):
+    MOCK_AUTOMATION = "mock_automation"
+    MANUAL = "manual"
+    JIRA_DRAFT = "jira_draft"
+
+
+class ScanRunStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ScanRunTrigger(StrEnum):
+    MANUAL = "manual"
+    SCHEDULED = "scheduled"

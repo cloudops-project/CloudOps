@@ -3,6 +3,7 @@ import { AppShell } from "./components/AppShell";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AcceptInvitationPage } from "./pages/AcceptInvitationPage";
 import { AIAssistantPage } from "./pages/AIAssistantPage";
+import { AuditPage } from "./pages/AuditPage";
 import {
   AddAWSAccountPage,
   AWSAccountDetailsPage,
@@ -16,9 +17,12 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { InviteMemberPage } from "./pages/InviteMemberPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MembersPage } from "./pages/MembersPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { RemediationsPage } from "./pages/RemediationsPage";
 import { RiskPage } from "./pages/RiskPage";
+import { SchedulesPage } from "./pages/SchedulesPage";
 import { SecurityDashboardPage } from "./pages/SecurityDashboardPage";
 import { NotFoundPage, UnauthorizedPage } from "./pages/StatusPages";
 import {
@@ -67,6 +71,10 @@ export function App() {
           <Route path="/evaluations" element={<EvaluationJobsPage />} />
           <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/risk" element={<RiskPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/remediations" element={<RemediationsPage />} />
+          <Route path="/schedules" element={<SchedulesPage />} />
+          <Route path="/audit" element={<AuditPage />} />
           <Route
             path="/security-dashboard"
             element={<SecurityDashboardPage />}

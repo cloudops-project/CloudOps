@@ -13,6 +13,7 @@ os.environ["AWS_TRUSTED_PRINCIPAL_ARN"] = "arn:aws:iam::111122223333:role/CloudO
 
 import pytest
 from fastapi.testclient import TestClient
+from pytest import FixtureRequest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -26,7 +27,10 @@ TestingSession = sessionmaker(bind=engine, expire_on_commit=False)
 
 
 @pytest.fixture(autouse=True)
-def database() -> Generator[None, None, None]:
+def database(request: FixtureRequest) -> Generator[None, None, None]:
+    if request.node.get_closest_marker("postgres_only"):
+        yield
+        return
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     yield

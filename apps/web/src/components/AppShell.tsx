@@ -1,5 +1,8 @@
 import {
+  Bell,
   Building2,
+  CalendarClock,
+  ClipboardList,
   Cloud,
   Database,
   Gauge,
@@ -11,6 +14,7 @@ import {
   Sparkles,
   Users,
   UserRound,
+  Wrench,
 } from "lucide-react";
 import { Link, Outlet } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
@@ -80,6 +84,37 @@ export function AppShell() {
             <Sparkles />
             AI Assistant
           </Link>
+          <Link
+            className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+            to="/notifications"
+          >
+            <Bell />
+            Notifications
+          </Link>
+          <Link
+            className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+            to="/remediations"
+          >
+            <Wrench />
+            Remediation
+          </Link>
+          <Link
+            className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+            to="/schedules"
+          >
+            <CalendarClock />
+            Schedules
+          </Link>
+          {organizationRole &&
+            ["owner", "admin", "auditor"].includes(organizationRole) && (
+              <Link
+                className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
+                to="/audit"
+              >
+                <ClipboardList />
+                Audit log
+              </Link>
+            )}
           <Link
             className="flex items-center gap-3 rounded-button px-3 hover:bg-slate-800"
             to="/dashboard"

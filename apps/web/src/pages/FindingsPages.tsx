@@ -3,7 +3,7 @@ import { ArrowLeft, Play, Search, ShieldAlert } from "lucide-react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { AIWorkflow } from "../components/AIWorkflow";
 import {
@@ -21,6 +21,7 @@ import type {
   FindingStatus,
   FindingSummary,
   Page,
+  RemediationRequest,
   SecurityRule,
 } from "../types";
 
@@ -362,6 +363,25 @@ export function FindingDetailsPage() {
   const canSuppress = Boolean(
     role && ["owner", "admin", "security_analyst"].includes(role),
   );
+  const canProposeRemediation = Boolean(
+    role &&
+    ["owner", "admin", "security_analyst", "cloud_engineer"].includes(role),
+  );
+  const [remediationError, setRemediationError] = useState<string | null>(null);
+  const proposeRemediation = useMutation({
+    mutationFn: () =>
+      api<RemediationRequest>(
+        `/api/v1/findings/${findingId}/remediations?organization_id=${organization!.id}`,
+        { method: "POST" },
+      ),
+    onSuccess: () => setRemediationError(null),
+    onError: (err: unknown) =>
+      setRemediationError(
+        err instanceof ApiError
+          ? err.message
+          : "Unable to propose remediation.",
+      ),
+  });
   const suppress = useMutation({
     mutationFn: () =>
       api<Finding>(
@@ -441,6 +461,34 @@ export function FindingDetailsPage() {
               >
                 Suppress finding
               </button>
+            )}
+          </div>
+        )}
+        {canProposeRemediation && finding.status === "open" && (
+          <div className="mt-5">
+            {proposeRemediation.isSuccess ? (
+              <p className="text-slate-300">
+                Remediation proposed.{" "}
+                <Link className="text-blue-300" to="/remediations">
+                  View remediation requests
+                </Link>
+                .
+              </p>
+            ) : (
+              <button
+                className="button"
+                disabled={proposeRemediation.isPending}
+                onClick={() => proposeRemediation.mutate()}
+              >
+                {proposeRemediation.isPending
+                  ? "Proposing…"
+                  : "Propose remediation"}
+              </button>
+            )}
+            {remediationError && (
+              <p role="alert" className="mt-2 text-sm text-red-300">
+                {remediationError}
+              </p>
             )}
           </div>
         )}

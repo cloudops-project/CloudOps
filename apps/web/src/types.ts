@@ -36,10 +36,16 @@ export interface Invitation {
   status: string;
   development_token?: string;
 }
+export type AuditResult = "succeeded" | "failed" | "denied";
 export interface AuditEvent {
   id: string;
+  organization_id: string | null;
+  actor_user_id: string | null;
   event_type: string;
-  result: string;
+  resource_type: string;
+  resource_id: string | null;
+  result: AuditResult | string;
+  metadata_json?: Record<string, unknown>;
   created_at: string;
 }
 export type AWSAccountStatus =
@@ -494,4 +500,104 @@ export interface AIRequestRecord {
   source_version: number;
   source_staleness: "current" | "stale" | "source_missing";
   content: AIContent | null;
+}
+
+export type NotificationChannel = "email";
+export type NotificationStatus =
+  "pending_approval" | "approved" | "delivered" | "failed";
+export interface NotificationEvent {
+  id: string;
+  organization_id: string;
+  source_event_type: string;
+  source_resource_type: string;
+  source_resource_id: string;
+  channel: NotificationChannel;
+  template_key: string;
+  destination_reference: string | null;
+  status: NotificationStatus;
+  attempt_count: number;
+  approved_by_user_id: string | null;
+  approved_at: string | null;
+  scheduled_at: string | null;
+  delivered_at: string | null;
+  failed_at: string | null;
+  failure_reason: string | null;
+  provider_key: string | null;
+  provider_message_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScanSchedule {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  name: string;
+  interval_minutes: number;
+  enabled: boolean;
+  created_by_user_id: string | null;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type ScanRunTrigger = "manual" | "scheduled";
+export type ScanRunStatus = "pending" | "running" | "completed" | "failed";
+export interface ScanRun {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  schedule_id: string | null;
+  trigger: ScanRunTrigger;
+  status: ScanRunStatus;
+  discovery_job_id: string | null;
+  evaluation_job_id: string | null;
+  error_summary: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RemediationStatus =
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "cancelled"
+  | "succeeded"
+  | "failed";
+export type RemediationExecutionMode =
+  "mock_automation" | "manual" | "jira_draft";
+export interface RemediationRequest {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  finding_id: string;
+  rule_key: string;
+  rule_version: number;
+  requested_by_user_id: string | null;
+  approved_by_user_id: string | null;
+  rejected_by_user_id: string | null;
+  status: RemediationStatus;
+  execution_mode: RemediationExecutionMode;
+  automation_eligible: boolean;
+  title: string;
+  summary: string;
+  remediation_steps_json: string[];
+  verification_steps_json: string[];
+  rollback_steps_json: string[];
+  before_state_json: Record<string, unknown> | null;
+  after_state_json: Record<string, unknown> | null;
+  execution_result_json: Record<string, unknown> | null;
+  attempt_count: number;
+  rejection_reason: string | null;
+  failure_reason: string | null;
+  requested_at: string;
+  approved_at: string | null;
+  rejected_at: string | null;
+  cancelled_at: string | null;
+  executed_at: string | null;
+  failed_at: string | null;
+  created_at: string;
+  updated_at: string;
 }

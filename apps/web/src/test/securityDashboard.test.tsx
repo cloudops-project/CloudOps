@@ -277,10 +277,10 @@ describe("SecurityDashboardPage", () => {
   it("renders populated dashboard sections from the Stage 8A API contract", async () => {
     const me = meFor("org-populated");
     const fetchMock = vi.fn(async () => {
-      return new Response(
-        JSON.stringify(populatedSummary("org-populated")),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify(populatedSummary("org-populated")), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     });
     vi.stubGlobal("fetch", fetchMock);
     renderAt("/security-dashboard", me);
@@ -313,11 +313,15 @@ describe("SecurityDashboardPage", () => {
     );
     renderAt("/security-dashboard", me);
 
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /partial data/i,
+    );
     expect(
-      await screen.findByRole("status"),
-    ).toHaveTextContent(/partial data/i);
-    expect(screen.getByText(/no completed compliance assessment/i)).toBeInTheDocument();
-    expect(screen.getByText(/no completed risk assessment/i)).toBeInTheDocument();
+      screen.getByText(/no completed compliance assessment/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/no completed risk assessment/i),
+    ).toBeInTheDocument();
   });
 
   it("shows a safe error state and allows retry on API failure", async () => {
@@ -477,9 +481,7 @@ describe("SecurityDashboardPage", () => {
       await screen.findByRole("heading", { name: `Organization org-nav` }),
     ).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(
-      screen.getByRole("link", { name: /security posture/i }),
-    );
+    await user.click(screen.getByRole("link", { name: /security posture/i }));
     expect(
       await screen.findByRole("heading", { name: "Security posture" }),
     ).toBeInTheDocument();

@@ -26,7 +26,7 @@ export function InviteMemberPage() {
       <h1 className="text-3xl font-bold">Invite member</h1>
       <p className="mt-2 text-slate-400">
         Production email delivery is deferred. Development returns a one-time
-        token.
+        token, and the local demo stack can also send the invitation to Mailpit.
       </p>
       <form
         className="mt-6 grid gap-4"

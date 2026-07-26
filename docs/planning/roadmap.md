@@ -1,4 +1,4 @@
-﻿# Product Roadmap
+# Product Roadmap
 
 ## Purpose and audience
 
@@ -18,6 +18,34 @@ Planning produces approved boundaries and governance. Foundation establishes the
 ## Release gates
 
 An internal foundation demonstration follows Stage 3; a read-only detection alpha follows Stage 7; a workflow beta follows Stage 10; a controlled sandbox remediation candidate follows Stage 13; MVP release candidacy follows Stage 15. Names are planning markers, not release commitments.
+
+## Current status by category (updated for the Stage 9-12 effort)
+
+**Implemented and verified, committed on `feature/v1-demo-completion` (not yet merged into
+`main`):** Stage 9 notifications, Stage 10 remediation, Stage 11 scheduler, and Stage 12 audit
+query/export — backend and frontend, with targeted verification complete (Ruff, Mypy, targeted
+Pytest, migration lifecycle where applicable, TypeScript, ESLint, Vitest, production build).
+
+**Immediate tomorrow-demo priority:** verify the implemented local Mailpit-backed SMTP
+notification and invitation delivery, guarded local demo stack, deterministic demo seed/reset,
+root `demo_v1.md` runbook, and black-box V1 acceptance flow.
+
+**Current local-demo caveat:** the read-side workflows for notifications, remediation,
+scheduling, and audit export are functionally complete. The deterministic mock provider remains
+the default/no-network provider; the Mailpit SMTP path is guarded local-demo-only and still
+requires final rehearsal evidence before the branch can be called demo-ready.
+
+**Remaining P0/P1 work, roughly in order:** finish demo-stack/Mailpit/seed/runbook rehearsal
+evidence (P0) -> Stage 13 security hardening (P0: JWT edge cases, tenant-boundary/IDOR checks,
+RBAC coverage for every Stage 9-12 endpoint, safe error/metadata handling) -> full regression
+and the black-box V1 acceptance flow (P0) -> deployment preparation and final documentation
+(P1) -> pull request merging `feature/v1-demo-completion` into `main` (P0).
+
+**Future production work, not Version 1:** real notification delivery (e.g. AWS SES), real
+remediation execution against customer AWS accounts, a distributed-queue/cron-daemon scheduler,
+raw CloudTrail/CloudWatch event ingestion, other cloud providers/services, Kubernetes,
+runtime/source/image security, and local AI. These require new scope, threat modeling, and ADRs
+before implementation.
 
 ## Future, not Version 1
 

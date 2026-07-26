@@ -49,3 +49,6 @@ exclude = ["alembic/versions"]
 [tool.pytest.ini_options]
 addopts = "-q --strict-markers -p no:cacheprovider"
 testpaths = ["app/tests"]
+markers = [
+  "postgres_only: test owns a PostgreSQL-backed database fixture and opts out of the default SQLite fixture",
+]

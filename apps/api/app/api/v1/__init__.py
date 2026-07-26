@@ -2,14 +2,18 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     ai,
+    audit,
     auth,
     aws_accounts,
     compliance,
     dashboard,
     discovery,
     invitations,
+    notifications,
     organizations,
+    remediation,
     risk,
+    scheduler,
     security_findings,
 )
 
@@ -23,4 +27,8 @@ router.include_router(discovery.router, tags=["asset-discovery"])
 router.include_router(security_findings.router, tags=["security-findings"])
 router.include_router(compliance.router, tags=["compliance"])
 router.include_router(risk.router, tags=["risk"])
+router.include_router(notifications.router, tags=["notifications"])
+router.include_router(remediation.router, tags=["remediation"])
+router.include_router(scheduler.router, tags=["scheduler"])
+router.include_router(audit.router, tags=["audit"])
 router.include_router(dashboard.router, tags=["dashboard"])

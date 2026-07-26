@@ -256,5 +256,5 @@ def test_fatal_repository_failure_cannot_leave_running_job(
         job = service.start(account.id, actor)
     assert job.status == EvaluationJobStatus.FAILED
     assert job.finished_at is not None
+    assert job.error_summary == "evaluation_execution_failed"
     assert "provider secret must not escape" not in caplog.text
-    assert "security.evaluation.failed" in caplog.text

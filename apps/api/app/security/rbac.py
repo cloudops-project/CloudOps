@@ -29,6 +29,15 @@ class Capability(StrEnum):
     RISK_CONTROLS_MANAGE = "risk.controls.manage"
     AI_READ = "ai.read"
     AI_GENERATE = "ai.generate"
+    NOTIFICATIONS_READ = "notifications.read"
+    NOTIFICATIONS_APPROVE = "notifications.approve"
+    REMEDIATION_READ = "remediation.read"
+    REMEDIATION_REQUEST = "remediation.request"
+    REMEDIATION_APPROVE = "remediation.approve"
+    REMEDIATION_REJECT = "remediation.reject"
+    REMEDIATION_EXECUTE = "remediation.execute"
+    SCHEDULE_READ = "schedule.read"
+    SCHEDULE_MANAGE = "schedule.manage"
 
 
 ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
@@ -57,6 +66,15 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.ASSETS_READ,
             Capability.AI_READ,
             Capability.AI_GENERATE,
+            Capability.NOTIFICATIONS_READ,
+            Capability.NOTIFICATIONS_APPROVE,
+            Capability.REMEDIATION_READ,
+            Capability.REMEDIATION_REQUEST,
+            Capability.REMEDIATION_APPROVE,
+            Capability.REMEDIATION_REJECT,
+            Capability.REMEDIATION_EXECUTE,
+            Capability.SCHEDULE_READ,
+            Capability.SCHEDULE_MANAGE,
         }
     ),
     OrganizationRole.SECURITY_ANALYST: frozenset(
@@ -78,6 +96,15 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.RISK_CONTROLS_MANAGE,
             Capability.AI_READ,
             Capability.AI_GENERATE,
+            Capability.NOTIFICATIONS_READ,
+            Capability.NOTIFICATIONS_APPROVE,
+            Capability.REMEDIATION_READ,
+            Capability.REMEDIATION_REQUEST,
+            Capability.REMEDIATION_APPROVE,
+            Capability.REMEDIATION_REJECT,
+            Capability.REMEDIATION_EXECUTE,
+            Capability.SCHEDULE_READ,
+            Capability.SCHEDULE_MANAGE,
         }
     ),
     OrganizationRole.CLOUD_ENGINEER: frozenset(
@@ -96,6 +123,11 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.RISK_ASSESS,
             Capability.AI_READ,
             Capability.AI_GENERATE,
+            Capability.NOTIFICATIONS_READ,
+            Capability.REMEDIATION_READ,
+            Capability.REMEDIATION_REQUEST,
+            Capability.SCHEDULE_READ,
+            Capability.SCHEDULE_MANAGE,
         }
     ),
     OrganizationRole.AUDITOR: frozenset(
@@ -109,6 +141,9 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.COMPLIANCE_READ,
             Capability.RISK_READ,
             Capability.AI_READ,
+            Capability.NOTIFICATIONS_READ,
+            Capability.REMEDIATION_READ,
+            Capability.SCHEDULE_READ,
         }
     ),
     OrganizationRole.VIEWER: frozenset(
@@ -121,6 +156,9 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.COMPLIANCE_READ,
             Capability.RISK_READ,
             Capability.AI_READ,
+            Capability.NOTIFICATIONS_READ,
+            Capability.REMEDIATION_READ,
+            Capability.SCHEDULE_READ,
         }
     ),
 }

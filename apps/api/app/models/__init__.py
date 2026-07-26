@@ -16,8 +16,10 @@ from app.models.evaluation_job import EvaluationJob
 from app.models.finding import Finding
 from app.models.invitation import OrganizationInvitation
 from app.models.membership import OrganizationMembership
+from app.models.notification import NotificationEvent
 from app.models.organization import Organization
 from app.models.refresh_session import RefreshTokenSession
+from app.models.remediation import RemediationRequest
 from app.models.risk import (
     AccountRiskSnapshot,
     AssetRiskContext,
@@ -27,6 +29,7 @@ from app.models.risk import (
     RiskAssessment,
     RiskScoringPolicy,
 )
+from app.models.scheduler import ScanRun, ScanSchedule
 from app.models.user import User
 
 __all__ = [
@@ -51,13 +54,17 @@ __all__ = [
     "EvaluationRuleResult",
     "Finding",
     "FindingRiskSnapshot",
+    "NotificationEvent",
     "Organization",
     "OrganizationInvitation",
     "OrganizationMembership",
     "OrganizationRiskSnapshot",
     "RefreshTokenSession",
+    "RemediationRequest",
     "RiskAssessment",
     "RiskScoringPolicy",
     "RuleControlMapping",
+    "ScanRun",
+    "ScanSchedule",
     "User",
 ]

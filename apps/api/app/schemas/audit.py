@@ -18,3 +18,10 @@ class AuditEventResponse(ApiModel):
     result: AuditResult
     metadata_json: dict[str, Any]
     created_at: datetime
+
+
+class AuditEventListResponse(ApiModel):
+    items: list[AuditEventResponse]
+    total: int
+    page: int
+    page_size: int

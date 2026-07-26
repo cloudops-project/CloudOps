@@ -2,20 +2,68 @@
 
 ## Last updated
 
-2026-07-25 - Stage 7 AI explanation assistant merged, post-merge verified, documentation
-synchronized, and Stage 8A dashboard read-model work authorized.
+2026-07-26 - Stages 9-12 are implemented and committed on `feature/v1-demo-completion`, not yet
+merged into `main`. The current demo-readiness work adds guarded Mailpit SMTP notification
+delivery, development-only Mailpit invitation emails, migration `0013_demo_notification_delivery`,
+a local PostgreSQL/Mailpit/API/web Compose stack, Docker-only helper scripts, deterministic demo
+seed/reset, the root `demo_v1.md` runbook, and an 18-step V1 demo acceptance runner.
+
+Current demo-readiness verification: Docker demo config/build/start/readiness/restart/cold-start/
+reset passed; manual scheduler tick passed; Mailpit security notification and invitation email
+delivery were verified; V1 acceptance completed 18 PASS, 0 FAIL; backend completed 522 passed,
+0 failed, 0 skipped with 96.44% coverage; Mypy checked 144 source files; frontend TypeScript,
+ESLint, 112 Vitest tests, and production build passed. Dependency audits passed after explicit
+metadata-egress authorization: Python `pip-audit` checked 80 installed non-editable
+distributions with 0 known vulnerabilities, and frontend `npm audit
+--registry=https://registry.npmjs.org --json` checked 381 dependencies with 0 vulnerabilities
+after the reviewed development-only ESLint upgrade to 10.8.0.
 
 ## Current implementation
 
-Stages 1-7 are independently clean-room verified, merged, and regression-tested. PR #8 merged
-verified feature SHA `9b5f4372359a32066787060ca839d5a68c5ab490` at main commit
-`882ff531af07276c11e0d25664fdca033e09c7c7`; Stage 7 documentation is synchronized through
-`01c3eb4bf9ed2d1770da697c158c5d08742430bd`. The current migration head is
-`0009_stage7_ai_assistant`; Stage 8A dashboard read-model work has started on
-`feature/8-dashboard`.
+Stages 1-8 are independently clean-room verified, merged, and regression-tested in `main` at
+`889660ecb8a378d107f6737b4466b70362066793`. PR #8 merged verified Stage 7 feature SHA
+`9b5f4372359a32066787060ca839d5a68c5ab490` at commit `882ff531af07276c11e0d25664fdca033e09c7c7`;
+Stage 8 merged via PR #10 plus a follow-up `feature/8-dashboard-ui` merge. The current migration
+head on `main` is `0009_stage7_ai_assistant`.
 
-The active feature branch is `feature/8-dashboard`, created from verified `main`
-`01c3eb4bf9ed2d1770da697c158c5d08742430bd`.
+Stages 9-11 are complete (backend and frontend) and committed on `feature/v1-demo-completion`:
+Stage 9 at commits `d0b5676`, `449e964`, `cb42db9`, `d1c8733` (migration head
+`0010_stage9_notifications`); Stage 10 at commits `bf29173`, `fc8908d`, `8ab8c83`, `d1c8733`,
+`8916be9` (migration head `0011_stage10_remediation`); Stage 11 at commits `24227ab`, `9fff532`,
+`8c14b55`, `55c451e` (migration head `0012_stage11_scheduler`). Stage 12 is complete at
+`d0d24cd` and `9314f06` across 10 files. None of Stages 9-12 are yet merged into `main`.
+
+The active feature branch is `feature/v1-demo-completion`, created from `feature/9-notifications`
+(merge-base with `main`: `889660ecb8a378d107f6737b4466b70362066793`).
+
+### Verification commands and exact results run this effort
+
+Stage 11 backend: `python -m ruff check app` passed; `python -m mypy app` passed (140 source
+files); `python -m pytest app/tests/test_scheduler_service.py app/tests/test_scheduler_api.py`
+22 passed, 0 failed; one non-blocking Starlette/httpx deprecation warning.
+
+Stage 11 migrations (disposable PostgreSQL verification database, `compose.verify.yml`,
+database `cloudops_test`, user `cloudops`, host port `5433`): `alembic upgrade head` passed
+through `0010_stage9_notifications -> 0011_stage10_remediation -> 0012_stage11_scheduler`;
+`alembic current` reports `0012_stage11_scheduler`; `alembic check` reports no new operations;
+chain confirmed linear with a single head.
+
+Stage 11 frontend: `npx tsc --noEmit` passed; `npx eslint ...` passed; scheduler Vitest 5
+passed; `npm run build` passed.
+
+Stage 12 backend: Ruff passed; Mypy passed (142 source files); `pytest
+app/tests/test_audit_api.py` 8 passed; one non-blocking Starlette/httpx deprecation warning.
+
+Stage 12 frontend: TypeScript passed; ESLint passed after the unused-input repair; Vitest
+(`audit.test.tsx`) 4 passed; production build passed.
+
+### Codex handoff state
+
+Development ownership has moved to Codex. Stage 12 is committed; Codex's current demo-readiness
+work implements Mailpit-backed local SMTP delivery while preserving the mock provider as the
+default, builds the local demo stack, adds development-only Mailpit invitation emails, and adds
+deterministic Docker-only demo seed/reset plus black-box acceptance. `CLAUDE.md` must remain
+untracked; do not amend or repeat any commit listed above.
 
 Alembic revision `0009_stage7_ai_assistant` follows `0008_stage6_risk_scoring` and adds
 versioned prompt templates, tenant-scoped AI requests, typed source references, immutable
@@ -66,8 +114,14 @@ tests use deterministic AWS doubles; controlled live-AWS validation remains oper
 
 ## Next task
 
-Complete Stage 8A as a read-only dashboard contract over existing Stage 2-7 data, keep Stage 8B
-UI and Stage 8C release verification separate, and do not begin Stage 9 notifications.
+Stage 12 is now committed and verified on `feature/v1-demo-completion`. Continue Version 1 demo
+completion by finishing verification of Mailpit-backed local SMTP notification and invitation
+delivery, the local DevOps/demo stack, deterministic demo seed/reset, the black-box V1
+acceptance flow, `demo_v1.md`, full regression testing, deployment preparation, final documentation, and eventually a pull request
+merging `feature/v1-demo-completion` into `main`. Notification delivery remains approval-gated;
+the mock provider remains default/no-network and Mailpit SMTP is local-demo-only. Remediation
+execution remains mock-only, and the scheduler must keep delegating to existing discovery/
+evaluation services rather than duplicating their logic.
 
 ## Stage 3 implementation snapshot
 

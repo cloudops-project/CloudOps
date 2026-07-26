@@ -15,6 +15,7 @@ from app.models.enums import (
     AuditResult,
     AWSAccountStatus,
     EvaluationJobStatus,
+    FindingSeverity,
     FindingStatus,
     RuleResultStatus,
 )
@@ -24,6 +25,7 @@ from app.security_rules import RuleRegistry, default_registry
 from app.security_rules.base import RuleContext, SecurityRule
 from app.security_rules.results import RuleResult, sanitize_evidence
 from app.services.common import now_utc, record_audit
+from app.services.notifications import NotificationService
 from app.services.organizations import OrganizationService
 
 logger = logging.getLogger("cloudops.security")
@@ -289,6 +291,8 @@ class EvaluationService:
                 resource_id=finding.id,
                 metadata={"rule_key": rule.key, "asset_id": str(asset.id) if asset else None},
             )
+            if created and finding.severity == FindingSeverity.CRITICAL:
+                NotificationService(self.db).create_for_critical_finding(finding)
             self._log_finding(
                 event,
                 finding,
