@@ -15,7 +15,11 @@ import {
   ValidationResult,
 } from "../components/AWSAccountComponents";
 import { Field } from "../components/AuthCard";
-import type { AWSAccount, AWSAccountDetail } from "../types";
+import type {
+  AWSAccount,
+  AWSAccountDetail,
+  AWSAccountOnboarding,
+} from "../types";
 
 const createSchema = z.object({
   name: z.string().trim().min(2, "Enter an account name."),
@@ -164,6 +168,9 @@ export function AWSAccountDetailsPage() {
   const query = useAccountDetail();
   const queryClient = useQueryClient();
   const [error, setError] = useState("");
+  const [onboarding, setOnboarding] = useState<AWSAccountOnboarding | null>(
+    null,
+  );
   const {
     register,
     handleSubmit,
@@ -212,17 +219,61 @@ export function AWSAccountDetailsPage() {
           </div>
           <ConnectionStatusBadge status={account.connection_status} />
         </div>
-        <p className="mt-5 text-sm text-slate-400">External ID</p>
-        <code className="break-all text-blue-300">{account.external_id}</code>
       </div>
-      <IAMSetupInstructions steps={query.data.onboarding_instructions} />
-      <div className="grid gap-5 xl:grid-cols-2">
-        <PolicyViewer title="Trust policy" value={query.data.trust_policy} />
-        <PolicyViewer
-          title="Permission policy"
-          value={query.data.permission_policy}
-        />
-      </div>
+      {canManage ? (
+        <div className="card">
+          <p className="text-slate-300">
+            External ID and trust-policy material are restricted onboarding
+            data.
+          </p>
+          <button
+            className="button mt-4"
+            onClick={async () => {
+              try {
+                setOnboarding(
+                  await api<AWSAccountOnboarding>(
+                    `/api/v1/aws/accounts/${account.id}/onboarding`,
+                  ),
+                );
+              } catch (reason) {
+                setError(
+                  reason instanceof Error
+                    ? reason.message
+                    : "Unable to load onboarding material.",
+                );
+              }
+            }}
+          >
+            Load onboarding material
+          </button>
+        </div>
+      ) : (
+        <div className="card text-slate-400">
+          Onboarding trust material is available only to organization owners
+          and administrators.
+        </div>
+      )}
+      {onboarding && (
+        <>
+          <div className="card">
+            <p className="text-sm text-slate-400">External ID</p>
+            <code className="break-all text-blue-300">
+              {onboarding.external_id}
+            </code>
+          </div>
+          <IAMSetupInstructions steps={onboarding.onboarding_instructions} />
+          <div className="grid gap-5 xl:grid-cols-2">
+            <PolicyViewer
+              title="Trust policy"
+              value={onboarding.trust_policy}
+            />
+            <PolicyViewer
+              title="Permission policy"
+              value={onboarding.permission_policy}
+            />
+          </div>
+        </>
+      )}
       {canManage && (
         <form
           className="card grid gap-3"

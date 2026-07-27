@@ -56,7 +56,6 @@ export interface AWSAccount {
   name: string;
   account_id: string;
   role_arn: string | null;
-  external_id: string;
   status: AWSAccountStatus;
   connection_status: AWSAccountStatus;
   failure_reason: string | null;
@@ -64,6 +63,9 @@ export interface AWSAccount {
 }
 export interface AWSAccountDetail {
   account: AWSAccount;
+}
+export interface AWSAccountOnboarding extends AWSAccountDetail {
+  external_id: string;
   trust_policy: Record<string, unknown>;
   permission_policy: {
     policy_name: string;
