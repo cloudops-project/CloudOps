@@ -21,7 +21,8 @@ from app.models import (
 )
 from app.models.enums import AWSAccountStatus, OrganizationRole
 from app.security.passwords import hash_password
-from app.services.aws_onboarding import AWSConnectionFailure, AWSOnboardingService
+from app.services.aws_credentials import AWSConnectionFailure
+from app.services.aws_onboarding import AWSOnboardingService
 from app.tests.conftest import register_and_login
 
 
@@ -149,10 +150,10 @@ def test_create_duplicate_policies_and_listing(client: TestClient) -> None:
     account = created["account"]
     assert isinstance(account, dict)
     assert account["status"] == "pending"
-    assert str(account["external_id"]).startswith("cloudops-")
+    assert str(created["external_id"]).startswith("cloudops-")
     assert (
         created["trust_policy"]["Statement"][0]["Condition"]["StringEquals"]["sts:ExternalId"]
-        == account["external_id"]
+        == created["external_id"]
     )
     assert created["permission_policy"]["managed_policy_arn"] == (
         "arn:aws:iam::aws:policy/SecurityAudit"
@@ -350,7 +351,7 @@ def test_external_id_reservation_survives_deletion_and_prevents_reuse(
     )
     first = create_aws_account(client, owner, organization_id)
     first_id = first["account"]["id"]
-    assert first["account"]["external_id"] == "cloudops-permanent-id"
+    assert first["external_id"] == "cloudops-permanent-id"
     assert client.delete(f"/api/v1/aws/accounts/{first_id}", headers=owner).status_code == 204
     reservation = db.scalar(
         select(AWSExternalIDReservation).where(
@@ -362,5 +363,5 @@ def test_external_id_reservation_survives_deletion_and_prevents_reuse(
     assert reservation.retired_at is not None
 
     second = create_aws_account(client, owner, organization_id, account_id="210987654321")
-    assert second["account"]["external_id"] == "cloudops-new-id"
+    assert second["external_id"] == "cloudops-new-id"
     assert db.scalar(select(func.count()).select_from(AWSExternalIDReservation)) == 2
