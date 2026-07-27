@@ -20,7 +20,10 @@ from app.models import Asset, AWSAccount, DiscoveryJob, User
 from app.models.enums import AssetType, AuditResult, AWSAccountStatus, DiscoveryJobStatus
 from app.repositories.assets import AssetRepository, DiscoveryJobRepository
 from app.security.rbac import Capability
-from app.services.aws_onboarding import AWSConnectionFailure, AWSOnboardingService
+from app.services.aws_credentials import (
+    AWSConnectionFailure,
+    TenantRoleCredentialProvider,
+)
 from app.services.common import now_utc, record_audit
 from app.services.organizations import OrganizationService
 
@@ -830,19 +833,13 @@ class DiscoveryOrchestrator:
         return self._finish(job, actor, status, errors, service_results=service_results)
 
     def _assumed_client_factory(self, account: AWSAccount) -> ClientFactory:
-        credentials = AWSOnboardingService(self.db, self.settings).assume_role_credentials(account)
-
-        def factory(service: str, region: str | None) -> Any:
-            return boto3.client(
-                service,
-                region_name=region,
-                config=self.settings.aws_client_config,
-                aws_access_key_id=credentials["AccessKeyId"],
-                aws_secret_access_key=credentials["SecretAccessKey"],
-                aws_session_token=credentials["SessionToken"],
-            )
-
-        return factory
+        provider = TenantRoleCredentialProvider(
+            account,
+            self.settings,
+            sts_client_factory=boto3.client,
+            client_factory=boto3.client,
+        )
+        return provider.client
 
     def _upsert(
         self, account: AWSAccount, discovered: list[NormalizedAsset], asset_types: set[AssetType]

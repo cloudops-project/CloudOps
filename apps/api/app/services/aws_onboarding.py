@@ -17,6 +17,7 @@ from app.models import AWSAccount, AWSExternalIDReservation, OrganizationMembers
 from app.models.enums import AuditResult, AWSAccountStatus
 from app.repositories.data import Repository
 from app.security.rbac import Capability, role_has_capability
+from app.services.aws_credentials import AWSConnectionFailure, TenantRoleCredentialProvider
 from app.services.common import now_utc, record_audit
 from app.services.organizations import OrganizationService
 
@@ -27,12 +28,6 @@ ROLE_ARN_PATTERN = re.compile(
 PRINCIPAL_ARN_PATTERN = re.compile(
     r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:(root|role/[A-Za-z0-9+=,.@_/-]+|user/[A-Za-z0-9+=,.@_/-]+)$"
 )
-
-
-class AWSConnectionFailure(Exception):
-    def __init__(self, reason: str) -> None:
-        super().__init__(reason)
-        self.reason = reason
 
 
 class AWSOnboardingService:
@@ -222,27 +217,21 @@ class AWSOnboardingService:
         account, _ = self._require_account(account_id, actor, Capability.AWS_ACCOUNTS_READ)
         return account
 
+    def get_onboarding_account(self, account_id: uuid.UUID, actor: User) -> AWSAccount:
+        account, _ = self._require_account(account_id, actor, Capability.AWS_ACCOUNTS_MANAGE)
+        self._audit("aws.account.onboarding_material_accessed", account, actor.id)
+        self.db.commit()
+        return account
+
     def assume_role(self, account: AWSAccount) -> str:
-        credentials = self.assume_role_credentials(account)
-        try:
-            assumed_sts = self.sts_client_factory(
-                "sts",
-                config=self.settings.aws_client_config,
-                aws_access_key_id=credentials["AccessKeyId"],
-                aws_secret_access_key=credentials["SecretAccessKey"],
-                aws_session_token=credentials["SessionToken"],
-            )
-            identity = assumed_sts.get_caller_identity()
-            return str(identity["Account"])
-        except ClientError as exc:
-            code = str(exc.response.get("Error", {}).get("Code", "client_error"))
-            safe_code = re.sub(r"[^a-z0-9]+", "_", code.casefold()).strip("_")
-            raise AWSConnectionFailure(f"sts_{safe_code or 'client_error'}") from exc
-        except (BotoCoreError, KeyError, TypeError) as exc:
-            raise AWSConnectionFailure("sts_validation_failed") from exc
+        return TenantRoleCredentialProvider(
+            account,
+            self.settings,
+            sts_client_factory=self.sts_client_factory,
+        ).validate_account()
 
     def assume_role_credentials(self, account: AWSAccount) -> dict[str, str]:
-        """Return short-lived STS credentials for immediate in-memory use only."""
+        """Legacy validation helper; discovery uses TenantRoleCredentialProvider."""
         if account.role_arn is None:
             raise AWSConnectionFailure("role_arn_missing")
         try:
@@ -262,9 +251,9 @@ class AWSOnboardingService:
         except ClientError as exc:
             code = str(exc.response.get("Error", {}).get("Code", "client_error"))
             safe_code = re.sub(r"[^a-z0-9]+", "_", code.casefold()).strip("_")
-            raise AWSConnectionFailure(f"sts_{safe_code or 'client_error'}") from exc
-        except (BotoCoreError, KeyError, TypeError) as exc:
-            raise AWSConnectionFailure("sts_validation_failed") from exc
+            raise AWSConnectionFailure(f"sts_{safe_code or 'client_error'}") from None
+        except (BotoCoreError, KeyError, TypeError):
+            raise AWSConnectionFailure("sts_validation_failed") from None
 
     def validate_connection(self, account_id: uuid.UUID, actor: User) -> AWSAccount:
         account, _ = self._require_account(account_id, actor, for_update=True)
