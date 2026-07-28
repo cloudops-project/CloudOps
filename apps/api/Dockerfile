@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS runtime
+FROM python:3.12.13-alpine3.24 AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -14,8 +14,8 @@ COPY scripts/demo_seed.py /app/scripts/demo_seed.py
 
 RUN python -m pip install --upgrade pip \
     && python -m pip install -e . \
-    && groupadd --system cloudops \
-    && useradd --system --gid cloudops --home-dir /app --no-create-home cloudops \
+    && addgroup -S cloudops \
+    && adduser -S -G cloudops -h /app -H cloudops \
     && chown -R cloudops:cloudops /app
 
 USER cloudops

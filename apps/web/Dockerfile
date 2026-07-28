@@ -7,13 +7,13 @@ RUN npm ci
 
 COPY apps/web ./
 
-ARG VITE_API_BASE_URL=http://localhost:8000
+ARG VITE_API_BASE_URL=
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
 RUN npm run build
 
 
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.30.4-alpine3.24 AS runtime
 
 COPY apps/web/nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /usr/share/nginx/html
