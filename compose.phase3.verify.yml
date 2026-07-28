@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cloudops_phase3
+      POSTGRES_USER: cloudops
+      POSTGRES_PASSWORD: synthetic_phase3_only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudops -d cloudops_phase3"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8025/api/v1/info"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment: &phase3-environment
+      APP_ENV: testing
+      DATABASE_URL: postgresql+psycopg://cloudops:synthetic_phase3_only@postgres:5432/cloudops_phase3
+      JWT_SECRET_KEY: synthetic-phase3-jwt-key-at-least-32-characters  # gitleaks:allow
+      NOTIFICATION_PROVIDER: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM_EMAIL: cloudops@example.invalid
+      AWS_EC2_METADATA_DISABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    command: >
+      sh -c "python -m alembic upgrade head &&
+      python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment: *phase3-environment
+    depends_on:
+      api:
+        condition: service_started
+    command: python -m app.worker.job_worker
+    stop_grace_period: 45s
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment: *phase3-environment
+    depends_on:
+      api:
+        condition: service_started
+    command: python -m app.worker.scheduler_worker
+    stop_grace_period: 30s

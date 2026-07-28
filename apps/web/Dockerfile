@@ -1,12 +1,29 @@
-FROM node:22-alpine AS runtime
+FROM node:22-alpine AS build
 
-WORKDIR /app/apps/web
+WORKDIR /app
 
 COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci
 
 COPY apps/web ./
 
-EXPOSE 5173
+ARG VITE_API_BASE_URL=http://localhost:8000
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+RUN npm run build
+
+
+FROM nginx:1.27-alpine AS runtime
+
+COPY apps/web/nginx.conf /etc/nginx/nginx.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+
+USER nginx
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -q -O - http://127.0.0.1:8080/healthz || exit 1
+
+ENTRYPOINT []
+CMD ["nginx", "-g", "daemon off;"]

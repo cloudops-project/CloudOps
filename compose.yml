@@ -26,6 +26,20 @@ services:
       timeout: 3s
       retries: 30
 
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://cloudops:cloudops_demo_password@postgres:5432/cloudops_demo
+      JWT_SECRET_KEY: demo-only-jwt-secret-at-least-32-characters
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m alembic upgrade head
+    restart: "no"
+
   api:
     build:
       context: .
@@ -54,9 +68,9 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_healthy
-    command: >
-      sh -c "python -m alembic upgrade head &&
-      python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      migrate:
+        condition: service_completed_successfully
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
 
@@ -64,19 +78,18 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    environment:
-      VITE_API_BASE_URL: http://localhost:8000
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
     depends_on:
-      - api
+      api:
+        condition: service_started
     ports:
-      - "5173:5173"
+      - "5173:8080"
 
   scheduler-worker:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    profiles:
-      - manual
     environment:
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://cloudops:cloudops_demo_password@postgres:5432/cloudops_demo
@@ -94,6 +107,34 @@ services:
       api:
         condition: service_started
     command: python -m app.worker.scheduler_worker
+    healthcheck:
+      disable: true
+
+  job-worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://cloudops:cloudops_demo_password@postgres:5432/cloudops_demo
+      JWT_SECRET_KEY: demo-only-jwt-secret-at-least-32-characters
+      AWS_ACCESS_KEY_ID: demo
+      AWS_SECRET_ACCESS_KEY: demo
+      AWS_SESSION_TOKEN: demo
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_DEFAULT_REGION: us-east-1
+      AI_PROVIDER: mock
+      NOTIFICATION_PROVIDER: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+    depends_on:
+      api:
+        condition: service_started
+    command: python -m app.worker.job_worker
+    healthcheck:
+      disable: true
+    stop_signal: SIGTERM
+    stop_grace_period: 35s
 
 volumes:
   cloudops_demo_postgres:
