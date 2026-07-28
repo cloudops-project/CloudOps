@@ -1,9 +1,5 @@
-﻿# Terraform Area — Stage 0 Placeholder
+# Legacy Terraform Path
 
-## Purpose and audience
+Authoritative Terraform is implemented under [../../infra/README.md](../../infra/README.md), with bootstrap, staging, production, and reusable module definitions.
 
-Future DevOps and security engineers will use this area for CloudOps-owned infrastructure as code in Stage 14.
-
-Terraform may manage environments, compute, database, queue, networking, monitoring, audit storage, and IAM under least privilege. It is not the scanning engine: Boto3 performs runtime EC2/S3/IAM discovery and explicitly approved operations. State backends, locking, encryption, review, and secret handling require design approval.
-
-No `.tf` files, modules, providers, state, resources, or commands are created in Stage 0.
+This legacy directory is not an active Terraform root and must not be used for plans or applies. Terraform is platform configuration, not runtime discovery. Local validation does not prove that any AWS environment has been applied.

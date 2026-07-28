@@ -1,24 +1,19 @@
 # Notification providers
 
-Provider selection is server-only configuration. Secrets are redacting settings
-injected by infrastructure and never stored in notification rows or queue
-payloads.
+Provider selection is server-only. Secrets use redacting settings injected by infrastructure and
+are never stored in notification rows or job payloads.
 
-| Provider | V1 status | Configuration | Retry behavior |
+| Provider | Status | Identity/secret | Validation state |
 |---|---|---|---|
-| Mock | Local/test only | none | deterministic faults |
-| SMTP | Implemented | host, port, TLS mode, user, secret password | SMTP 4xx/transport retry; 5xx terminal |
-| Slack webhook | Implemented contract | secret HTTPS URL on `hooks.slack.com` | 429/5xx retry |
-| Teams workflow webhook | Verified contract | secret HTTPS URL on approved Microsoft hosts | 429/5xx retry |
-| SES | Deferred | workload identity | adapter not implemented |
+| Mock | Implemented; local/test default | None | Locally verified |
+| SMTP | Implemented; local demo only in production policy | Password when configured | Synthetic transport/local Mailpit |
+| SES v2 | Implemented adapter | AWS workload identity | Stubber verified; live delivery pending |
+| Slack webhook | Implemented | Managed webhook secret | Synthetic transport; live pending |
+| Teams workflow webhook | Implemented | Managed webhook secret | Synthetic transport; live pending |
 
-Production SMTP requires STARTTLS or implicit TLS with system certificate
-validation. Headers and recipients reject CR/LF, messages are size bounded,
-timeouts are bounded, and response bodies are discarded. Slack uses an incoming
-webhook for V1. Teams uses an incoming Power Automate/workflow webhook; Microsoft
-Graph is deferred due to consent and token lifecycle complexity.
-
-The webhook adapters validate scheme, credentials, fragments and host suffix
-before I/O. Tests inject a synthetic transport and never contact a provider.
-Deployments must configure egress allowlists and retrieve endpoint secrets from
-the managed secret source.
+Production settings reject SMTP. SES is the intended AWS email path. Every delivery reloads the
+tenant event and approval, validates recipients/headers/size, bounds timeouts/retries, sanitizes
+errors, and stores limited provider evidence. Webhook adapters restrict scheme and host before I/O.
+No live provider validation is claimed. See
+[provider setup](../operations/aws-provider-setup.md) and
+[notification controls](../security/notification-delivery-controls.md).

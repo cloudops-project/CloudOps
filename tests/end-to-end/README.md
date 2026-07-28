@@ -12,8 +12,7 @@ with `cloudops_e2e_`, then set:
 
 ```powershell
 $env:APP_ENV = "testing"
-$env:DATABASE_URL = "postgresql+psycopg://cloudops:cloudops_test_password@localhost:5433/cloudops_e2e_stage7"
-$env:POSTGRES_TEST_DATABASE_URL = $env:DATABASE_URL
+# Inject DATABASE_URL and POSTGRES_TEST_DATABASE_URL with the same disposable test-database endpoint.
 $env:JWT_SECRET_KEY = "replace-with-a-test-only-secret-at-least-32-characters"
 $env:AWS_ACCESS_KEY_ID = "testing"
 $env:AWS_SECRET_ACCESS_KEY = "testing"
@@ -51,8 +50,7 @@ Start a disposable PostgreSQL database whose name is `cloudops_test` or begins w
 
 ```powershell
 $env:APP_ENV = "testing"
-$env:DATABASE_URL = "postgresql+psycopg://cloudops:cloudops_test_password@localhost:5433/cloudops_test"
-$env:POSTGRES_TEST_DATABASE_URL = $env:DATABASE_URL
+# Inject DATABASE_URL and POSTGRES_TEST_DATABASE_URL with the same disposable test-database endpoint.
 $env:JWT_SECRET_KEY = "replace-with-a-test-only-secret-at-least-32-characters"
 $env:AWS_ACCESS_KEY_ID = "testing"
 $env:AWS_SECRET_ACCESS_KEY = "testing"

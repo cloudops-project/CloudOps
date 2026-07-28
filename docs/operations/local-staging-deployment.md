@@ -12,8 +12,8 @@ Synthetic example values only — do not reuse these anywhere real:
 
 ```
 APP_ENV=staging
-DATABASE_URL=postgresql+psycopg://cloudops:REPLACE_ME@postgres:5432/cloudops_staging
-JWT_SECRET_KEY=staging-example-key-with-at-least-32-characters
+DATABASE_URL=<injected-by-approved-secret-source>
+JWT_SECRET_KEY=<injected-by-approved-secret-source>
 CORS_ALLOWED_ORIGINS=https://staging.example.invalid
 TRUSTED_HOSTS=staging.example.invalid
 FRONTEND_URL=https://staging.example.invalid
