@@ -15,9 +15,11 @@ from app.models import (
     AWSAccount,
     EvaluationJob,
     Finding,
+    NotificationDeliveryAttempt,
     NotificationEvent,
     Organization,
     OrganizationMembership,
+    PlatformJob,
     User,
 )
 from app.models.enums import (
@@ -27,18 +29,22 @@ from app.models.enums import (
     NotificationChannel,
     NotificationStatus,
     OrganizationRole,
+    PlatformJobType,
     UserStatus,
 )
 from app.services.common import now_utc, record_audit
 from app.services.notification_provider import (
     NotificationDeliveryOutcome,
+    NotificationDeliveryResult,
     NotificationProvider,
     notification_provider_from_settings,
 )
+from app.services.platform_jobs import PlatformJobService
 
 MAX_DELIVERY_ATTEMPTS = 3
 CRITICAL_FINDING_TEMPLATE_KEY = "critical_finding_created"
 CRITICAL_FINDING_EVENT_TYPE = "security.finding.created"
+CRITICAL_FINDING_TEMPLATE_VERSION = 1
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -58,6 +64,7 @@ class NotificationService:
     def __init__(self, db: Session, provider: NotificationProvider | None = None) -> None:
         self.db = db
         self.provider = provider or notification_provider_from_settings(get_settings())
+        self.last_result: NotificationDeliveryResult | None = None
 
     def create_for_critical_finding(self, finding: Finding) -> NotificationEvent | None:
         """Create a PENDING_APPROVAL notification event for a newly created
@@ -170,7 +177,8 @@ class NotificationService:
         masked_account = (
             f"********{account_id[-4:]}" if account_id and len(account_id) >= 4 else "unknown"
         )
-        subject = f"CloudOps security notification for {org_name}"
+        safe_org_name = re.sub(r"[\r\n\x00-\x1f]", " ", org_name).strip()[:200]
+        subject = f"CloudOps security notification for {safe_org_name}"[:998]
         evaluation_time = event.created_at
         if evaluation is not None and evaluation.finished_at is not None:
             evaluation_time = evaluation.finished_at
@@ -218,6 +226,7 @@ class NotificationService:
         event.status = NotificationStatus.APPROVED
         event.approved_at = now_utc()
         event.approved_by_user_id = approver.id
+        event.approved_delivery_fingerprint = self._delivery_fingerprint(event)
         self.db.flush()
         record_audit(
             self.db,
@@ -227,6 +236,33 @@ class NotificationService:
             actor_user_id=approver.id,
             resource_id=event.id,
         )
+        return event
+
+    def revoke_approval(
+        self, organization_id: uuid.UUID, event_id: uuid.UUID, actor: User
+    ) -> NotificationEvent:
+        event = self._get_scoped(organization_id, event_id)
+        if event.status == NotificationStatus.PENDING_APPROVAL:
+            return event
+        if event.status != NotificationStatus.APPROVED:
+            raise ConflictError(
+                "notification_event_invalid_transition",
+                "Only an approved notification can have approval revoked.",
+            )
+        event.status = NotificationStatus.PENDING_APPROVAL
+        event.approved_at = None
+        event.approved_by_user_id = None
+        event.approved_delivery_fingerprint = None
+        event.scheduled_at = None
+        record_audit(
+            self.db,
+            "notification.event.approval_revoked",
+            "notification_event",
+            organization_id=organization_id,
+            actor_user_id=actor.id,
+            resource_id=event.id,
+        )
+        self.db.flush()
         return event
 
     def deliver(self, organization_id: uuid.UUID, event_id: uuid.UUID) -> NotificationEvent:
@@ -241,6 +277,11 @@ class NotificationService:
                 "notification_event_invalid_transition",
                 f"Cannot deliver a notification event in status '{event.status.value}'.",
             )
+        if event.approved_delivery_fingerprint != self._delivery_fingerprint(event):
+            raise ConflictError(
+                "notification_approval_stale",
+                "Notification content, destination, template, or provider changed after approval.",
+            )
         subject, text_body = self._email_content(event)
         result = self.provider.deliver(
             channel=event.channel,
@@ -254,8 +295,38 @@ class NotificationService:
                 "source_resource_id": str(event.source_resource_id),
             },
         )
+        self.last_result = result
         event.attempt_count += 1
         now: datetime = now_utc()
+        content_hash = hashlib.sha256(
+            f"{subject}\n{text_body}".encode()
+        ).hexdigest()
+        evidence = NotificationDeliveryAttempt(
+            organization_id=organization_id,
+            notification_event_id=event.id,
+            attempt_number=event.attempt_count,
+            provider_key=self.provider.key,
+            destination_reference=f"recipient_count:{len(self._recipients_for_event(event))}",
+            template_key=event.template_key,
+            template_version=CRITICAL_FINDING_TEMPLATE_VERSION,
+            content_hash=content_hash,
+            provider_message_id=result.provider_message_id,
+            response_classification=(
+                "success"
+                if result.outcome == NotificationDeliveryOutcome.SUCCESS
+                else ("retryable_failure" if result.retryable else "permanent_failure")
+            ),
+            error_code=result.error_code,
+            error_summary=result.sanitized_error,
+            attempted_at=now,
+            delivered_at=(
+                now if result.outcome == NotificationDeliveryOutcome.SUCCESS else None
+            ),
+            failed_at=(
+                now if result.outcome == NotificationDeliveryOutcome.FAILURE else None
+            ),
+        )
+        self.db.add(evidence)
         if result.outcome == NotificationDeliveryOutcome.SUCCESS:
             event.status = NotificationStatus.DELIVERED
             event.delivered_at = now
@@ -275,7 +346,7 @@ class NotificationService:
                     "provider_message_id": result.provider_message_id,
                 },
             )
-        elif event.attempt_count >= MAX_DELIVERY_ATTEMPTS:
+        elif not result.retryable or event.attempt_count >= MAX_DELIVERY_ATTEMPTS:
             event.status = NotificationStatus.FAILED
             event.failed_at = now
             event.failure_reason = result.sanitized_error
@@ -301,3 +372,40 @@ class NotificationService:
             )
         self.db.flush()
         return event
+
+    def enqueue_delivery(
+        self, organization_id: uuid.UUID, event_id: uuid.UUID, actor: User
+    ) -> PlatformJob:
+
+        event = self._get_scoped(organization_id, event_id)
+        if event.status != NotificationStatus.APPROVED:
+            raise ConflictError(
+                "notification_event_invalid_transition",
+                "Only an approved notification can be queued for delivery.",
+            )
+        job, _created = PlatformJobService(self.db).enqueue(
+            organization_id=organization_id,
+            job_type=PlatformJobType.NOTIFICATION_DELIVERY,
+            reference_id=event.id,
+            idempotency_key=(
+                f"notification-delivery:{event.id}:"
+                f"{event.approved_delivery_fingerprint or 'missing'}"
+            ),
+            payload={"notification_event_id": str(event.id)},
+            actor_user_id=actor.id,
+        )
+        event.scheduled_at = now_utc()
+        self.db.flush()
+        return job
+
+    def _delivery_fingerprint(self, event: NotificationEvent) -> str:
+        value = ":".join(
+            (
+                event.channel.value,
+                event.template_key,
+                event.destination_reference or "",
+                event.payload_hash,
+                self.provider.key,
+            )
+        )
+        return hashlib.sha256(value.encode()).hexdigest()

@@ -1,19 +1,15 @@
-"""Stage 11 scheduler worker foundation.
+"""Replica-safe scheduler process.
 
-This is a deterministic, synchronous entry point only. It does not run a
-message queue or background daemon framework: `apps/worker/README.md`
-explicitly defers that infrastructure choice (Celery/Redis vs. SQS) as an
-unapproved future decision. Running this module performs one "tick": it
-finds schedules whose next_run_at has elapsed and runs each one through the
-existing DiscoveryOrchestrator/EvaluationService pipeline via
-SchedulerService.run_due_schedules(). For a local demo, invoke it
-repeatedly (e.g. cron, a simple loop, or a container command) rather than
-treating it as a long-running process.
+Each short tick locks due rows with ``SKIP LOCKED`` and only enqueues durable
+PostgreSQL jobs. Signal handling stops future ticks without interrupting an
+in-flight transaction.
 """
 
 from __future__ import annotations
 
 import logging
+import signal
+import threading
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
@@ -43,10 +39,24 @@ def tick() -> int:
         db.close()
 
 
+def run_forever(stop_event: threading.Event) -> None:
+    settings = get_settings()
+    while not stop_event.is_set():
+        started = tick()
+        logger.info("scheduler.tick.completed", extra={"enqueued_count": started})
+        stop_event.wait(settings.scheduler_poll_interval_seconds)
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    started = tick()
-    logger.info("scheduler tick complete: %d run(s) started", started)
+    stop_event = threading.Event()
+
+    def stop(_signum: int, _frame: object) -> None:
+        stop_event.set()
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    run_forever(stop_event)
 
 
 if __name__ == "__main__":

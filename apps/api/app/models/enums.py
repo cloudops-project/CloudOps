@@ -220,6 +220,8 @@ class RuleCategory(StrEnum):
 
 class NotificationChannel(StrEnum):
     EMAIL = "email"
+    SLACK = "slack"
+    TEAMS = "teams"
 
 
 class NotificationStatus(StrEnum):
@@ -254,3 +256,24 @@ class ScanRunStatus(StrEnum):
 class ScanRunTrigger(StrEnum):
     MANUAL = "manual"
     SCHEDULED = "scheduled"
+
+
+class PlatformJobType(StrEnum):
+    DISCOVERY = "discovery"
+    EVALUATION = "evaluation"
+    COMPLIANCE = "compliance"
+    RISK_RECALCULATION = "risk_recalculation"
+    NOTIFICATION_DELIVERY = "notification_delivery"
+    SCHEDULED_SCAN = "scheduled_scan"
+    REMEDIATION_SIMULATION = "remediation_simulation"
+
+
+class PlatformJobStatus(StrEnum):
+    AVAILABLE = "available"
+    LEASED = "leased"
+    RUNNING = "running"
+    RETRY_WAIT = "retry_wait"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    DEAD_LETTERED = "dead_lettered"
+    CANCELLED = "cancelled"

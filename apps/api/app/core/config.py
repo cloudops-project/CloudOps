@@ -48,6 +48,19 @@ def _validate_origin(origin: str) -> None:
         raise ValueError(f"CORS_ALLOWED_ORIGINS contains an invalid port: {origin!r}")
 
 
+def _validate_provider_endpoint(value: str, allowed_hosts: tuple[str, ...]) -> bool:
+    parsed = urlsplit(value)
+    host = (parsed.hostname or "").casefold()
+    return bool(
+        parsed.scheme == "https"
+        and host
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.fragment
+        and any(host == suffix or host.endswith(f".{suffix}") for suffix in allowed_hosts)
+    )
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -81,7 +94,7 @@ class Settings(BaseSettings):
     aws_read_timeout_seconds: int = Field(default=30, ge=1, le=120)
     aws_max_retry_attempts: int = Field(default=3, ge=1, le=10)
     aws_retry_mode: Literal["standard", "adaptive"] = "standard"
-    notification_provider: Literal["mock", "smtp", "ses"] = "mock"
+    notification_provider: Literal["mock", "smtp", "ses", "slack", "teams"] = "mock"
     smtp_host: str = "localhost"
     smtp_port: int = Field(default=1025, ge=1, le=65535)
     smtp_username: str = ""
@@ -89,6 +102,19 @@ class Settings(BaseSettings):
     smtp_from_email: str = "cloudops-demo@example.local"
     smtp_from_name: str = "CloudOps Demo"
     smtp_use_tls: bool = False
+    smtp_security: Literal["none", "starttls", "implicit"] = "none"
+    smtp_timeout_seconds: int = Field(default=10, ge=1, le=60)
+    notification_max_message_bytes: int = Field(
+        default=262_144, ge=1024, le=1_048_576
+    )
+    slack_webhook_url: SecretStr = SecretStr("")
+    teams_webhook_url: SecretStr = SecretStr("")
+    webhook_timeout_seconds: int = Field(default=10, ge=1, le=60)
+    scheduler_batch_size: int = Field(default=100, ge=1, le=1000)
+    scheduler_poll_interval_seconds: float = Field(default=15.0, ge=1, le=300)
+    job_lease_seconds: int = Field(default=120, ge=15, le=3600)
+    job_poll_interval_seconds: float = Field(default=1.0, ge=0.1, le=60)
+    job_shutdown_grace_seconds: int = Field(default=30, ge=1, le=300)
 
     @field_validator("jwt_secret_key")
     @classmethod
@@ -132,6 +158,28 @@ class Settings(BaseSettings):
                 "HSTS_ENABLED requires APP_ENV=production and COOKIE_SECURE=true; "
                 "enable it only when HTTPS is guaranteed by deployment"
             )
+        if self.app_env == "production" and self.notification_provider == "smtp":
+            if self.smtp_security == "none" and not self.smtp_use_tls:
+                raise ValueError("Production SMTP requires STARTTLS or implicit TLS")
+            if self.smtp_username and not self.smtp_password.get_secret_value():
+                raise ValueError("SMTP_PASSWORD is required when SMTP_USERNAME is configured")
+        if (
+            self.app_env == "production"
+            and self.notification_provider == "slack"
+            and not _validate_provider_endpoint(
+                self.slack_webhook_url.get_secret_value(), ("hooks.slack.com",)
+            )
+        ):
+            raise ValueError("SLACK_WEBHOOK_URL must be an approved HTTPS endpoint")
+        if (
+            self.app_env == "production"
+            and self.notification_provider == "teams"
+            and not _validate_provider_endpoint(
+                self.teams_webhook_url.get_secret_value(),
+                ("webhook.office.com", "logic.azure.com", "powerautomate.com"),
+            )
+        ):
+            raise ValueError("TEAMS_WEBHOOK_URL must be an approved HTTPS endpoint")
 
     @property
     def allowed_origins(self) -> list[str]:

@@ -11,21 +11,17 @@ from app.core.config import Settings
 from app.db.base import utc_now
 from app.exceptions.errors import ConflictError, NotFoundError
 from app.models import AWSAccount, ScanRun, ScanSchedule, User
-from app.models.enums import AuditResult, ScanRunStatus, ScanRunTrigger
+from app.models.enums import PlatformJobType, ScanRunStatus, ScanRunTrigger
 from app.security.rbac import Capability
 from app.services.common import record_audit
-from app.services.discovery import DiscoveryOrchestrator
-from app.services.evaluations import EvaluationService
 from app.services.organizations import OrganizationService
+from app.services.platform_jobs import PlatformJobService
 
 MAX_ERROR_SUMMARY_LENGTH = 500
 
 
 class SchedulerService:
-    """Deterministic scheduler foundation. A schedule only records a cadence
-    for an AWS account; running a schedule always delegates to the existing
-    DiscoveryOrchestrator and EvaluationService, so this service never makes
-    a boto3 call or a real AWS mutation itself."""
+    """Replica-safe scheduler that only persists queue work; it never scans inline."""
 
     def __init__(self, db: Session, settings: Settings) -> None:
         self.db = db
@@ -138,6 +134,7 @@ class SchedulerService:
         actor: User,
         *,
         trigger: ScanRunTrigger,
+        commit: bool = True,
     ) -> ScanRun:
         schedule = self._get_scoped(organization_id, schedule_id)
         if trigger == ScanRunTrigger.MANUAL:
@@ -162,60 +159,33 @@ class SchedulerService:
             raise ConflictError(
                 "scan_run_already_active", "A scan is already active for this account."
             ) from exc
+        job, _created = PlatformJobService(self.db).enqueue(
+            organization_id=organization_id,
+            job_type=PlatformJobType.SCHEDULED_SCAN,
+            reference_id=run.id,
+            idempotency_key=(
+                f"scan-run:{run.id}"
+                if trigger == ScanRunTrigger.MANUAL
+                else f"schedule:{schedule.id}:{(schedule.next_run_at or utc_now()).isoformat()}"
+            ),
+            payload={
+                "scan_run_id": str(run.id),
+                "actor_user_id": str(actor.id),
+                "schedule_id": str(schedule.id),
+            },
+            actor_user_id=actor.id if trigger == ScanRunTrigger.MANUAL else None,
+        )
         record_audit(
             self.db,
-            "scheduler.run.started",
+            "scheduler.run.enqueued",
             "scan_run",
             organization_id=organization_id,
             actor_user_id=actor.id,
             resource_id=run.id,
-            metadata={"trigger": trigger.value},
+            metadata={"trigger": trigger.value, "platform_job_id": str(job.id)},
         )
-        self.db.commit()
-
-        run.status = ScanRunStatus.RUNNING
-        run.started_at = utc_now()
-        self.db.commit()
-
-        try:
-            discovery_job = DiscoveryOrchestrator(self.db, self.settings).start(
-                schedule.aws_account_id, actor
-            )
-            run.discovery_job_id = discovery_job.id
-            evaluation_job = EvaluationService(self.db).start(
-                schedule.aws_account_id, actor, discovery_job_id=discovery_job.id
-            )
-            run.evaluation_job_id = evaluation_job.id
-            run.status = ScanRunStatus.COMPLETED
-            run.finished_at = utc_now()
-            record_audit(
-                self.db,
-                "scheduler.run.completed",
-                "scan_run",
-                organization_id=organization_id,
-                actor_user_id=actor.id,
-                resource_id=run.id,
-            )
-        except (ConflictError, NotFoundError) as exc:
-            run.status = ScanRunStatus.FAILED
-            run.finished_at = utc_now()
-            run.error_summary = exc.message[:MAX_ERROR_SUMMARY_LENGTH]
-            record_audit(
-                self.db,
-                "scheduler.run.failed",
-                "scan_run",
-                organization_id=organization_id,
-                actor_user_id=actor.id,
-                resource_id=run.id,
-                result=AuditResult.FAILED,
-                metadata={"reason": exc.code},
-            )
-
-        schedule.last_run_at = run.finished_at
-        schedule.next_run_at = (run.finished_at or utc_now()) + timedelta(
-            minutes=schedule.interval_minutes
-        )
-        self.db.commit()
+        if commit:
+            self.db.commit()
         return run
 
     def run_due_schedules(self) -> list[ScanRun]:
@@ -231,6 +201,9 @@ class SchedulerService:
                 ScanSchedule.next_run_at.is_not(None),
                 ScanSchedule.next_run_at <= now,
             )
+            .order_by(ScanSchedule.next_run_at, ScanSchedule.id)
+            .limit(self.settings.scheduler_batch_size)
+            .with_for_update(skip_locked=True)
         ).all()
         runs: list[ScanRun] = []
         for schedule in due:
@@ -240,18 +213,26 @@ class SchedulerService:
                 else None
             )
             if actor is None:
+                schedule.next_run_at = now + timedelta(minutes=schedule.interval_minutes)
                 continue
+            occurrence = schedule.next_run_at
             try:
-                runs.append(
-                    self.run_schedule(
-                        schedule.organization_id,
-                        schedule.id,
-                        actor,
-                        trigger=ScanRunTrigger.SCHEDULED,
-                    )
+                run = self.run_schedule(
+                    schedule.organization_id,
+                    schedule.id,
+                    actor,
+                    trigger=ScanRunTrigger.SCHEDULED,
+                    commit=False,
+                )
+                runs.append(run)
+                schedule.last_enqueued_at = occurrence
+                assert occurrence is not None
+                schedule.next_run_at = occurrence + timedelta(
+                    minutes=schedule.interval_minutes
                 )
             except ConflictError:
                 # Another run is already active for this account; the next
                 # tick will retry once it clears. Not a worker failure.
                 continue
+        self.db.commit()
         return runs

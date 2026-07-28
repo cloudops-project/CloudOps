@@ -16,8 +16,9 @@ from app.models.evaluation_job import EvaluationJob
 from app.models.finding import Finding
 from app.models.invitation import OrganizationInvitation
 from app.models.membership import OrganizationMembership
-from app.models.notification import NotificationEvent
+from app.models.notification import NotificationDeliveryAttempt, NotificationEvent
 from app.models.organization import Organization
+from app.models.platform_job import PlatformJob
 from app.models.refresh_session import RefreshTokenSession
 from app.models.remediation import RemediationRequest
 from app.models.risk import (
@@ -54,11 +55,13 @@ __all__ = [
     "EvaluationRuleResult",
     "Finding",
     "FindingRiskSnapshot",
+    "NotificationDeliveryAttempt",
     "NotificationEvent",
     "Organization",
     "OrganizationInvitation",
     "OrganizationMembership",
     "OrganizationRiskSnapshot",
+    "PlatformJob",
     "RefreshTokenSession",
     "RemediationRequest",
     "RiskAssessment",

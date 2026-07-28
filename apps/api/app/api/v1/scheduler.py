@@ -135,6 +135,7 @@ def delete_schedule(
 @router.post(
     "/schedules/{schedule_id}/run",
     response_model=ScanRunResponse,
+    status_code=status.HTTP_202_ACCEPTED,
     dependencies=[Depends(_run_rate_limit)],
 )
 def run_schedule_now(
