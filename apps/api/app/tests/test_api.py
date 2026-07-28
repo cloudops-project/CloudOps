@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.db.session import get_db_session
+from app.main import app
 from app.models import AuditEvent, OrganizationInvitation, RefreshTokenSession
 from app.models.enums import AuditResult
 from app.services.notification_provider import (
@@ -21,6 +25,34 @@ from app.tests.conftest import register_and_login
 def test_health_and_readiness(client: TestClient) -> None:
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/ready").json() == {"status": "ready"}
+
+
+def test_readiness_reports_503_without_leaking_details_on_db_failure(
+    client: TestClient,
+) -> None:
+    _SENTINEL_MESSAGE = "synthetic connection failure: db.internal:5432"
+
+    class _FailingSession:
+        def execute(self, *args: object, **kwargs: object) -> None:
+            raise SQLAlchemyError(_SENTINEL_MESSAGE)
+
+    def override_with_failure() -> Iterator[_FailingSession]:
+        yield _FailingSession()
+
+    previous_override = app.dependency_overrides[get_db_session]
+    app.dependency_overrides[get_db_session] = override_with_failure
+    try:
+        response = client.get("/ready")
+    finally:
+        app.dependency_overrides[get_db_session] = previous_override
+
+    body = response.json()
+    assert response.status_code == 503
+    assert body["error"]["code"] == "dependency_unavailable"
+    rendered = str(body)
+    assert "synthetic connection failure" not in rendered
+    assert "db.internal" not in rendered
+    assert "5432" not in rendered
 
 
 def test_security_headers_present_and_no_hsts_outside_production(client: TestClient) -> None:
