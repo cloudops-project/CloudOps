@@ -19,15 +19,13 @@ flowchart TD
   RULES --> FIND[Security findings]
   FIND --> COMP[Stage 5 compliance interpretation]
   FIND --> RISK[Stage 6 deterministic risk scoring]
-  COMP --> AIX[Future Stage 7 AI explanation]
+  COMP --> AIX[Advisory AI explanation]
   RISK --> AIX
-  MAP --> OUT[Dashboard / report / notification / Jira]
+  FIND --> OUT[Dashboard / report / approved notification]
   AIX --> OUT
-  OUT --> APPROVE[Stakeholder approval]
-  APPROVE --> MAN[Manual remediation]
-  APPROVE --> LAM[Scoped Lambda remediation]
-  MAN --> VERIFY[Verification scan]
-  LAM --> VERIFY
+  OUT --> APPROVE[Authorized remediation approval]
+  APPROVE --> DRY[Allowlisted dry-run executor]
+  DRY --> VERIFY[Verification plan]
   VERIFY --> AUDIT[Audit record]
 ```
 
@@ -47,7 +45,7 @@ The deterministic engine evaluates an explicitly pinned rule version. Findings r
 and input/run linkage. Implemented Stage 5 compliance maps persisted per-rule results and
 findings to versioned controls, producing immutable PASS, FAIL, NOT_ASSESSED, or ERROR snapshots.
 Missing evidence never becomes PASS, and suppression remains failure evidence. Stage 6 risk
-scoring consumes persisted findings separately; Stage 7 AI remains future work. No compliance
+scoring consumes persisted findings separately; Stage 7 AI explains bounded persisted evidence. No compliance
 or risk calculation calls boto3 or customer AWS APIs.
 
 Remediation requires a separate request, current evidence, authorized approval, playbook/version, idempotency key, and separate permissions. Execution outcome never alone closes a finding: a verification scan evaluates it. Every state transition emits an audit event.
@@ -65,8 +63,7 @@ account/organization aggregates. Rules make no boto3 calls; scoring makes no net
 Suppression remains evidence, while an authorized compensating-control record supplies the only
 bounded adjustment.
 
-Stage 7 may later explain the already-persisted deterministic finding, compliance, and risk
-results. It must not become a detection, scoring, mutation, tool-execution, Jira-delivery, or
+Stage 7 explains already-persisted deterministic finding, compliance, and risk results through the mock provider by default or the implemented Bedrock adapter when explicitly configured. It must not become a detection, scoring, mutation, tool-execution, Jira-delivery, or
 email-delivery path.
 ## Stage 7 data flow
 

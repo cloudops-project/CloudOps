@@ -1,4 +1,37 @@
-﻿# Intended System Architecture
+# Historical Architecture Narrative
+
+> This document retains early design context. For the current source-of-truth architecture, use [../../architecture.md](../../architecture.md). Any future-tense or alternative design below is historical unless the authoritative architecture confirms it.
+
+## Current implementation (authoritative)
+
+CloudOps V1 implements a React/Vite web client, FastAPI API, PostgreSQL system of record, durable PostgreSQL job queue, replica-safe scheduler, job workers, cross-account STS discovery, deterministic security/compliance/risk analysis, advisory AI, governed notifications, simulated remediation, and audit history.
+
+Bedrock and SES adapters use the Boto3 default credential provider chain and have synthetic Stubber coverage. Terraform defines the AWS deployment, but no AWS environment has been applied or live-validated by this repository.
+
+```mermaid
+flowchart LR
+  User["Tenant user"] --> WAF["AWS WAF"]
+  WAF --> ALB["Application Load Balancer"]
+  ALB --> Web["React web task"]
+  ALB --> API["FastAPI task"]
+  API --> PG[("RDS PostgreSQL")]
+  Scheduler["Scheduler task"] --> PG
+  Worker["Job-worker tasks"] --> PG
+  PG --> Worker
+  API --> Bedrock["Amazon Bedrock (optional)"]
+  Worker --> SES["Amazon SES (optional)"]
+  Worker --> STS["AWS STS AssumeRole"]
+  STS --> Customer["Customer discovery role"]
+  Customer --> ReadOnly["Read-only Boto3 collectors"]
+```
+
+Queue payloads are references, never authorization; workers reload tenant-owned records and reauthorize. STS credentials remain memory-only. Deterministic rules are authoritative. Remediation uses a fixed action registry, immutable approved snapshot, lease, precondition checks, dry run, and kill switch; no live mutation executor exists.
+
+Terraform places ALB/WAF in public subnets and all tasks/RDS in private subnets. Runtime identities are separate ECS task roles; CI uses GitHub OIDC. No production IAM-user key path is supported.
+
+## Historical planning context
+
+The text below records the earlier intended architecture. References to Celery, Redis, external AI, deferred Terraform, or customer-side mutation are superseded by the authoritative implementation above.
 
 ## Purpose and audience
 

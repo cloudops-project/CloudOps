@@ -1,5 +1,7 @@
 # CloudOps Visual Design System
 
+> This is an aspirational interaction specification. [../../design.md](../../design.md) is the authoritative inventory of tokens and components actually present in frontend code; any pattern below absent from that inventory is a gap, not an implemented capability.
+
 ## Official status, purpose, and audience
 
 This document is the official UI standard for all current and future CloudOps frontend work. Product designers, frontend engineers, accessibility reviewers, product owners, and security reviewers must use these tokens, patterns, and interaction rules unless an approved design-system decision records an exception. Stage 1 implements identity and organization administration only; security analytics are future-stage specifications.

@@ -4,13 +4,15 @@
 
 Engineering leads use this planned decomposition to preserve feature ownership, dependency direction, and security boundaries.
 
-## Planned modules
+## Implemented module boundaries
 
-### Stage 2 AWS onboarding implementation
+### AWS onboarding implementation
 
 The `/api/v1/aws` router remains thin and delegates to `AWSOnboardingService`. The service owns validation, external-ID generation, RBAC, state transitions, STS orchestration, and audit writes; `Repository` owns organization-scoped persistence. Boto3 is injected at the service boundary for deterministic tests. Temporary credentials remain local variables passed only to an assumed-role STS client and never cross into models, schemas, logs, or responses.
 
-The web onboarding pages use the existing credentialed API client and TanStack Query. Reusable account cards, status badges, policy viewers, IAM instructions, and validation results use centralized design tokens. Stage 2 contains no worker, collector, scanner, or background job.
+The web onboarding pages use the credentialed API client and TanStack Query. Discovery and other
+long-running operations now enqueue PostgreSQL-backed durable jobs; onboarding validation remains
+service-owned and uses injected Boto3 clients.
 
 | Component | Owns | Must not do |
 |---|---|---|
@@ -33,6 +35,8 @@ Feature modules expose application interfaces and typed contracts. Routes call a
 
 The API stores a scan job transactionally, then publishes a minimal opaque job identifier. A worker re-fetches tenant context, claims a run lease, assumes the registered role, collects paginated metadata, evaluates pinned rule versions, commits bounded batches, and emits audit/operational events. Queue messages contain no credentials or asset payloads.
 
-## Proposals and open questions
+## Background-work decision
 
-Celery/Redis is proposed for MVP; an SQS adapter is a planned migration option. Transactional outbox, schema ownership, report generation placement, and scheduler implementation need design spikes before coding.
+PostgreSQL `platform_jobs` is the implemented durable source of truth. Celery/Redis is a rejected
+historical proposal because it would add a second state store. A future SQS adapter may wake
+workers with job IDs only; it must not become authoritative.

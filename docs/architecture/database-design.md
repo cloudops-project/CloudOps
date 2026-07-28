@@ -19,8 +19,7 @@ Services own critical transactions; repositories include `organization_id` in te
 ## Purpose and audience
 
 Backend, database, security, and analytics engineers use this document for the implemented
-Stage 1–3 schemas plus the proposed later cloud-security schema. Revisions `0001_stage1`
-through `0004_verification_repairs` are executable.
+schema history through the current one-head Alembic revision `0017_remediation_json_trigger`.
 
 ## Stage 2 implemented schema
 
@@ -106,8 +105,7 @@ erDiagram
 
 ## Current Stage 5 through Stage 7 physical schema
 
-The Stage 7 feature-branch Alembic head is `0009_stage7_ai_assistant`, following
-`0008_stage6_risk_scoring`. `evaluation_jobs` carries tenant/account
+Stage 7 introduced `0009_stage7_ai_assistant`; subsequent migrations advance the current one-head history to `0017_remediation_json_trigger`. `evaluation_jobs` carries tenant/account
 references, a monotonic sequence, nonnegative counters, constrained lifecycle timestamps, and a
 partial unique index allowing one pending/running evaluation per account.
 
