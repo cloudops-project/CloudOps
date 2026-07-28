@@ -361,7 +361,7 @@ def test_teams_provider_contract_uses_bounded_synthetic_transport() -> None:
 
 def test_smtp_rejects_header_injection_without_network() -> None:
     settings = Settings(
-        database_url="sqlite://",
+        database_url=SecretStr("sqlite://"),
         jwt_secret_key=SecretStr("x" * 32),
         notification_provider="smtp",
     )
@@ -380,16 +380,17 @@ def test_smtp_rejects_header_injection_without_network() -> None:
 def test_production_provider_configuration_is_fail_closed() -> None:
     with pytest.raises((ValidationError, ValueError), match="STARTTLS"):
         Settings(
-            database_url="postgresql://synthetic.invalid/cloudops",
+            database_url=SecretStr("postgresql://synthetic.invalid/cloudops"),
             jwt_secret_key=SecretStr("x" * 32),
             app_env="production",
             cookie_secure=True,
             cors_allowed_origins="https://cloudops.example.invalid",
             notification_provider="smtp",
+            smtp_password=SecretStr("synthetic-smtp-fixture-password"),
         )
     with pytest.raises((ValidationError, ValueError), match="SLACK_WEBHOOK_URL"):
         Settings(
-            database_url="postgresql://synthetic.invalid/cloudops",
+            database_url=SecretStr("postgresql://synthetic.invalid/cloudops"),
             jwt_secret_key=SecretStr("x" * 32),
             app_env="production",
             cookie_secure=True,

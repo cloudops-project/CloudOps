@@ -17,7 +17,7 @@ from app.models.enums import (
     MembershipStatus,
     OrganizationRole,
 )
-from app.services.aws_onboarding import AWSOnboardingService
+from app.services.aws_credentials import TenantRoleCredentialProvider
 from app.services.discovery import DiscoveryOrchestrator, IAMDiscoveryService
 from app.tests.conftest import TestingSession, register_and_login
 from app.tests.test_discovery import FakeService, asset, organization_and_account
@@ -43,22 +43,21 @@ def test_discovery_clients_receive_bounded_timeout_and_retry_config(
         external_id="cloudops-test",
         created_by_user_id=uuid.uuid4(),
     )
-    monkeypatch.setattr(
-        AWSOnboardingService,
-        "assume_role_credentials",
-        lambda *_args: {
-            "AccessKeyId": "temporary",
-            "SecretAccessKey": "temporary",
-            "SessionToken": "temporary",
-        },
-    )
     calls: list[dict[str, Any]] = []
 
-    def client(_service: str, **kwargs: Any) -> object:
-        calls.append(kwargs)
+    def client(
+        _self: TenantRoleCredentialProvider, service: str, region: str | None
+    ) -> object:
+        calls.append(
+            {
+                "service": service,
+                "region": region,
+                "config": _self.settings.aws_client_config,
+            }
+        )
         return object()
 
-    monkeypatch.setattr("app.services.discovery.boto3.client", client)
+    monkeypatch.setattr(TenantRoleCredentialProvider, "client", client)
     factory = DiscoveryOrchestrator(db, get_settings())._assumed_client_factory(account)
     factory("ec2", "us-east-1")
     config = calls[0]["config"]
