@@ -6,12 +6,22 @@ import smtplib
 import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
-from email.utils import make_msgid
+from email.utils import formataddr, make_msgid
 from enum import StrEnum
 from typing import Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
+
+import boto3  # type: ignore[import-untyped]
+from botocore.client import BaseClient  # type: ignore[import-untyped]
+from botocore.exceptions import (  # type: ignore[import-untyped]
+    BotoCoreError,
+    ClientError,
+    ConnectTimeoutError,
+    ReadTimeoutError,
+)
+from email_validator import EmailNotValidError, validate_email
 
 from app.core.config import Settings
 from app.models.enums import NotificationChannel
@@ -212,6 +222,157 @@ class SMTPNotificationProvider:
         )
 
 
+class SESNotificationProvider:
+    """Amazon SES v2 adapter using the default AWS credential provider chain."""
+
+    key = "ses"
+
+    def __init__(self, settings: Settings, client: BaseClient | None = None) -> None:
+        self.settings = settings
+        self.client = client or boto3.session.Session().client(
+            "sesv2",
+            region_name=settings.aws_ses_region,
+            config=settings.ses_client_config,
+        )
+
+    @staticmethod
+    def _valid_address(value: str) -> bool:
+        if "\r" in value or "\n" in value:
+            return False
+        try:
+            validate_email(value, check_deliverability=False)
+        except EmailNotValidError:
+            return False
+        return True
+
+    def deliver(
+        self,
+        *,
+        channel: NotificationChannel,
+        destination_reference: str | None,
+        recipients: list[str],
+        subject: str,
+        text_body: str,
+        template_key: str,
+        context: dict[str, object],
+    ) -> NotificationDeliveryResult:
+        del destination_reference, template_key, context
+        if channel != NotificationChannel.EMAIL:
+            return _delivery_failure("unsupported_channel", "Unsupported notification channel.")
+        if (
+            not self.settings.aws_ses_enabled
+            or not self._valid_address(self.settings.aws_ses_from_email)
+        ):
+            return _delivery_failure(
+                "ses_configuration_invalid",
+                "SES notification delivery is not configured.",
+            )
+        if (
+            not recipients
+            or len(recipients) > self.settings.aws_ses_max_recipients
+            or any(not self._valid_address(recipient) for recipient in recipients)
+        ):
+            return _delivery_failure(
+                "invalid_recipient",
+                "SES notification recipients are invalid.",
+            )
+        if "\r" in subject or "\n" in subject or len(subject) > 998:
+            return _delivery_failure(
+                "ses_header_injection",
+                "Notification headers contain prohibited characters.",
+            )
+        if len(text_body.encode()) > self.settings.notification_max_message_bytes:
+            return _delivery_failure(
+                "ses_message_too_large",
+                "Notification message exceeds the configured size limit.",
+            )
+        from_name = self.settings.aws_ses_from_name.strip()
+        if "\r" in from_name or "\n" in from_name:
+            return _delivery_failure(
+                "ses_header_injection",
+                "Notification headers contain prohibited characters.",
+            )
+        reply_to = [
+            value.strip()
+            for value in self.settings.aws_ses_reply_to.split(",")
+            if value.strip()
+        ]
+        if any(not self._valid_address(value) for value in reply_to):
+            return _delivery_failure(
+                "ses_configuration_invalid",
+                "SES reply-to configuration is invalid.",
+            )
+        request: dict[str, object] = {
+            "FromEmailAddress": (
+                formataddr((from_name, self.settings.aws_ses_from_email))
+                if from_name
+                else self.settings.aws_ses_from_email
+            ),
+            "Destination": {"ToAddresses": recipients},
+            "Content": {
+                "Simple": {
+                    "Subject": {"Data": subject, "Charset": "UTF-8"},
+                    "Body": {"Text": {"Data": text_body, "Charset": "UTF-8"}},
+                }
+            },
+        }
+        if reply_to:
+            request["ReplyToAddresses"] = reply_to
+        if self.settings.aws_ses_configuration_set:
+            request["ConfigurationSetName"] = self.settings.aws_ses_configuration_set
+        try:
+            response = self.client.send_email(**request)
+        except (ConnectTimeoutError, ReadTimeoutError):
+            return _delivery_failure(
+                "ses_timeout",
+                "SES notification delivery timed out.",
+                retryable=True,
+            )
+        except ClientError as exc:
+            code = str(exc.response.get("Error", {}).get("Code", ""))
+            retryable = code in {
+                "TooManyRequestsException",
+                "LimitExceededException",
+                "ServiceUnavailableException",
+                "InternalFailure",
+            }
+            return _delivery_failure(
+                "ses_transient_failure" if retryable else "ses_permanent_failure",
+                "SES notification delivery failed.",
+                retryable=retryable,
+            )
+        except BotoCoreError:
+            return _delivery_failure(
+                "ses_transport_error",
+                "SES notification delivery failed.",
+                retryable=True,
+            )
+        message_id = response.get("MessageId")
+        if not isinstance(message_id, str) or not message_id:
+            return _delivery_failure(
+                "ses_invalid_response",
+                "SES notification delivery returned invalid evidence.",
+            )
+        return NotificationDeliveryResult(
+            outcome=NotificationDeliveryOutcome.SUCCESS,
+            provider_message_id=message_id[:255],
+        )
+
+
+def _delivery_failure(
+    error_code: str,
+    message: str,
+    *,
+    retryable: bool = False,
+) -> NotificationDeliveryResult:
+    return NotificationDeliveryResult(
+        outcome=NotificationDeliveryOutcome.FAILURE,
+        sanitized_error=message,
+        error_code=error_code,
+        retryable=retryable,
+    )
+
+
 class WebhookTransport(Protocol):
     def __call__(
         self, url: str, payload: bytes, timeout_seconds: int
@@ -352,7 +513,7 @@ def notification_provider_from_settings(settings: Settings) -> NotificationProvi
     if settings.notification_provider == "smtp":
         return SMTPNotificationProvider(settings)
     if settings.notification_provider == "ses":
-        raise RuntimeError("SES notification provider is not implemented for Version 1.")
+        return SESNotificationProvider(settings)
     if settings.notification_provider == "slack":
         return WebhookNotificationProvider(
             key="slack",

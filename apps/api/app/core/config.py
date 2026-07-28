@@ -101,8 +101,18 @@ class Settings(BaseSettings):
     aws_read_timeout_seconds: int = Field(default=30, ge=1, le=120)
     aws_max_retry_attempts: int = Field(default=3, ge=1, le=10)
     aws_retry_mode: Literal["standard", "adaptive"] = "standard"
-    ai_provider: Literal["mock", "external"] = "mock"
+    ai_provider: Literal["mock", "bedrock", "external"] = "mock"
     ai_provider_api_key: SecretStr = SecretStr("")
+    aws_bedrock_enabled: bool = False
+    aws_bedrock_region: str = "us-east-1"
+    aws_bedrock_model_id: str = ""
+    aws_bedrock_max_tokens: int = Field(default=1200, ge=128, le=4096)
+    aws_bedrock_temperature: float = Field(default=0.1, ge=0.0, le=1.0)
+    aws_bedrock_connect_timeout_seconds: int = Field(default=5, ge=1, le=30)
+    aws_bedrock_read_timeout_seconds: int = Field(default=30, ge=1, le=120)
+    aws_bedrock_max_retry_attempts: int = Field(default=2, ge=1, le=5)
+    aws_bedrock_max_request_bytes: int = Field(default=65_536, ge=4096, le=262_144)
+    aws_bedrock_max_response_bytes: int = Field(default=32_768, ge=4096, le=131_072)
     notification_provider: Literal["mock", "smtp", "ses", "slack", "teams"] = "mock"
     smtp_host: str = "localhost"
     smtp_port: int = Field(default=1025, ge=1, le=65535)
@@ -113,6 +123,16 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = False
     smtp_security: Literal["none", "starttls", "implicit"] = "none"
     smtp_timeout_seconds: int = Field(default=10, ge=1, le=60)
+    aws_ses_enabled: bool = False
+    aws_ses_region: str = "us-east-1"
+    aws_ses_from_email: str = ""
+    aws_ses_from_name: str = ""
+    aws_ses_configuration_set: str = ""
+    aws_ses_reply_to: str = ""
+    aws_ses_max_recipients: int = Field(default=25, ge=1, le=50)
+    aws_ses_connect_timeout_seconds: int = Field(default=5, ge=1, le=30)
+    aws_ses_read_timeout_seconds: int = Field(default=30, ge=1, le=120)
+    aws_ses_max_retry_attempts: int = Field(default=3, ge=1, le=5)
     notification_max_message_bytes: int = Field(
         default=262_144, ge=1024, le=1_048_576
     )
@@ -181,11 +201,24 @@ class Settings(BaseSettings):
                 )
             if self.ai_provider == "external" and not self.ai_provider_api_key.get_secret_value():
                 raise ValueError("AI_PROVIDER_API_KEY is required for the external AI provider")
+            if self.ai_provider == "bedrock" and (
+                not self.aws_bedrock_enabled or not self.aws_bedrock_model_id.strip()
+            ):
+                raise ValueError(
+                    "AWS_BEDROCK_ENABLED and AWS_BEDROCK_MODEL_ID are required "
+                    "for the Bedrock provider"
+                )
             if (
                 self.notification_provider == "smtp"
                 and not self.smtp_password.get_secret_value()
             ):
                 raise ValueError("SMTP_PASSWORD is required for the SMTP provider")
+            if self.notification_provider == "ses" and (
+                not self.aws_ses_enabled or not self.aws_ses_from_email.strip()
+            ):
+                raise ValueError(
+                    "AWS_SES_ENABLED and AWS_SES_FROM_EMAIL are required for the SES provider"
+                )
         if self.cookie_samesite == "none" and not self.cookie_secure:
             raise ValueError("COOKIE_SECURE must be true when COOKIE_SAMESITE is none")
         if self.app_env == "production" and any(
@@ -246,6 +279,28 @@ class Settings(BaseSettings):
             retries={
                 "total_max_attempts": self.aws_max_retry_attempts,
                 "mode": self.aws_retry_mode,
+            },
+        )
+
+    @property
+    def bedrock_client_config(self) -> Config:
+        return Config(
+            connect_timeout=self.aws_bedrock_connect_timeout_seconds,
+            read_timeout=self.aws_bedrock_read_timeout_seconds,
+            retries={
+                "total_max_attempts": self.aws_bedrock_max_retry_attempts,
+                "mode": "standard",
+            },
+        )
+
+    @property
+    def ses_client_config(self) -> Config:
+        return Config(
+            connect_timeout=self.aws_ses_connect_timeout_seconds,
+            read_timeout=self.aws_ses_read_timeout_seconds,
+            retries={
+                "total_max_attempts": self.aws_ses_max_retry_attempts,
+                "mode": "standard",
             },
         )
 

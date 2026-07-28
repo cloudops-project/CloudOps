@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.exceptions.errors import AppError, ConflictError, NotFoundError, RateLimitError
 from app.models import (
     AIPromptTemplate,
@@ -30,6 +31,7 @@ from app.services.ai_provider import (
     MockAIProvider,
     ProviderErrorCode,
     ProviderExecutionControl,
+    ai_provider_from_settings,
 )
 from app.services.ai_safety import canonical_json, sanitize
 from app.services.common import record_audit
@@ -68,7 +70,12 @@ class AIService:
         utc_now: Callable[[], datetime] | None = None,
     ) -> None:
         self.db = db
-        self.provider = provider or MockAIProvider()
+        settings = get_settings()
+        self.provider = provider or (
+            MockAIProvider()
+            if settings.ai_provider == "mock"
+            else ai_provider_from_settings(settings)
+        )
         self.fault_at = fault_at
         self.utc_now = utc_now or (lambda: datetime.now(UTC))
 
