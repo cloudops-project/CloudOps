@@ -51,7 +51,7 @@ def test_secret_settings_are_redacted() -> None:
         database_url="postgresql://cloudops:phase2-db-sentinel@example.invalid/cloudops",
         smtp_password="phase2-smtp-sentinel",
         ai_provider_api_key="phase2-ai-sentinel",
-        notification_provider_api_key="phase2-notification-sentinel",
+        notification_provider_api_key="phase2-notification-sentinel",  # gitleaks:allow
     )
     rendered = repr(configured)
     for sentinel in (
@@ -74,7 +74,7 @@ def test_provider_secrets_are_required_only_when_provider_is_enabled() -> None:
 def test_jwt_key_rotation_overlap_and_retirement() -> None:
     user_id = uuid.uuid4()
     old = settings(
-        jwt_secret_key="phase2-previous-key-with-at-least-32-characters",
+        jwt_secret_key="phase2-previous-key-with-at-least-32-characters",  # gitleaks:allow
         jwt_active_key_id="previous",
     )
     old_token = create_access_token(user_id, old)
@@ -82,7 +82,7 @@ def test_jwt_key_rotation_overlap_and_retirement() -> None:
     overlap = settings(
         jwt_secret_key="phase2-current-key-with-at-least-32-characters",
         jwt_active_key_id="current",
-        jwt_previous_secret_key="phase2-previous-key-with-at-least-32-characters",
+        jwt_previous_secret_key="phase2-previous-key-with-at-least-32-characters",  # gitleaks:allow
         jwt_previous_key_id="previous",
     )
     new_token = create_access_token(user_id, overlap)
@@ -102,7 +102,7 @@ def test_legacy_jwt_without_kid_is_accepted_during_overlap() -> None:
     configured = settings(
         jwt_secret_key="phase2-current-key-with-at-least-32-characters",
         jwt_active_key_id="current",
-        jwt_previous_secret_key="phase2-previous-key-with-at-least-32-characters",
+        jwt_previous_secret_key="phase2-previous-key-with-at-least-32-characters",  # gitleaks:allow
         jwt_previous_key_id="previous",
     )
     now = datetime.now(UTC)

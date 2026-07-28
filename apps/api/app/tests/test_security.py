@@ -276,7 +276,7 @@ def test_hsts_setting_requires_production_secure_cookie() -> None:
 def test_audit_writer_redacts_sentinel_secrets(db: Session) -> None:
     sentinels = (
         "password=phase1-sentinel-password",
-        "api_key=phase1-sentinel-api-key",
+        "api_key=phase1-sentinel-api-key",  # gitleaks:allow
         "Bearer phase1-sentinel-jwt",
         "postgresql://user:phase1-sentinel-db-password@example.invalid/cloudops",
     )
@@ -284,7 +284,10 @@ def test_audit_writer_redacts_sentinel_secrets(db: Session) -> None:
         db,
         "security.sentinel",
         "test",
-        metadata={"values": list(sentinels), "secret_access_key": "phase1-sentinel-aws-secret"},
+        metadata={
+            "values": list(sentinels),
+            "secret_access_key": "phase1-sentinel-aws-secret",  # gitleaks:allow
+        },
         user_agent=" ".join(sentinels),
     )
     db.commit()

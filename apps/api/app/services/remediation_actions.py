@@ -81,7 +81,7 @@ DEFAULT_REMEDIATION_ACTIONS = (
         ),
     ),
     RemediationAction(
-        key="s3.enable_default_encryption",
+        key="s3.enable_default_encryption",  # gitleaks:allow
         version=1,
         rule_keys=frozenset({"S3_BUCKET_DEFAULT_ENCRYPTION_MISSING"}),
         title="Enable safe S3 default encryption",
