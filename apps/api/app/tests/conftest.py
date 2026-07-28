@@ -9,6 +9,7 @@ os.environ["APP_ENV"] = "testing"
 os.environ["DATABASE_URL"] = f"sqlite:///{Path(tempfile.gettempdir()) / 'cloudops_stage1_tests.db'}"
 os.environ["JWT_SECRET_KEY"] = "testing-only-secret-key-with-at-least-32-characters"
 os.environ["COOKIE_SECURE"] = "false"
+os.environ["REMEDIATION_EXECUTION_ENABLED"] = "true"
 os.environ["AWS_TRUSTED_PRINCIPAL_ARN"] = "arn:aws:iam::111122223333:role/CloudOpsServiceRole"
 
 import pytest

@@ -17,6 +17,9 @@ class RemediationRequestResponse(ApiModel):
     finding_id: uuid.UUID
     rule_key: str
     rule_version: int
+    action_key: str
+    action_version: int
+    idempotency_key: str
     requested_by_user_id: uuid.UUID | None
     approved_by_user_id: uuid.UUID | None
     rejected_by_user_id: uuid.UUID | None
@@ -28,6 +31,10 @@ class RemediationRequestResponse(ApiModel):
     remediation_steps_json: list[str]
     verification_steps_json: list[str]
     rollback_steps_json: list[str]
+    preview_json: dict[str, Any]
+    request_snapshot_hash: str
+    approved_snapshot_hash: str | None
+    dry_run: bool
     before_state_json: dict[str, Any] | None
     after_state_json: dict[str, Any] | None
     execution_result_json: dict[str, Any] | None

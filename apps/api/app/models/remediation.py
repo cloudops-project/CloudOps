@@ -61,6 +61,12 @@ class RemediationRequest(TimestampMixin, Base):
         Index("ix_remediation_finding", "finding_id"),
         Index("ix_remediation_status", "status"),
         Index(
+            "uq_remediation_tenant_idempotency",
+            "organization_id",
+            "idempotency_key",
+            unique=True,
+        ),
+        Index(
             "uq_remediation_active_per_finding",
             "finding_id",
             unique=True,
@@ -77,6 +83,9 @@ class RemediationRequest(TimestampMixin, Base):
     finding_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
     rule_key: Mapped[str] = mapped_column(String(160), nullable=False)
     rule_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    action_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    action_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
     requested_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
     )
@@ -125,6 +134,18 @@ class RemediationRequest(TimestampMixin, Base):
     )
     rollback_steps_json: Mapped[list[str]] = mapped_column(
         JSON, default=list, server_default=text("'[]'"), nullable=False
+    )
+    preview_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, server_default=text("'{}'"), nullable=False
+    )
+    request_snapshot_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, server_default=text("'{}'"), nullable=False
+    )
+    request_snapshot_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    approved_snapshot_hash: Mapped[str | None] = mapped_column(String(64))
+    execution_lease_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    dry_run: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
     )
     before_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     after_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)

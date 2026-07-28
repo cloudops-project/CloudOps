@@ -133,6 +133,8 @@ class Settings(BaseSettings):
     aws_ses_connect_timeout_seconds: int = Field(default=5, ge=1, le=30)
     aws_ses_read_timeout_seconds: int = Field(default=30, ge=1, le=120)
     aws_ses_max_retry_attempts: int = Field(default=3, ge=1, le=5)
+    remediation_execution_enabled: bool = False
+    remediation_live_aws_enabled: bool = False
     notification_max_message_bytes: int = Field(
         default=262_144, ge=1024, le=1_048_576
     )

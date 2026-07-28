@@ -23,9 +23,11 @@ from app.models.enums import (
     RemediationStatus,
     ScanRunStatus,
 )
+from app.security.rbac import Capability
 from app.services.discovery import DiscoveryOrchestrator
 from app.services.evaluations import EvaluationService
 from app.services.notifications import NotificationService
+from app.services.organizations import OrganizationService
 from app.services.platform_jobs import PlatformJobService
 from app.services.remediation import RemediationService
 
@@ -276,7 +278,18 @@ class JobWorker:
 
     def _remediation(self, db: Session, job: PlatformJob) -> str:
         request_id = _uuid_value(job.payload_json, "remediation_request_id")
-        request = RemediationService(db).execute(job.organization_id, request_id)
+        actor_id = _uuid_value(job.payload_json, "actor_user_id")
+        actor = self._actor(db, job, actor_id)
+        OrganizationService(db).require_capability(
+            job.organization_id,
+            actor.id,
+            Capability.REMEDIATION_EXECUTE,
+        )
+        request = RemediationService(db).execute(
+            job.organization_id,
+            request_id,
+            execution_lease_id=job.id,
+        )
         db.commit()
         if request.status == RemediationStatus.APPROVED:
             raise RetryableJobError(

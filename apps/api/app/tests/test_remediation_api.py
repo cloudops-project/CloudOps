@@ -11,7 +11,9 @@ from app.models import Finding, Organization, RemediationRequest, User
 from app.models.enums import FindingStatus, OrganizationRole
 from app.security.tokens import create_access_token
 from app.services.remediation import RemediationService
+from app.tests.conftest import TestingSession
 from app.tests.test_risk import _finding, _tenant
+from app.worker.job_worker import JobWorker
 
 
 def _headers(user: User) -> dict[str, str]:
@@ -93,12 +95,18 @@ def test_approve_then_execute_via_api(client: TestClient, db: Session) -> None:
         f"/api/v1/remediations/{request.id}/execute?organization_id={organization.id}",
         headers=headers,
     )
-    assert executed.status_code == 200, executed.text
+    assert executed.status_code == 202, executed.text
     body = executed.json()
-    assert body["status"] == "succeeded"
-    assert body["executed_at"] is not None
-    assert body["before_state_json"] is not None
-    assert body["after_state_json"] is not None
+    assert body["status"] == "available"
+    assert body["job_type"] == "remediation_simulation"
+    assert body["reference_id"] == str(request.id)
+    assert JobWorker(TestingSession, get_settings(), "remediation-api-test").process_one()
+    db.expire_all()
+    completed = db.get(RemediationRequest, request.id)
+    assert completed is not None
+    assert completed.status.value == "succeeded"
+    assert completed.execution_lease_id is not None
+    assert completed.dry_run is True
 
 
 def test_reject_via_api_requires_reason(client: TestClient, db: Session) -> None:
