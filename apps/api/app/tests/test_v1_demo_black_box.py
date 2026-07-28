@@ -24,6 +24,7 @@ from app.models import (
     EvaluationJob,
     NotificationEvent,
     PlatformJob,
+    RemediationRequest,
     ScanRun,
 )
 from app.models.enums import (
@@ -33,6 +34,7 @@ from app.models.enums import (
     EvaluationJobStatus,
     NotificationStatus,
     PlatformJobStatus,
+    RemediationStatus,
     ScanRunStatus,
 )
 from app.services.common import now_utc
@@ -223,7 +225,10 @@ def test_v1_demo_acceptance_flow(
                         name="Synthetic bucket",
                         region="global",
                         status="active",
-                        metadata_json={"public_access_block": False, "synthetic": True},
+                        metadata_json={
+                            "public_access_block_complete": False,
+                            "synthetic": True,
+                        },
                     ),
                     Asset(
                         organization_id=uuid.UUID(organization["id"]),
@@ -341,7 +346,20 @@ def test_v1_demo_acceptance_flow(
             findings.status_code == 200 and findings.json()["total"] > 0,
             findings.text,
         )
-        finding.update(findings.json()["items"][0])
+        remediation_candidate = next(
+            (
+                item
+                for item in findings.json()["items"]
+                if item["rule_key"] == "S3_BUCKET_PUBLIC_ACCESS_BLOCK_INCOMPLETE"
+            ),
+            None,
+        )
+        _assert(
+            remediation_candidate is not None,
+            "allowlisted synthetic remediation finding was not produced",
+        )
+        assert remediation_candidate is not None
+        finding.update(remediation_candidate)
 
     recorder.record(7, "Queued evaluation produced deterministic findings", evaluate_findings)
 
@@ -522,12 +540,52 @@ def test_v1_demo_acceptance_flow(
             headers=headers,
             params={"organization_id": organization["id"]},
         )
-        _assert(
-            executed.status_code == 200 and executed.json()["status"] == "succeeded",
-            executed.text,
-        )
+        _assert(executed.status_code == 202, executed.text)
+        queued_job_id = uuid.UUID(executed.json()["id"])
+        with sessions() as db:
+            db.execute(
+                update(PlatformJob)
+                .where(
+                    PlatformJob.status.in_(
+                        [
+                            PlatformJobStatus.AVAILABLE,
+                            PlatformJobStatus.RETRY_WAIT,
+                            PlatformJobStatus.LEASED,
+                            PlatformJobStatus.RUNNING,
+                        ]
+                    ),
+                    PlatformJob.id != queued_job_id,
+                )
+                .values(status=PlatformJobStatus.CANCELLED)
+            )
+            queued_job = db.get(PlatformJob, queued_job_id)
+            assert queued_job is not None
+            queued_job.priority = 100
+            db.commit()
 
-    recorder.record(13, "Mock remediation proposal, approval, and execution completed", remediate)
+        worker = JobWorker(
+            sessions,
+            get_settings(),
+            f"v1-demo-remediation-{marker}",
+        )
+        _assert(worker.process_one(), "remediation worker did not acquire queued job")
+
+        with sessions() as db:
+            completed_job = db.get(PlatformJob, queued_job_id)
+            assert completed_job is not None
+            assert completed_job.status == PlatformJobStatus.SUCCEEDED
+            persisted = db.get(
+                RemediationRequest,
+                uuid.UUID(remediation["id"]),
+            )
+            assert persisted is not None
+            assert persisted.status == RemediationStatus.SUCCEEDED
+
+    recorder.record(
+        13,
+        "Mock remediation proposal, approval, and queued execution completed",
+        remediate,
+    )
 
     def schedule_run() -> None:
         created = client.post(

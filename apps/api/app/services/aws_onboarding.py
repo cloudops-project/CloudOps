@@ -133,7 +133,7 @@ class AWSOnboardingService:
         # Account creation always returns onboarding trust policy details.
         # Validate the service principal before reserving an external ID or
         # committing anything, so a 503 cannot leave a hidden account behind.
-        self._trusted_principal()
+        self._trusted_principals()
         provider_account_id = self.validate_account_id(account_id)
         if self.repo.aws_account_by_provider_id(organization_id, provider_account_id):
             raise ConflictError(
@@ -325,7 +325,8 @@ class AWSOnboardingService:
         self.db.commit()
 
     def trust_policy(self, account: AWSAccount) -> dict[str, Any]:
-        principal = self._trusted_principal()
+        principals = self._trusted_principals()
+        principal: str | list[str] = principals[0] if len(principals) == 1 else principals
         return {
             "Version": "2012-10-17",
             "Statement": [
@@ -338,15 +339,26 @@ class AWSOnboardingService:
             ],
         }
 
-    def _trusted_principal(self) -> str:
-        principal = self.settings.aws_trusted_principal_arn.strip()
-        if not PRINCIPAL_ARN_PATTERN.fullmatch(principal):
+    def _trusted_principals(self) -> list[str]:
+        configured = [
+            principal.strip()
+            for principal in self.settings.aws_trusted_principal_arns.split(",")
+            if principal.strip()
+        ]
+        if not configured and self.settings.aws_trusted_principal_arn.strip():
+            configured = [self.settings.aws_trusted_principal_arn.strip()]
+        principals = list(dict.fromkeys(configured))
+        if (
+            not principals
+            or len(principals) > 4
+            or any(not PRINCIPAL_ARN_PATTERN.fullmatch(principal) for principal in principals)
+        ):
             raise AppError(
                 "aws_principal_not_configured",
-                "CloudOps AWS trusted principal is not configured.",
+                "CloudOps AWS trusted principals are not configured.",
                 503,
             )
-        return principal
+        return principals
 
     @staticmethod
     def permission_policy() -> dict[str, str]:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1 import router as api_router
 from app.api.v1.health import router as health_router
@@ -15,6 +14,7 @@ from app.logging.middleware import (
     RequestContextMiddleware,
     SecurityHeadersMiddleware,
 )
+from app.security.trusted_host import HealthCheckTrustedHostMiddleware
 
 
 def create_app() -> FastAPI:
@@ -24,7 +24,10 @@ def create_app() -> FastAPI:
     application.add_middleware(
         SecurityHeadersMiddleware, hsts_enabled=settings.hsts_enabled
     )
-    application.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+    application.add_middleware(
+        HealthCheckTrustedHostMiddleware,
+        allowed_hosts=settings.allowed_hosts,
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,

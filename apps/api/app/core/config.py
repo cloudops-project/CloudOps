@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     auth_rate_limit_per_minute: int = Field(default=10, ge=1, le=1000)
     aws_trusted_principal_arn: str = ""
+    aws_trusted_principal_arns: str = ""
     aws_role_session_name: str = "CloudOpsConnectionValidation"
     aws_role_session_duration_seconds: int = Field(default=900, ge=900, le=3600)
     aws_credential_refresh_window_seconds: int = Field(default=60, ge=30, le=600)

@@ -163,7 +163,6 @@ def test_job_monitoring_is_tenant_scoped_and_requeue_is_audited(
 def test_worker_renews_long_running_job_lease(
     db: Session,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     _user, organization, _account = _tenant(db)
     job = _enqueue(db, organization.id)
@@ -174,12 +173,31 @@ def test_worker_renews_long_running_job_lease(
         time.sleep(1.2)
         return "synthetic-result"
 
+    heartbeat_calls: list[uuid.UUID] = []
+    original_heartbeat = PlatformJobService.heartbeat
+
+    def record_heartbeat(
+        service: PlatformJobService,
+        job_id: uuid.UUID,
+        lease_token: uuid.UUID,
+        *,
+        lease_seconds: int,
+    ) -> PlatformJob:
+        heartbeat_calls.append(job_id)
+        return original_heartbeat(
+            service,
+            job_id,
+            lease_token,
+            lease_seconds=lease_seconds,
+        )
+
     monkeypatch.setattr(worker, "_dispatch", slow_dispatch)
-    caplog.set_level("INFO", logger="cloudops.worker")
+    monkeypatch.setattr(PlatformJobService, "heartbeat", record_heartbeat)
 
     assert worker.process_one() is True
     db.expire_all()
     completed = db.get(PlatformJob, job.id)
     assert completed is not None
     assert completed.status == PlatformJobStatus.SUCCEEDED
-    assert any(record.getMessage() == "platform.job.heartbeat" for record in caplog.records)
+    assert heartbeat_calls
+    assert all(heartbeat_job_id == job.id for heartbeat_job_id in heartbeat_calls)

@@ -27,6 +27,17 @@ def test_health_and_readiness(client: TestClient) -> None:
     assert client.get("/ready").json() == {"status": "ready"}
 
 
+def test_load_balancer_host_bypass_is_limited_to_health_paths(
+    client: TestClient,
+) -> None:
+    target_ip_host = {"Host": "10.20.1.42:8000"}
+
+    assert client.get("/health", headers=target_ip_host).status_code == 200
+    assert client.get("/ready", headers=target_ip_host).status_code == 200
+    assert client.get("/api/v1/organizations", headers=target_ip_host).status_code == 400
+    assert client.get("/health", headers={"Host": "untrusted.example"}).status_code == 400
+
+
 def test_readiness_reports_503_without_leaking_details_on_db_failure(
     client: TestClient,
 ) -> None:

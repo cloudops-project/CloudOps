@@ -71,6 +71,23 @@ def test_external_id_account_id_and_role_arn_validation() -> None:
         AWSOnboardingService.validate_role_arn("not-an-arn")
 
 
+def test_customer_trust_policy_supports_exact_api_and_worker_principals(
+    db: Session,
+) -> None:
+    principals = [
+        "arn:aws:iam::111122223333:role/cloudops-production-api-task",
+        "arn:aws:iam::111122223333:role/cloudops-production-worker-task",
+    ]
+    settings = get_settings().model_copy(
+        update={
+            "aws_trusted_principal_arn": "",
+            "aws_trusted_principal_arns": ",".join(principals),
+        }
+    )
+
+    assert AWSOnboardingService(db, settings)._trusted_principals() == principals
+
+
 def test_sts_assume_role_uses_temporary_credentials_only(db: Session) -> None:
     calls: list[tuple[str, dict[str, object]]] = []
 

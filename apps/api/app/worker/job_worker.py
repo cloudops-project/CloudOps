@@ -74,6 +74,17 @@ class JobWorker:
                     "worker_id": self.worker_id,
                 },
             )
+            # Establish one renewal before dispatch so short leases do not
+            # depend on OS thread scheduling for their first safety margin.
+            PlatformJobService(db).heartbeat(
+                job.id,
+                token,
+                lease_seconds=self.settings.job_lease_seconds,
+            )
+            logger.info(
+                "platform.job.heartbeat",
+                extra={"job_id": str(job.id), "worker_id": self.worker_id},
+            )
             heartbeat_stop = threading.Event()
             heartbeat = threading.Thread(
                 target=self._heartbeat_lease,
@@ -221,7 +232,10 @@ class JobWorker:
         lease_token: uuid.UUID,
         stop_event: threading.Event,
     ) -> None:
-        interval = max(1, self.settings.job_lease_seconds // 3)
+        # Renew with enough margin for scheduler and database latency. Waiting
+        # until one-third of a short lease made the first heartbeat race a job
+        # completing under load.
+        interval = max(0.25, self.settings.job_lease_seconds / 4)
         while not stop_event.wait(interval):
             try:
                 with self.session_factory() as heartbeat_db:

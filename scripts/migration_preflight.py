@@ -38,7 +38,8 @@ def _alembic_config() -> Config:
     cfg = Config(str(API_ROOT / "alembic.ini"))
     cfg.set_main_option("script_location", str(API_ROOT / "alembic"))
     settings = get_settings()
-    cfg.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+    database_url = settings.database_url.get_secret_value()
+    cfg.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
     return cfg
 
 
@@ -52,7 +53,7 @@ def check_single_head(cfg: Config) -> list[str]:
 
 def check_current_revision(cfg: Config) -> list[str]:
     settings = get_settings()
-    engine = create_engine(settings.database_url)
+    engine = create_engine(settings.database_url.get_secret_value())
     messages: list[str] = []
     try:
         with engine.connect() as conn:
