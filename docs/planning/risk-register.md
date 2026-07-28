@@ -16,7 +16,7 @@ The team and stakeholders use this living register to prioritize uncertainty and
 | Credentials/secrets leak in logs/CI | M/Critical | secret store, redaction tests, scanning, ephemeral CI identities, incident rotation | M5 |
 | Queue replay/flooding | M/High | quotas, leases, idempotency, reauthorization, monitoring/dead letter | M2/M5 |
 | Compliance overclaim/licensing | M/High | reviewed mappings with provenance/caveats; legal/content approval before publishing | M1 |
-| Student budget/complexity | H/Medium | Celery/Redis proposal, bounded MVP, cost budgets, managed-service decision gate | M1/M5 |
+| Student budget/complexity | H/Medium | PostgreSQL durable jobs avoid a second broker; retain cost budgets and managed-service decision gates | M1/M5 |
 | Knowledge silo / member absence | M/High | backups, pairing, ADRs/runbooks, rotating demos and cross-review | All |
 | Backup/restore not viable | M/High | defined RPO/RTO, encrypted backups, scheduled restore tests before release | M5 |
 | Dependency/supply-chain compromise | M/High | pinned dependencies later, review, scanning/provenance, update policy | M5 |

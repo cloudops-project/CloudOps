@@ -1,5 +1,9 @@
 # CloudOps Project Memory
 
+> **Archived session history:** current operational memory is [../../memory.md](../../memory.md).
+> All branch, migration, verification, completion, and next-task statements below are historical
+> snapshots and are not current handoff evidence.
+
 ## Last updated
 
 2026-07-26 - Stages 9-12 are implemented and committed on `feature/v1-demo-completion`, not yet
