@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -511,12 +512,39 @@ class AIService:
             raise AIProviderError(ProviderErrorCode.DISABLED)
         for attempt in range(self.MAX_PROVIDER_ATTEMPTS):
             control = ProviderExecutionControl(self.PROVIDER_TIMEOUT_SECONDS)
+            started = time.perf_counter()
             try:
                 result = self.provider.generate(task_type, context, control)
                 control.ensure_active()
+                logger.info(
+                    "ai.provider.completed",
+                    extra={
+                        "provider_key": self.provider.key,
+                        "result": "succeeded",
+                        "attempt": attempt + 1,
+                        "duration_ms": round(
+                            (time.perf_counter() - started) * 1000,
+                            2,
+                        ),
+                    },
+                )
                 return result
             except AIProviderError as exc:
                 control.exit()
+                logger.warning(
+                    "ai.provider.failed",
+                    extra={
+                        "provider_key": self.provider.key,
+                        "result": "failed",
+                        "attempt": attempt + 1,
+                        "duration_ms": round(
+                            (time.perf_counter() - started) * 1000,
+                            2,
+                        ),
+                        "error_code": exc.code.value,
+                        "retryable": exc.retryable,
+                    },
+                )
                 if not exc.retryable or attempt + 1 >= self.MAX_PROVIDER_ATTEMPTS:
                     raise
         raise AIProviderError(ProviderErrorCode.FAILED)

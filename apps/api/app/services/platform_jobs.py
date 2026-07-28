@@ -318,6 +318,15 @@ class PlatformJobService:
         ).all()
         return {status.value: int(count) for status, count in rows}
 
+    def global_counts(self) -> dict[str, int]:
+        """Low-cardinality operational queue totals with no tenant dimension."""
+        rows = self.db.execute(
+            select(PlatformJob.status, func.count(PlatformJob.id)).group_by(
+                PlatformJob.status
+            )
+        ).all()
+        return {status.value: int(count) for status, count in rows}
+
     def _leased(
         self,
         job_id: uuid.UUID,

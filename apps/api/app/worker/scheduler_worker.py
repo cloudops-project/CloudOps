@@ -29,10 +29,11 @@ def tick() -> int:
         runs = SchedulerService(db, settings).run_due_schedules()
         for run in runs:
             logger.info(
-                "scheduler tick started run %s for account %s (status=%s)",
-                run.id,
-                run.aws_account_id,
-                run.status.value,
+                "scheduler.run.enqueued",
+                extra={
+                    "event_name": "scheduler.run.enqueued",
+                    "result": run.status.value,
+                },
             )
         return len(runs)
     finally:
@@ -43,7 +44,13 @@ def run_forever(stop_event: threading.Event) -> None:
     settings = get_settings()
     while not stop_event.is_set():
         started = tick()
-        logger.info("scheduler.tick.completed", extra={"enqueued_count": started})
+        logger.info(
+            "scheduler.tick.completed",
+            extra={
+                "event_name": "scheduler.tick.completed",
+                "enqueued_count": started,
+            },
+        )
         stop_event.wait(settings.scheduler_poll_interval_seconds)
 
 

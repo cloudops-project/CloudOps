@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import uuid
 from datetime import timedelta
 
@@ -15,7 +16,9 @@ from app.models import AuditEvent, PlatformJob
 from app.models.enums import PlatformJobStatus, PlatformJobType
 from app.security.tokens import create_access_token
 from app.services.platform_jobs import PlatformJobService
+from app.tests.conftest import TestingSession
 from app.tests.test_risk import _tenant
+from app.worker.job_worker import JobWorker
 
 
 def _enqueue(db: Session, organization_id: uuid.UUID) -> PlatformJob:
@@ -155,3 +158,28 @@ def test_job_monitoring_is_tenant_scoped_and_requeue_is_audited(
     assert db.scalar(
         select(AuditEvent).where(AuditEvent.event_type == "platform.job.requeued")
     ) is not None
+
+
+def test_worker_renews_long_running_job_lease(
+    db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _user, organization, _account = _tenant(db)
+    job = _enqueue(db, organization.id)
+    settings = get_settings().model_copy(update={"job_lease_seconds": 3})
+    worker = JobWorker(TestingSession, settings, "heartbeat-test")
+
+    def slow_dispatch(_db: Session, _job: PlatformJob) -> str:
+        time.sleep(1.2)
+        return "synthetic-result"
+
+    monkeypatch.setattr(worker, "_dispatch", slow_dispatch)
+    caplog.set_level("INFO", logger="cloudops.worker")
+
+    assert worker.process_one() is True
+    db.expire_all()
+    completed = db.get(PlatformJob, job.id)
+    assert completed is not None
+    assert completed.status == PlatformJobStatus.SUCCEEDED
+    assert any(record.getMessage() == "platform.job.heartbeat" for record in caplog.records)

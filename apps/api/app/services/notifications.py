@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
+import time
 import uuid
 from datetime import datetime
 
@@ -40,6 +42,8 @@ from app.services.notification_provider import (
     notification_provider_from_settings,
 )
 from app.services.platform_jobs import PlatformJobService
+
+logger = logging.getLogger("cloudops.notifications")
 
 MAX_DELIVERY_ATTEMPTS = 3
 CRITICAL_FINDING_TEMPLATE_KEY = "critical_finding_created"
@@ -283,6 +287,7 @@ class NotificationService:
                 "Notification content, destination, template, or provider changed after approval.",
             )
         subject, text_body = self._email_content(event)
+        provider_started = time.perf_counter()
         result = self.provider.deliver(
             channel=event.channel,
             destination_reference=event.destination_reference,
@@ -293,6 +298,19 @@ class NotificationService:
             context={
                 "organization_id": str(organization_id),
                 "source_resource_id": str(event.source_resource_id),
+            },
+        )
+        logger.info(
+            "notification.provider.completed",
+            extra={
+                "provider_key": self.provider.key,
+                "result": result.outcome.value,
+                "duration_ms": round(
+                    (time.perf_counter() - provider_started) * 1000,
+                    2,
+                ),
+                "error_code": result.error_code,
+                "retryable": result.retryable,
             },
         )
         self.last_result = result

@@ -4,6 +4,7 @@ import logging
 import signal
 import socket
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -73,6 +74,15 @@ class JobWorker:
                     "worker_id": self.worker_id,
                 },
             )
+            heartbeat_stop = threading.Event()
+            heartbeat = threading.Thread(
+                target=self._heartbeat_lease,
+                args=(job.id, token, heartbeat_stop),
+                name=f"job-heartbeat-{job.id}",
+                daemon=True,
+            )
+            heartbeat.start()
+            started = time.perf_counter()
             try:
                 result = self._dispatch(db, job)
             except RetryableJobError as exc:
@@ -105,21 +115,65 @@ class JobWorker:
                 )
             else:
                 try:
-                    PlatformJobService(db).succeed(job.id, token, result)
+                    completed = PlatformJobService(db).succeed(job.id, token, result)
+                    logger.info(
+                        "platform.job.succeeded",
+                        extra={
+                            "job_id": str(job.id),
+                            "correlation_id": str(job.correlation_id),
+                            "job_type": job.job_type.value,
+                            "attempt": job.attempt_count,
+                            "duration_ms": round(
+                                (time.perf_counter() - started) * 1000,
+                                2,
+                            ),
+                            "terminal_status": completed.status.value,
+                        },
+                    )
                 except ConflictError:
                     logger.warning(
                         "platform.job.stale_completion_ignored",
                         extra={"job_id": str(job.id), "worker_id": self.worker_id},
                     )
+            finally:
+                heartbeat_stop.set()
+                heartbeat.join(timeout=2)
             return True
 
     def run_forever(self) -> None:
+        next_metrics_at = 0.0
         while not self.stop_event.is_set():
+            now = time.monotonic()
+            if now >= next_metrics_at:
+                self._emit_queue_metrics()
+                next_metrics_at = now + 60
             if not self.process_one():
                 self.stop_event.wait(self.settings.job_poll_interval_seconds)
 
     def stop(self) -> None:
         self.stop_event.set()
+
+    def _emit_queue_metrics(self) -> None:
+        try:
+            with self.session_factory() as db:
+                counts = PlatformJobService(db).global_counts()
+            logger.info(
+                "platform.queue.snapshot",
+                extra={
+                    "queue_available": counts.get(PlatformJobStatus.AVAILABLE.value, 0),
+                    "queue_running": counts.get(PlatformJobStatus.RUNNING.value, 0),
+                    "queue_retry_wait": counts.get(
+                        PlatformJobStatus.RETRY_WAIT.value,
+                        0,
+                    ),
+                    "queue_dead_lettered": counts.get(
+                        PlatformJobStatus.DEAD_LETTERED.value,
+                        0,
+                    ),
+                },
+            )
+        except Exception:
+            logger.warning("platform.queue.metrics_failed")
 
     def _record_failure(
         self,
@@ -148,6 +202,46 @@ class JobWorker:
             )
             return
         self._finish_scan_run_if_terminal(db, job, terminal)
+        logger.warning(
+            "platform.job.failed",
+            extra={
+                "job_id": str(job.id),
+                "correlation_id": str(job.correlation_id),
+                "job_type": job.job_type.value,
+                "attempt": job.attempt_count,
+                "error_code": terminal.last_error_code,
+                "retryable": retryable,
+                "terminal_status": terminal.status.value,
+            },
+        )
+
+    def _heartbeat_lease(
+        self,
+        job_id: uuid.UUID,
+        lease_token: uuid.UUID,
+        stop_event: threading.Event,
+    ) -> None:
+        interval = max(1, self.settings.job_lease_seconds // 3)
+        while not stop_event.wait(interval):
+            try:
+                with self.session_factory() as heartbeat_db:
+                    PlatformJobService(heartbeat_db).heartbeat(
+                        job_id,
+                        lease_token,
+                        lease_seconds=self.settings.job_lease_seconds,
+                    )
+                logger.info(
+                    "platform.job.heartbeat",
+                    extra={"job_id": str(job_id), "worker_id": self.worker_id},
+                )
+            except ConflictError:
+                return
+            except Exception:
+                logger.warning(
+                    "platform.job.heartbeat_failed",
+                    extra={"job_id": str(job_id), "worker_id": self.worker_id},
+                )
+                return
 
     def _dispatch(self, db: Session, job: PlatformJob) -> str | None:
         handlers = {
