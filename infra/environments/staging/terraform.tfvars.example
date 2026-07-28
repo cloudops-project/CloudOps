@@ -1,0 +1,12 @@
+aws_region        = "us-east-1"
+availability_zones = ["us-east-1a", "us-east-1b"]
+
+api_image = "000000000000.dkr.ecr.us-east-1.amazonaws.com/cloudops-staging-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+web_image = "000000000000.dkr.ecr.us-east-1.amazonaws.com/cloudops-staging-web@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+allowed_origins = ["https://staging.cloudops.example.com"]
+
+customer_role_arns = []
+bedrock_model_arn  = ""
+ses_identity_arn   = ""
+certificate_arn    = ""

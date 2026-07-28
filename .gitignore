@@ -37,7 +37,11 @@ Thumbs.db
 .terraform/
 *.tfstate
 *.tfstate.*
+*.tfvars
+!*.tfvars.example
+*.tfplan
 crash.log
+crash.*.log
 
 # Local reports and temporary files
 *.log
