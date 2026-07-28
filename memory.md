@@ -9,14 +9,26 @@
 - Date: 2026-07-29 (Asia/Calcutta)
 - Repository/worktree: `D:\learn\cdac\cloudfix-integration`
 - Branch: `integration/phase-1-2-3`
-- HEAD: `63c9845da37abd7ba700efedebe4d155ef74f77e`
-- HEAD summary: `63c9845 infra(terraform): define staging and production platform`
+- Verified implementation HEAD before this memory update:
+  `5bd6536cd36b259b54278bf10216220725df9464`
+- HEAD summary: `5bd6536 test(security): classify synthetic scanner sentinels`
 - Merge in progress: no
-- Push/merge/deployment/live AWS authorization: no
-- Current task: documentation-only truth audit; do not stage or commit
+- Push/merge authorization: yes, subject to clean verification and non-force safety gates
+- Deployment/live AWS authorization: no
+- Current task: publish the verified integration branch, reconcile it with current remote `main`,
+  and remove only clean, merged, obsolete worktrees
 
 ## Recent focused commits
 
+- `5bd6536` classified synthetic scanner sentinels without broad exclusions.
+- `c663c35` added the truthful project handoff context.
+- `917b805` updated operations and external-validation guidance.
+- `e56c1a6` reconciled the implemented architecture.
+- `55b1491` hardened deployment controls and observability.
+- `80a2fff` hardened immutable release workflows.
+- `257377a` added deployment and load validation helpers.
+- `2ce6ea4` hardened runtime images and web routing.
+- `413a7b6` resolved production verification findings.
 - `63c9845` Terraform staging/production platform.
 - `40ff171` worker heartbeats and telemetry.
 - `64bb7ec` governed dry-run remediation.
@@ -90,26 +102,31 @@ assuming this list remains exhaustive.
 
 ## Verification evidence
 
-Reported bounded results:
+Final locally reproduced results:
 
-- A: 198 backend tests passed, 1 skipped; affected API rerun 22 passed.
-- B: 105 PostgreSQL/concurrency tests passed.
-- C: 27 worker/scheduler tests passed.
-- D: 226 provider/remediation tests passed.
-- E: 6 migration tests plus Alembic heads/upgrade/current/check/preflight passed.
-- F: frontend lint/typecheck, 112 tests, and production build passed.
-- G: Terraform formatted/validated; Checkov final 471 passed, 0 failed.
-- H: API/web health smoke passed as non-root.
-- I: dependency audits and Gitleaks clean; final API image had no detected vulnerable packages;
-  final web image had no critical/high/medium findings.
+- Backend: scoped Ruff clean; strict Mypy clean across 157 source files; 563 tests passed against
+  disposable PostgreSQL with 94% combined branch coverage.
+- Migrations: one Alembic head (`0017_remediation_json_trigger`); upgrade, current, check, and
+  migration preflight passed.
+- Frontend: clean install, lint, typecheck, 112 tests, production build, and dependency audit
+  passed.
+- Infrastructure: Terraform formatting and validation passed for bootstrap, staging, and
+  production; Checkov 3.2.471 reported 471 passed, 0 failed, and 39 documented skips.
+- Containers: API, job worker, scheduler worker, migration task, and web smoke checks passed;
+  API and web run as non-root.
+- Security: dependency checks passed; the final redacted Gitleaks candidate scan found no leaks.
+  Docker Scout found no vulnerable packages in either final local image.
+- Provider tests use synthetic mocks or Stubber. No live AWS provider call was made.
 
-These are **reported verification evidence; external log retention required**. Counts overlap and
-must not be summed into a total suite count. The current documentation-only task did not rerun
-application suites.
+Local command output is ephemeral; retain CI and release evidence externally for durable audit.
 
 ## Failed or blocked checks
 
-- No known failing local gate was reported at handoff.
+- No required local gate is currently failing.
+- An additional repository-wide Ruff formatting check identified pre-existing formatting
+  differences, including historical migrations. It is not the configured lint gate, made no
+  changes, and historical migrations must not be reformatted merely for style.
+- The host uses Node 23 and emitted an engine-support warning; project CI uses Node 22.
 - Deployment/provider/UAT gates are blocked by missing approved external environment and evidence.
 - The earlier Alembic invocation from repository root failed to resolve its relative script path;
   rerunning from `apps/api` correctly reported head `0017`. This was a command-directory error,
@@ -124,7 +141,7 @@ application suites.
   rehearsal.
 - Weighted canary and cross-region/cross-account backup are deferred.
 - GitHub action references use release tags instead of immutable commit SHAs.
-- Large unstaged/untracked implementation set requires careful review and focused commits.
+- Remote branch publication and remote-main reconciliation are not yet complete.
 - Runtime/UI branding remains CloudOps while the repository handoff name is CloudFix.
 
 ## Decisions
@@ -159,11 +176,12 @@ application suites.
 
 ## Next exact task
 
-1. Review the documentation-only diff and validation report.
-2. If accepted, explicitly authorize staging only the reviewed documentation paths.
-3. After documentation commit, separately review the pre-existing implementation diff before any
-   code/infrastructure commits.
-4. Do not deploy or run live AWS until external gates and authorization are supplied.
+1. Validate this memory-only update and commit it explicitly.
+2. Fetch the remote, inspect divergence, and push the verified integration branch without force.
+3. Merge through a separate clean `main` release worktree, rerun post-merge gates, and push only
+   if the remote base is unchanged.
+4. Remove only clean, merged, obsolete worktrees using Git worktree commands.
+5. Do not deploy or run live AWS until external gates and authorization are supplied.
 
 ## Next safe commands
 
