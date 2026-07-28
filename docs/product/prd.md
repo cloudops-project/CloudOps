@@ -2,9 +2,8 @@
 
 ## Purpose and audience
 
-This PRD aligns product, security, engineering, design, and stakeholders on the intended
-CloudOps Version 1 outcome. It is a future planning baseline, not evidence of implementation.
-The root [`PRD.md`](../../PRD.md) is the authoritative description of current functionality.
+This is supporting product history. The root [`PRD.md`](../../PRD.md) is authoritative for
+current functionality, release acceptance, and live-validation distinctions.
 
 ## Vision and problem
 
@@ -14,11 +13,11 @@ CloudOps will provide organizations with centralized visibility into AWS misconf
 
 Organization Administrators manage tenants, users, roles, integrations, and AWS connections. Security Analysts triage findings and exceptions. Cloud and DevOps Engineers remediate or implement approved playbooks. Auditors review evidence and histories. Read-only Stakeholders consume posture and risk reports. Detailed needs are in [personas](personas.md).
 
-## Future Version 1 roadmap
+## Implemented V1 capability outline
 
-Stages 1–3 currently implement the identity/organization foundation, secure AWS onboarding, and
-inventory-only EC2/S3/IAM/RDS discovery. All rule, finding, compliance, notification, AI, and
-remediation bullets below remain future scope.
+Identity/tenancy, onboarding, discovery, deterministic findings, compliance, risk, advisory AI,
+dashboard, approved notifications, durable jobs/scheduler, audit, and governed dry-run remediation
+are implemented locally. AWS providers and deployment remain externally unverified.
 
 - Organization/user management, Stage 1 local JWT authentication, RBAC, and organization-scoped authorization, with future OIDC federation readiness.
 - Multi-account AWS onboarding, cross-account role and external-ID validation, manual/scheduled read-only scans, and connection revocation.
@@ -49,4 +48,7 @@ Least privilege, encryption in transit/at rest, redacted structured logs, tracea
 
 ## Assumptions, risks, and open questions
 
-Assumptions and constraints are tracked [here](assumptions-and-constraints.md); material risks are in the [risk register](../planning/risk-register.md). Approval is needed for the OIDC provider, worker choice (proposed Celery/Redis), compliance content licensing, notification option priority, retention periods, and first automated remediation playbook.
+Assumptions are tracked [here](assumptions-and-constraints.md); risks are in the
+[risk register](../planning/risk-register.md). PostgreSQL is the decided durable worker store.
+Approval/evidence is still needed for live OIDC, providers, infrastructure, retention,
+restore/rollback, UAT, and any future mutation remediation.

@@ -6,16 +6,21 @@ Architecture, product, and delivery teams use this register to distinguish confi
 
 ## Confirmed constraints
 
-- Version 1 supports AWS EC2, S3, and IAM only; PostgreSQL is the intended production database.
+- Version 1 centers on AWS EC2, S3, and IAM; implemented RDS/CloudWatch/CloudTrail collectors still
+  require live validation. PostgreSQL is the production database and durable job store.
 - Customer access uses STS temporary credentials; no long-lived customer keys are requested or stored.
 - Rules are deterministic; AI is optional, advisory, redacted, schema-validated, and unable to execute actions.
-- Scans are read-only; automation requires approval and separate least-privilege remediation permissions.
-- Terraform will manage CloudOps-owned infrastructure later; Boto3 performs runtime discovery and approved operations.
+- Scans are read-only. Remediation is approval-gated mock/dry-run only; no mutation role or live
+  executor exists.
+- Terraform defines bootstrap, staging, and production infrastructure. It validates locally but
+  has not been applied to AWS.
 - The project currently has five members and a student-project affordability constraint.
 
 ## Working assumptions
 
-Customers can deploy a reviewed onboarding template and provide account metadata. MVP runs in a limited number of environments and uses Celery with Redis as the proposed understandable queue, with an adapter boundary for possible SQS migration. OIDC-compatible identity and Jira APIs are available in test tenants.
+Customers can create the reviewed role from generated guidance and provide account metadata.
+PostgreSQL `platform_jobs` is the durable queue; Celery/Redis is rejected. GitHub OIDC, Bedrock,
+SES, and customer-role behavior require live staging validation.
 
 ## Risks and validation
 

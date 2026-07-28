@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.base import utc_now
 from app.exceptions.errors import ConflictError, NotFoundError
 from app.models import Organization, RemediationRequest, User
@@ -100,6 +101,29 @@ def test_propose_is_tenant_isolated(db: Session) -> None:
         RemediationService(db).propose_for_finding(org_b.id, finding_a.id, user_b)
 
 
+def test_unallowlisted_rule_is_manual_and_cannot_execute(db: Session) -> None:
+    user, organization, account = _tenant(db)
+    finding, _asset = _finding(
+        db,
+        organization,
+        account,
+        user,
+        rule_key="SYNTHETIC_RULE_WITHOUT_REMEDIATION",
+    )
+    db.commit()
+
+    request = RemediationService(db).propose_for_finding(
+        organization.id,
+        finding.id,
+        user,
+    )
+    db.commit()
+
+    assert request.action_key == "manual.review"
+    assert request.execution_mode == RemediationExecutionMode.MANUAL
+    assert request.automation_eligible is False
+
+
 # ---------------------------------------------------------------------------
 # Approval / rejection / cancellation
 # ---------------------------------------------------------------------------
@@ -125,6 +149,19 @@ def test_approval_transitions_pending_to_approved(db: Session) -> None:
     assert approved.status == RemediationStatus.APPROVED
     assert approved.approved_at is not None
     assert approved.approved_by_user_id == approver.id
+
+
+def test_approval_rejects_changed_preview_snapshot(db: Session) -> None:
+    request, organization, _user = _proposed_request(db)
+    approver = _approver(db, f"approver-{uuid.uuid4().hex}")
+    request.request_snapshot_json = {
+        **request.request_snapshot_json,
+        "dry_run": False,
+    }
+    db.commit()
+
+    with pytest.raises(ConflictError, match="preview changed"):
+        RemediationService(db).approve(organization.id, request.id, approver)
 
 
 def test_re_approving_is_idempotent(db: Session) -> None:
@@ -219,12 +256,24 @@ def _approved_request(db: Session) -> tuple[RemediationRequest, Organization]:
     return request, organization
 
 
+def _execute(
+    service: RemediationService,
+    organization: Organization,
+    request: RemediationRequest,
+) -> RemediationRequest:
+    return service.execute(
+        organization.id,
+        request.id,
+        execution_lease_id=uuid.uuid4(),
+    )
+
+
 def test_execute_without_approval_is_rejected(db: Session) -> None:
     request, organization, _user = _proposed_request(db)
     db.commit()
 
     with pytest.raises(ConflictError):
-        RemediationService(db).execute(organization.id, request.id)
+        _execute(RemediationService(db), organization, request)
 
 
 def test_mock_execution_success_transitions_to_succeeded(db: Session) -> None:
@@ -232,7 +281,7 @@ def test_mock_execution_success_transitions_to_succeeded(db: Session) -> None:
     executor = MockRemediationExecutor(fault_mode="success")
     service = RemediationService(db, executor=executor)
 
-    succeeded = service.execute(organization.id, request.id)
+    succeeded = _execute(service, organization, request)
     db.commit()
 
     assert succeeded.status == RemediationStatus.SUCCEEDED
@@ -248,12 +297,12 @@ def test_first_and_second_failure_keep_status_approved(db: Session) -> None:
     executor = MockRemediationExecutor(fault_mode="always_fail")
     service = RemediationService(db, executor=executor)
 
-    first = service.execute(organization.id, request.id)
+    first = _execute(service, organization, request)
     db.commit()
     assert first.status == RemediationStatus.APPROVED
     assert first.attempt_count == 1
 
-    second = service.execute(organization.id, request.id)
+    second = _execute(service, organization, request)
     db.commit()
     assert second.status == RemediationStatus.APPROVED
     assert second.attempt_count == 2
@@ -264,11 +313,11 @@ def test_third_failure_transitions_to_failed(db: Session) -> None:
     executor = MockRemediationExecutor(fault_mode="always_fail")
     service = RemediationService(db, executor=executor)
 
-    service.execute(organization.id, request.id)
+    _execute(service, organization, request)
     db.commit()
-    service.execute(organization.id, request.id)
+    _execute(service, organization, request)
     db.commit()
-    third = service.execute(organization.id, request.id)
+    third = _execute(service, organization, request)
     db.commit()
 
     assert third.status == RemediationStatus.FAILED
@@ -280,11 +329,11 @@ def test_third_failure_transitions_to_failed(db: Session) -> None:
 def test_duplicate_execution_after_success_is_rejected(db: Session) -> None:
     request, organization = _approved_request(db)
     service = RemediationService(db, executor=MockRemediationExecutor(fault_mode="success"))
-    service.execute(organization.id, request.id)
+    _execute(service, organization, request)
     db.commit()
 
     with pytest.raises(ConflictError):
-        service.execute(organization.id, request.id)
+        _execute(service, organization, request)
 
 
 def test_execute_non_mock_execution_mode_is_rejected(db: Session) -> None:
@@ -300,4 +349,64 @@ def test_execute_non_mock_execution_mode_is_rejected(db: Session) -> None:
     db.commit()
 
     with pytest.raises(ConflictError):
-        RemediationService(db).execute(organization.id, request.id)
+        _execute(RemediationService(db), organization, request)
+
+
+def test_approved_snapshot_is_immutable_and_bound_to_execution(db: Session) -> None:
+    request, organization = _approved_request(db)
+    approved_hash = request.approved_snapshot_hash
+    assert approved_hash == request.request_snapshot_hash
+
+    request.request_snapshot_json = {
+        **request.request_snapshot_json,
+        "action_key": "ec2.unrestricted-user-input",
+    }
+    db.commit()
+
+    with pytest.raises(ConflictError, match="snapshot"):
+        _execute(RemediationService(db), organization, request)
+
+
+def test_changed_finding_evidence_fails_execution_precondition(db: Session) -> None:
+    request, organization = _approved_request(db)
+    finding = RemediationService(db)._get_finding(organization.id, request.finding_id)
+    finding.evidence_json = {"changed_after_approval": True}
+    db.commit()
+
+    with pytest.raises(ConflictError, match="finding changed"):
+        _execute(RemediationService(db), organization, request)
+
+
+def test_execution_kill_switch_and_live_mode_fail_closed(db: Session) -> None:
+    request, organization = _approved_request(db)
+    base = get_settings()
+
+    disabled = base.model_copy(update={"remediation_execution_enabled": False})
+    with pytest.raises(ConflictError, match="kill switch"):
+        _execute(RemediationService(db, settings=disabled), organization, request)
+
+    live = base.model_copy(
+        update={
+            "remediation_execution_enabled": True,
+            "remediation_live_aws_enabled": True,
+        }
+    )
+    with pytest.raises(ConflictError, match="not implemented"):
+        _execute(RemediationService(db, settings=live), organization, request)
+
+
+def test_execution_records_worker_lease_and_remains_dry_run(db: Session) -> None:
+    request, organization = _approved_request(db)
+    lease_id = uuid.uuid4()
+
+    result = RemediationService(db).execute(
+        organization.id,
+        request.id,
+        execution_lease_id=lease_id,
+    )
+    db.commit()
+
+    assert result.execution_lease_id == lease_id
+    assert result.dry_run is True
+    assert result.before_state_json is not None
+    assert result.before_state_json["dry_run"] is True

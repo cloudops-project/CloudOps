@@ -111,7 +111,7 @@ def postgres_settings() -> Settings:
     assert POSTGRES_TEST_DATABASE_URL is not None
     return Settings(
         app_env="testing",
-        database_url=POSTGRES_TEST_DATABASE_URL,
+        database_url=SecretStr(POSTGRES_TEST_DATABASE_URL),
         jwt_secret_key=SecretStr("postgres-concurrency-test-secret-at-least-32-characters"),
     )
 

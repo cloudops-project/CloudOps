@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -20,13 +20,22 @@ from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import app
-from app.models import AIUsageWindow, Asset, AuditEvent, AWSAccount, Finding, User
-from app.models.enums import AssetType, AWSAccountStatus
+from app.models import (
+    AIUsageWindow,
+    Asset,
+    AuditEvent,
+    AWSAccount,
+    Finding,
+    PlatformJob,
+    User,
+)
+from app.models.enums import AssetType, AWSAccountStatus, PlatformJobStatus
 from app.schemas.ai import AIRequestResponse
 from app.security.tokens import create_access_token
 from app.services.ai import AIService
 from app.services.ai_provider import MockAIProvider, ProviderExecutionControl
 from app.services.ai_safety import canonical_json
+from app.worker.job_worker import JobWorker
 
 SUPPORT = Path(__file__).resolve().parents[4] / "tests" / "end-to-end"
 sys.path.insert(0, str(SUPPORT))
@@ -150,21 +159,70 @@ def test_stage7_integrated_black_box(
 
     def evaluate() -> None:
         nonlocal finding_id, other_finding_id, evaluation_id
+
         response = client.post(
-            f"/api/v1/aws/accounts/{account['id']}/evaluate", headers=headers, json={}
+            f"/api/v1/aws/accounts/{account['id']}/evaluate",
+            headers=headers,
+            json={},
         )
-        _assert(response.status_code == 201, response.text)
-        evaluation_id = response.json()["id"]
+        _assert(response.status_code == 202, response.text)
+
+        queued_job_id = uuid.UUID(response.json()["id"])
+
+        with sessions() as db:
+            db.execute(
+                update(PlatformJob)
+                .where(
+                    PlatformJob.id != queued_job_id,
+                    PlatformJob.status.in_(
+                        [
+                            PlatformJobStatus.AVAILABLE,
+                            PlatformJobStatus.RETRY_WAIT,
+                            PlatformJobStatus.LEASED,
+                            PlatformJobStatus.RUNNING,
+                        ]
+                    ),
+                )
+                .values(
+                    status=PlatformJobStatus.CANCELLED,
+                    worker_id=None,
+                    lease_token=None,
+                    lease_expires_at=None,
+                    completed_at=datetime.now(UTC),
+                )
+            )
+            queued = db.get(PlatformJob, queued_job_id)
+            assert queued is not None
+            queued.priority = 100
+            db.commit()
+
+        worker = JobWorker(
+            sessions,
+            get_settings(),
+            f"stage7-black-box-{marker}",
+        )
+        _assert(worker.process_one() is True, "Worker processed no job")
+
+        with sessions() as db:
+            queued = db.get(PlatformJob, queued_job_id)
+            assert queued is not None
+            assert queued.status == PlatformJobStatus.SUCCEEDED
+            assert queued.result_reference is not None
+            evaluation_id = queued.result_reference
+
         findings = client.get(
             "/api/v1/findings",
             headers=headers,
             params={"organization_id": organization["id"], "page_size": 25},
         )
-        _assert(findings.status_code == 200 and findings.json()["total"] > 0, findings.text)
+        _assert(
+            findings.status_code == 200 and findings.json()["total"] > 0,
+            findings.text,
+        )
         finding_id = findings.json()["items"][0]["id"]
         other_finding_id = findings.json()["items"][1]["id"]
 
-    recorder.record(4, "Public Stage 4 evaluation completed and produced a finding", evaluate)
+    recorder.record(4, "Queued evaluation produced deterministic findings", evaluate)
 
     def assess_compliance() -> None:
         nonlocal compliance_id
@@ -515,7 +573,7 @@ def test_stage7_integrated_black_box(
         hostile_evidence,
     )
     secrets = [
-        "AKIAABCDEFGHIJKLMNOP",
+        "AKIAABCDEFGHIJKLMNOP",  # gitleaks:allow
         "Bearer abc.def.ghi",
         "-----BEGIN PRIVATE KEY----- secret",
         "postgresql://user:password@example.invalid/db",
@@ -709,13 +767,56 @@ def test_stage7_integrated_black_box(
             headers=other_headers,
             json={},
         )
-        _assert(evaluation_response.status_code == 201, evaluation_response.text)
+        _assert(evaluation_response.status_code == 202, evaluation_response.text)
+
+        queued_job_id = uuid.UUID(evaluation_response.json()["id"])
+
+        with sessions() as db:
+            db.execute(
+                update(PlatformJob)
+                .where(
+                    PlatformJob.id != queued_job_id,
+                    PlatformJob.status.in_(
+                        [
+                            PlatformJobStatus.AVAILABLE,
+                            PlatformJobStatus.RETRY_WAIT,
+                            PlatformJobStatus.LEASED,
+                            PlatformJobStatus.RUNNING,
+                        ]
+                    ),
+                )
+                .values(
+                    status=PlatformJobStatus.CANCELLED,
+                    worker_id=None,
+                    lease_token=None,
+                    lease_expires_at=None,
+                    completed_at=datetime.now(UTC),
+                )
+            )
+            queued = db.get(PlatformJob, queued_job_id)
+            assert queued is not None
+            queued.priority = 100
+            db.commit()
+
+        worker = JobWorker(
+            sessions,
+            get_settings(),
+            f"stage7-other-tenant-{marker}",
+        )
+        _assert(worker.process_one() is True, "Secondary evaluation processed no job")
+
+        with sessions() as db:
+            queued = db.get(PlatformJob, queued_job_id)
+            assert queued is not None
+            assert queued.status == PlatformJobStatus.SUCCEEDED
+
         findings_response = client.get(
             "/api/v1/findings",
             headers=other_headers,
             params={"organization_id": other_org_id, "page_size": 25},
         )
         _assert(findings_response.status_code == 200, findings_response.text)
+        _assert(findings_response.json()["total"] > 0, findings_response.text)
         other_finding_id = findings_response.json()["items"][0]["id"]
         compliance_response = client.post(
             f"/api/v1/aws/accounts/{other_account_id}/compliance/assess",

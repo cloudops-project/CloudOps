@@ -1,9 +1,11 @@
-﻿# GitHub Actions — Stage 0 Placeholder
+# GitHub Actions
 
-## Purpose and audience
+Platform, security, and release engineers use these workflows for source verification and immutable release promotion.
 
-Future DevOps and reviewers will use this directory for approved CI/CD workflows beginning with Stage 1 quality checks and Stage 14 deployment.
+`ci.yml` runs backend, frontend, container, dependency, migration, secret, Terraform, and IaC-security gates. `release.yml` is a manually dispatched, build-once pipeline. It publishes images with GitHub OIDC, promotes captured digests to staging, creates and preserves the exact production plan for review, and exposes plan application only through the protected `production` GitHub Environment, an explicit dispatch input, and the exact `ALLOW_PRODUCTION_DEPLOY=YES` repository variable.
 
-Planned controls include least-privilege permissions, pinned actions, OIDC cloud identity, protected environments, secret/dependency/static scanning, artifact provenance, and review gates. Workflows must not expose secrets or deploy from untrusted pull requests.
+Terraform initially creates ECS services at zero tasks. The release workflow runs the one-shot migration before activating the declared task counts and exact task definitions. Later releases keep task definitions and desired counts workflow-managed so infrastructure apply cannot move application code before the migration gate.
 
-No executable YAML workflow is created in Stage 0. GitHub Actions is proposed; exact jobs, runners, permissions, and branch rules require approval.
+Repository and environment variables contain non-secret identifiers such as role ARNs, regions, repository URLs, backend names, and public endpoints. No AWS access-key GitHub secret is supported. Cloud-side roles and GitHub Environment approvals must exist before release execution.
+
+Each deployment environment supplies JSON lists for availability zones, allowed origins, trusted hosts, and exact customer role ARNs, plus the public base URL, certificate ARN, approved Bedrock model ARN/ID, and SES identity ARN. The environment-specific runtime secret contains `DATABASE_URL`, `JWT_SECRET_KEY`, and `AWS_SES_FROM_EMAIL` only when SES is enabled.

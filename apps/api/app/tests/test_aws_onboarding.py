@@ -21,7 +21,8 @@ from app.models import (
 )
 from app.models.enums import AWSAccountStatus, OrganizationRole
 from app.security.passwords import hash_password
-from app.services.aws_onboarding import AWSConnectionFailure, AWSOnboardingService
+from app.services.aws_credentials import AWSConnectionFailure
+from app.services.aws_onboarding import AWSOnboardingService
 from app.tests.conftest import register_and_login
 
 
@@ -68,6 +69,23 @@ def test_external_id_account_id_and_role_arn_validation() -> None:
         AWSOnboardingService.validate_role_arn(role, "999999999999")
     with pytest.raises(AppError):
         AWSOnboardingService.validate_role_arn("not-an-arn")
+
+
+def test_customer_trust_policy_supports_exact_api_and_worker_principals(
+    db: Session,
+) -> None:
+    principals = [
+        "arn:aws:iam::111122223333:role/cloudops-production-api-task",
+        "arn:aws:iam::111122223333:role/cloudops-production-worker-task",
+    ]
+    settings = get_settings().model_copy(
+        update={
+            "aws_trusted_principal_arn": "",
+            "aws_trusted_principal_arns": ",".join(principals),
+        }
+    )
+
+    assert AWSOnboardingService(db, settings)._trusted_principals() == principals
 
 
 def test_sts_assume_role_uses_temporary_credentials_only(db: Session) -> None:
@@ -149,10 +167,10 @@ def test_create_duplicate_policies_and_listing(client: TestClient) -> None:
     account = created["account"]
     assert isinstance(account, dict)
     assert account["status"] == "pending"
-    assert str(account["external_id"]).startswith("cloudops-")
+    assert str(created["external_id"]).startswith("cloudops-")
     assert (
         created["trust_policy"]["Statement"][0]["Condition"]["StringEquals"]["sts:ExternalId"]
-        == account["external_id"]
+        == created["external_id"]
     )
     assert created["permission_policy"]["managed_policy_arn"] == (
         "arn:aws:iam::aws:policy/SecurityAudit"
@@ -350,7 +368,7 @@ def test_external_id_reservation_survives_deletion_and_prevents_reuse(
     )
     first = create_aws_account(client, owner, organization_id)
     first_id = first["account"]["id"]
-    assert first["account"]["external_id"] == "cloudops-permanent-id"
+    assert first["external_id"] == "cloudops-permanent-id"
     assert client.delete(f"/api/v1/aws/accounts/{first_id}", headers=owner).status_code == 204
     reservation = db.scalar(
         select(AWSExternalIDReservation).where(
@@ -362,5 +380,5 @@ def test_external_id_reservation_survives_deletion_and_prevents_reuse(
     assert reservation.retired_at is not None
 
     second = create_aws_account(client, owner, organization_id, account_id="210987654321")
-    assert second["account"]["external_id"] == "cloudops-new-id"
+    assert second["external_id"] == "cloudops-new-id"
     assert db.scalar(select(func.count()).select_from(AWSExternalIDReservation)) == 2

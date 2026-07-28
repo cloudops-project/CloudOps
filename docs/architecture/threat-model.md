@@ -58,12 +58,9 @@ No control guarantees complete security. OIDC vendor, MFA enforcement, WAF/CDN/h
 - Cross-tenant substitution is rejected by composite PostgreSQL foreign keys and tenant-scoped
   queries.
 
-## Future Stage 7 boundary
+## AI assistance boundary
 
-Prompt injection, sensitive-data disclosure, hallucinated remediation, provider retention, and
-tool-use escalation are future Stage 7 threats only. No AI provider, prompt execution, model
-route, or AI persistence exists in the Stage 6 baseline. Any later explanation assistant must
-treat provider-derived content as untrusted data and may never detect findings or calculate risk.
+Prompt injection, sensitive-data disclosure, hallucinated remediation, provider retention, and tool-use escalation remain active risks. The implemented mock and Bedrock provider paths use bounded persisted evidence, strict schemas, and redaction. AI output is advisory, cannot detect findings or calculate risk, cannot call arbitrary tools, and cannot approve remediation. Live Bedrock invocation is pending.
 
 - Missing data is an explicit unknown input with a conservative neutral value; it is never
   silently treated as zero or success.

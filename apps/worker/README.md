@@ -1,9 +1,22 @@
-﻿# Worker Application Area — Stage 0 Placeholder
+# Worker application
 
-## Purpose and audience
+The executable worker is implemented in `apps/api/app/worker/job_worker.py`;
+the replica-safe scheduler is in
+`apps/api/app/worker/scheduler_worker.py`.
 
-Future backend/AWS contributors will use this area for background scanning, rule evaluation, integration delivery, and approved remediation orchestration.
+PostgreSQL is the durable V1 queue and job source of truth. Jobs contain bounded
+opaque identifiers, reauthorize tenant ownership, obtain temporary STS
+credentials in memory, enforce database idempotency and expiring leases, and
+record sanitized partial failure. Discovery is read-only; remediation remains
+simulated.
 
-Celery with Redis is the proposed MVP worker, behind portable job interfaces that allow later SQS adoption. Jobs contain opaque identifiers, reauthorize tenant ownership, obtain temporary STS credentials in memory, enforce leases/idempotency, and expose partial failure. Scanning is read-only; remediation uses separate approved permissions.
+Run the processes with:
 
-No queue, Python package, collector, rule, or executable worker exists yet. Worker choice remains a Stage 0 approval item.
+```text
+python -m app.worker.job_worker
+python -m app.worker.scheduler_worker
+```
+
+See `docs/architecture/distributed-jobs.md` and the operations runbooks. A
+future SQS adapter may wake workers using job IDs only; it must not become a
+second source of job state.

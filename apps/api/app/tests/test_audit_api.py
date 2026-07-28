@@ -123,6 +123,28 @@ def test_export_returns_csv_with_expected_rows(client: TestClient, db: Session) 
     assert len(rows) == 3  # header + 2 events
 
 
+def test_export_escapes_formula_injection_prefixes(client: TestClient, db: Session) -> None:
+    user, organization, _account = _tenant(db)
+    record_audit(
+        db,
+        "=cmd|'/c calc'!A1",
+        "+SUM(A1:A2)",
+        organization_id=organization.id,
+    )
+    db.commit()
+
+    response = client.get(
+        f"/api/v1/audit-events/export?organization_id={organization.id}",
+        headers=_headers(user),
+    )
+
+    assert response.status_code == 200
+    rows = list(csv.reader(io.StringIO(response.text)))
+    event_type, resource_type = rows[1][3], rows[1][4]
+    assert event_type.startswith("'=")
+    assert resource_type.startswith("'+")
+
+
 # ---------------------------------------------------------------------------
 # Authorization and tenancy
 # ---------------------------------------------------------------------------

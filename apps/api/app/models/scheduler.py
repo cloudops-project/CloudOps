@@ -61,6 +61,7 @@ class ScanSchedule(TimestampMixin, Base):
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
     )
     last_run_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
+    last_enqueued_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
     next_run_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
 
 

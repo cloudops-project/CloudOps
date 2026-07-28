@@ -3,13 +3,14 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
-from app.dependencies.auth import AppSettings, CurrentUser, DbSession
-from app.exceptions.errors import NotFoundError
+from app.dependencies.auth import AppSettings, CurrentUser, DbSession, UserRateLimiter
+from app.exceptions.errors import ConflictError, NotFoundError
 from app.models import Asset, DiscoveryJob
-from app.models.enums import AssetType
+from app.models.enums import AssetType, AWSAccountStatus, PlatformJobType
 from app.repositories.assets import AssetRepository, DiscoveryJobRepository
+from app.repositories.data import Repository
 from app.schemas.discovery import (
     AssetListResponse,
     AssetResponse,
@@ -18,11 +19,14 @@ from app.schemas.discovery import (
     DiscoveryJobListResponse,
     DiscoveryJobResponse,
 )
-from app.security.rbac import Capability
-from app.services.discovery import DiscoveryOrchestrator, json_safe
+from app.schemas.platform_job import PlatformJobResponse
+from app.security.rbac import Capability, role_has_capability
+from app.services.discovery import json_safe
 from app.services.organizations import OrganizationService
+from app.services.platform_jobs import PlatformJobService
 
 router = APIRouter()
+_start_rate_limit = UserRateLimiter("discovery_start", limit=5, window_seconds=60)
 
 
 def _asset_response(asset: Asset) -> AssetResponse:
@@ -48,16 +52,38 @@ def _asset_response(asset: Asset) -> AssetResponse:
 
 @router.post(
     "/aws/accounts/{account_id}/discover",
-    response_model=DiscoveryJobResponse,
-    status_code=status.HTTP_201_CREATED,
+    response_model=PlatformJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(_start_rate_limit)],
 )
 def start_discovery(
     account_id: uuid.UUID,
     user: CurrentUser,
     db: DbSession,
     settings: AppSettings,
-) -> DiscoveryJob:
-    return DiscoveryOrchestrator(db, settings).start(account_id, user)
+) -> PlatformJobResponse:
+    result = Repository(db).aws_account_for_user(account_id, user.id)
+    if result is None:
+        raise NotFoundError("aws_account_not_found", "AWS account was not found.")
+    account, membership = result
+    if not role_has_capability(membership.role, Capability.DISCOVERY_START):
+        from app.exceptions.errors import ForbiddenError
+
+        raise ForbiddenError()
+    if account.connection_status != AWSAccountStatus.CONNECTED:
+        raise ConflictError(
+            "aws_account_not_connected", "Only connected AWS accounts can run discovery."
+        )
+    job, _created = PlatformJobService(db).enqueue(
+        organization_id=account.organization_id,
+        job_type=PlatformJobType.DISCOVERY,
+        reference_id=account.id,
+        idempotency_key=f"manual-discovery:{uuid.uuid4()}",
+        payload={"actor_user_id": str(user.id), "account_id": str(account.id)},
+        actor_user_id=user.id,
+    )
+    db.commit()
+    return PlatformJobResponse.model_validate(job)
 
 
 @router.get("/discovery/jobs", response_model=DiscoveryJobListResponse)

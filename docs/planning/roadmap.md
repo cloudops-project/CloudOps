@@ -1,5 +1,9 @@
 # Product Roadmap
 
+> **Current authority:** use [../../phases.md](../../phases.md) for stage status and
+> [../../PRD.md](../../PRD.md) for release acceptance. Detailed status narratives below are
+> historical planning snapshots unless repeated in those root files.
+
 ## Purpose and audience
 
 Stakeholders use this outcome-oriented view alongside the detailed [phases](phases.md). It intentionally contains no fixed dates.

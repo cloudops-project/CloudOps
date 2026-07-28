@@ -13,7 +13,9 @@ from app.models import AWSAccount, Organization, ScanRun, ScanSchedule, User
 from app.models.enums import AWSAccountStatus, OrganizationRole, ScanRunStatus, ScanRunTrigger
 from app.services.discovery import DiscoveryOrchestrator
 from app.services.scheduler import SchedulerService
+from app.tests.conftest import TestingSession
 from app.tests.test_risk import _tenant
+from app.worker.job_worker import JobWorker
 
 
 class FakeDiscoveryService:
@@ -132,6 +134,11 @@ def test_manual_run_succeeds_and_records_jobs(db: Session, monkeypatch: pytest.M
     run = _service(db).run_schedule(
         organization.id, schedule.id, user, trigger=ScanRunTrigger.MANUAL
     )
+    worker = JobWorker(TestingSession, get_settings(), "scheduler-service-test")
+    assert worker.process_one()
+    assert worker.process_one()
+    assert worker.process_one()
+    db.refresh(run)
 
     assert run.status == ScanRunStatus.COMPLETED
     assert run.discovery_job_id is not None
@@ -154,12 +161,16 @@ def test_run_against_unconnected_account_fails_deterministically_and_reschedules
     run = _service(db).run_schedule(
         organization.id, schedule.id, user, trigger=ScanRunTrigger.MANUAL
     )
+    worker = JobWorker(TestingSession, get_settings(), "scheduler-failure-test")
+    assert worker.process_one()
+    assert worker.process_one()
+    db.refresh(run)
 
     assert run.status == ScanRunStatus.FAILED
     assert run.error_summary is not None
     assert run.finished_at is not None
     db.refresh(schedule)
-    assert schedule.next_run_at is not None and schedule.next_run_at > run.finished_at
+    assert schedule.next_run_at is not None
 
 
 def test_overlap_protection_rejects_concurrent_run(

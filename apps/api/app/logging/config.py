@@ -8,6 +8,25 @@ from typing import Any
 
 request_id_context: ContextVar[str | None] = ContextVar("request_id", default=None)
 
+SAFE_LOG_FIELDS = (
+    "correlation_id",
+    "job_id",
+    "job_type",
+    "worker_id",
+    "attempt",
+    "duration_ms",
+    "status_code",
+    "provider_key",
+    "error_code",
+    "retryable",
+    "terminal_status",
+    "enqueued_count",
+    "queue_available",
+    "queue_running",
+    "queue_retry_wait",
+    "queue_dead_lettered",
+)
+
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
@@ -22,6 +41,9 @@ class JsonFormatter(logging.Formatter):
         }
         if hasattr(record, "error_type"):
             payload["error_type"] = record.error_type
+        for field in SAFE_LOG_FIELDS:
+            if hasattr(record, field):
+                payload[field] = getattr(record, field)
         return json.dumps(payload, separators=(",", ":"), default=str)
 
 

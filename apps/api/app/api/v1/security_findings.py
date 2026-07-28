@@ -3,19 +3,22 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 
-from app.dependencies.auth import CurrentUser, DbSession
-from app.exceptions.errors import NotFoundError
+from app.dependencies.auth import CurrentUser, DbSession, UserRateLimiter
+from app.exceptions.errors import ConflictError, ForbiddenError, NotFoundError
 from app.models import Asset, EvaluationJob, Finding
 from app.models.enums import (
     AssetType,
+    AWSAccountStatus,
     FindingSeverity,
     FindingStatus,
+    PlatformJobType,
     RuleCategory,
     RuleService,
 )
+from app.repositories.data import Repository
 from app.repositories.findings import EvaluationJobRepository, FindingRepository
 from app.schemas.findings import (
     EvaluationJobListResponse,
@@ -28,14 +31,17 @@ from app.schemas.findings import (
     FindingSuppressRequest,
     RuleResponse,
 )
-from app.security.rbac import Capability
+from app.schemas.platform_job import PlatformJobResponse
+from app.security.rbac import Capability, role_has_capability
 from app.security_rules import default_registry
 from app.security_rules.base import SecurityRule
 from app.security_rules.results import sanitize_evidence
 from app.services.evaluations import EvaluationService
 from app.services.organizations import OrganizationService
+from app.services.platform_jobs import PlatformJobService
 
 router = APIRouter()
+_evaluation_rate_limit = UserRateLimiter("evaluation_start", limit=10, window_seconds=60)
 
 
 def _rule_response(rule: SecurityRule) -> RuleResponse:
@@ -130,16 +136,42 @@ def get_rule(
 
 @router.post(
     "/aws/accounts/{account_id}/evaluate",
-    response_model=EvaluationJobResponse,
-    status_code=status.HTTP_201_CREATED,
+    response_model=PlatformJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(_evaluation_rate_limit)],
 )
 def start_evaluation(
     account_id: uuid.UUID,
     payload: EvaluationRequest,
     user: CurrentUser,
     db: DbSession,
-) -> EvaluationJob:
-    return EvaluationService(db).start(account_id, user, discovery_job_id=payload.discovery_job_id)
+) -> PlatformJobResponse:
+    result = Repository(db).aws_account_for_user(account_id, user.id)
+    if result is None:
+        raise NotFoundError("aws_account_not_found", "AWS account was not found.")
+    account, membership = result
+    if not role_has_capability(membership.role, Capability.EVALUATIONS_START):
+        raise ForbiddenError()
+    if account.connection_status != AWSAccountStatus.CONNECTED:
+        raise ConflictError(
+            "aws_account_not_connected", "Only connected AWS accounts can be evaluated."
+        )
+    values = {
+        "actor_user_id": str(user.id),
+        "account_id": str(account.id),
+    }
+    if payload.discovery_job_id is not None:
+        values["discovery_job_id"] = str(payload.discovery_job_id)
+    job, _created = PlatformJobService(db).enqueue(
+        organization_id=account.organization_id,
+        job_type=PlatformJobType.EVALUATION,
+        reference_id=account.id,
+        idempotency_key=f"manual-evaluation:{uuid.uuid4()}",
+        payload=values,
+        actor_user_id=user.id,
+    )
+    db.commit()
+    return PlatformJobResponse.model_validate(job)
 
 
 @router.get("/evaluations", response_model=EvaluationJobListResponse)

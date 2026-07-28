@@ -10,10 +10,11 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.main import app
 from app.models import (
@@ -22,6 +23,9 @@ from app.models import (
     DiscoveryJob,
     EvaluationJob,
     NotificationEvent,
+    PlatformJob,
+    RemediationRequest,
+    ScanRun,
 )
 from app.models.enums import (
     AssetType,
@@ -29,12 +33,16 @@ from app.models.enums import (
     DiscoveryJobStatus,
     EvaluationJobStatus,
     NotificationStatus,
+    PlatformJobStatus,
+    RemediationStatus,
+    ScanRunStatus,
 )
 from app.services.common import now_utc
 from app.services.notification_provider import (
     NotificationDeliveryOutcome,
     NotificationDeliveryResult,
 )
+from app.worker.job_worker import JobWorker
 
 SUPPORT = Path(__file__).resolve().parents[4] / "tests" / "end-to-end"
 sys.path.insert(0, str(SUPPORT))
@@ -217,7 +225,10 @@ def test_v1_demo_acceptance_flow(
                         name="Synthetic bucket",
                         region="global",
                         status="active",
-                        metadata_json={"public_access_block": False, "synthetic": True},
+                        metadata_json={
+                            "public_access_block_complete": False,
+                            "synthetic": True,
+                        },
                     ),
                     Asset(
                         organization_id=uuid.UUID(organization["id"]),
@@ -278,18 +289,79 @@ def test_v1_demo_acceptance_flow(
 
     def evaluate_findings() -> None:
         response = client.post(
-            f"/api/v1/aws/accounts/{account['id']}/evaluate", headers=analyst_headers, json={}
+            f"/api/v1/aws/accounts/{account['id']}/evaluate",
+            headers=analyst_headers,
+            json={},
         )
-        _assert(response.status_code == 201, response.text)
+        _assert(response.status_code == 202, response.text)
+
+        queued_job_id = uuid.UUID(response.json()["id"])
+
+        with sessions() as db:
+            db.execute(
+                update(PlatformJob)
+                .where(
+                    PlatformJob.id != queued_job_id,
+                    PlatformJob.status.in_(
+                        [
+                            PlatformJobStatus.AVAILABLE,
+                            PlatformJobStatus.RETRY_WAIT,
+                            PlatformJobStatus.LEASED,
+                            PlatformJobStatus.RUNNING,
+                        ]
+                    ),
+                )
+                .values(
+                    status=PlatformJobStatus.CANCELLED,
+                    worker_id=None,
+                    lease_token=None,
+                    lease_expires_at=None,
+                    completed_at=now_utc(),
+                )
+            )
+            queued = db.get(PlatformJob, queued_job_id)
+            assert queued is not None
+            queued.priority = 100
+            db.commit()
+
+        worker = JobWorker(
+            sessions,
+            get_settings(),
+            f"v1-demo-worker-{marker}",
+        )
+        _assert(worker.process_one() is True, "Worker processed no job")
+
+        with sessions() as db:
+            queued = db.get(PlatformJob, queued_job_id)
+            assert queued is not None
+            assert queued.status == PlatformJobStatus.SUCCEEDED
+            assert queued.result_reference is not None
+
         findings = client.get(
             "/api/v1/findings",
             headers=headers,
             params={"organization_id": organization["id"], "page_size": 25},
         )
-        _assert(findings.status_code == 200 and findings.json()["total"] > 0, findings.text)
-        finding.update(findings.json()["items"][0])
+        _assert(
+            findings.status_code == 200 and findings.json()["total"] > 0,
+            findings.text,
+        )
+        remediation_candidate = next(
+            (
+                item
+                for item in findings.json()["items"]
+                if item["rule_key"] == "S3_BUCKET_PUBLIC_ACCESS_BLOCK_INCOMPLETE"
+            ),
+            None,
+        )
+        _assert(
+            remediation_candidate is not None,
+            "allowlisted synthetic remediation finding was not produced",
+        )
+        assert remediation_candidate is not None
+        finding.update(remediation_candidate)
 
-    recorder.record(7, "Evaluation route produced deterministic findings", evaluate_findings)
+    recorder.record(7, "Queued evaluation produced deterministic findings", evaluate_findings)
 
     def assess_compliance() -> None:
         response = client.post(
@@ -377,22 +449,72 @@ def test_v1_demo_acceptance_flow(
             params={"organization_id": organization["id"]},
         )
         _assert(approved.status_code == 200, approved.text)
-        delivered = client.post(
+        queued_delivery = client.post(
             f"/api/v1/notifications/{notification['id']}/deliver",
             headers=headers,
             params={"organization_id": organization["id"]},
         )
-        _assert(delivered.status_code == 200, delivered.text)
-        _assert(delivered.json()["status"] == "delivered", delivered.text)
+        _assert(queued_delivery.status_code == 202, queued_delivery.text)
+
+        queued_job_id = uuid.UUID(queued_delivery.json()["id"])
+
+        with sessions() as db:
+            db.execute(
+                update(PlatformJob)
+                .where(
+                    PlatformJob.id != queued_job_id,
+                    PlatformJob.status.in_(
+                        [
+                            PlatformJobStatus.AVAILABLE,
+                            PlatformJobStatus.RETRY_WAIT,
+                            PlatformJobStatus.LEASED,
+                            PlatformJobStatus.RUNNING,
+                        ]
+                    ),
+                )
+                .values(
+                    status=PlatformJobStatus.CANCELLED,
+                    worker_id=None,
+                    lease_token=None,
+                    lease_expires_at=None,
+                    completed_at=now_utc(),
+                )
+            )
+            queued = db.get(PlatformJob, queued_job_id)
+            assert queued is not None
+            queued.priority = 100
+            db.commit()
+
+        worker = JobWorker(
+            sessions,
+            get_settings(),
+            f"v1-demo-notification-{marker}",
+        )
+        _assert(worker.process_one() is True, "Notification worker processed no job")
+
+        with sessions() as db:
+            queued = db.get(PlatformJob, queued_job_id)
+            assert queued is not None
+            assert queued.status == PlatformJobStatus.SUCCEEDED
+
+            persisted = db.get(
+                NotificationEvent,
+                uuid.UUID(notification["id"]),
+            )
+            assert persisted is not None
+            assert persisted.status == NotificationStatus.DELIVERED
+            assert persisted.provider_message_id == "v1-demo-message-id"
+
         recipients = notification_delivery["recipients"]
         _assert(email in recipients, f"owner recipient missing: {recipients}")
-        _assert(analyst["email"] in recipients, f"actor recipient missing: {recipients}")
-        _assert(len(recipients) == len(set(recipients)), f"duplicate recipients: {recipients}")
         _assert(
-            delivered.json()["provider_message_id"] == "v1-demo-message-id",
-            "provider evidence missing",
+            analyst["email"] in recipients,
+            f"actor recipient missing: {recipients}",
         )
-
+        _assert(
+            len(recipients) == len(set(recipients)),
+            f"duplicate recipients: {recipients}",
+        )
     recorder.record(
         12,
         "Notification approved and delivered through configured provider",
@@ -418,12 +540,52 @@ def test_v1_demo_acceptance_flow(
             headers=headers,
             params={"organization_id": organization["id"]},
         )
-        _assert(
-            executed.status_code == 200 and executed.json()["status"] == "succeeded",
-            executed.text,
-        )
+        _assert(executed.status_code == 202, executed.text)
+        queued_job_id = uuid.UUID(executed.json()["id"])
+        with sessions() as db:
+            db.execute(
+                update(PlatformJob)
+                .where(
+                    PlatformJob.status.in_(
+                        [
+                            PlatformJobStatus.AVAILABLE,
+                            PlatformJobStatus.RETRY_WAIT,
+                            PlatformJobStatus.LEASED,
+                            PlatformJobStatus.RUNNING,
+                        ]
+                    ),
+                    PlatformJob.id != queued_job_id,
+                )
+                .values(status=PlatformJobStatus.CANCELLED)
+            )
+            queued_job = db.get(PlatformJob, queued_job_id)
+            assert queued_job is not None
+            queued_job.priority = 100
+            db.commit()
 
-    recorder.record(13, "Mock remediation proposal, approval, and execution completed", remediate)
+        worker = JobWorker(
+            sessions,
+            get_settings(),
+            f"v1-demo-remediation-{marker}",
+        )
+        _assert(worker.process_one(), "remediation worker did not acquire queued job")
+
+        with sessions() as db:
+            completed_job = db.get(PlatformJob, queued_job_id)
+            assert completed_job is not None
+            assert completed_job.status == PlatformJobStatus.SUCCEEDED
+            persisted = db.get(
+                RemediationRequest,
+                uuid.UUID(remediation["id"]),
+            )
+            assert persisted is not None
+            assert persisted.status == RemediationStatus.SUCCEEDED
+
+    recorder.record(
+        13,
+        "Mock remediation proposal, approval, and queued execution completed",
+        remediate,
+    )
 
     def schedule_run() -> None:
         created = client.post(
@@ -500,10 +662,91 @@ def test_v1_demo_acceptance_flow(
             params={"organization_id": organization["id"]},
         )
         _assert(
-            response.status_code == 200 and response.json()["status"] == "completed",
+            response.status_code == 202
+            and response.json()["status"] == "pending",
             response.text,
         )
 
+        scan_run_id = uuid.UUID(response.json()["id"])
+
+        with sessions() as db:
+            candidates = list(
+                db.scalars(
+                    select(PlatformJob)
+                    .where(
+                        PlatformJob.organization_id
+                        == uuid.UUID(organization["id"]),
+                        PlatformJob.status.in_(
+                            [
+                                PlatformJobStatus.AVAILABLE,
+                                PlatformJobStatus.RETRY_WAIT,
+                                PlatformJobStatus.LEASED,
+                                PlatformJobStatus.RUNNING,
+                            ]
+                        ),
+                    )
+                    .order_by(PlatformJob.created_at.desc())
+                )
+            )
+
+            queued = next(
+                (
+                    job
+                    for job in candidates
+                    if job.payload_json.get("scan_run_id")
+                    == str(scan_run_id)
+                ),
+                None,
+            )
+            assert queued is not None
+
+            db.execute(
+                update(PlatformJob)
+                .where(
+                    PlatformJob.id != queued.id,
+                    PlatformJob.status.in_(
+                        [
+                            PlatformJobStatus.AVAILABLE,
+                            PlatformJobStatus.RETRY_WAIT,
+                            PlatformJobStatus.LEASED,
+                            PlatformJobStatus.RUNNING,
+                        ]
+                    ),
+                )
+                .values(
+                    status=PlatformJobStatus.CANCELLED,
+                    worker_id=None,
+                    lease_token=None,
+                    lease_expires_at=None,
+                    completed_at=now_utc(),
+                )
+            )
+
+            queued.priority = 100
+            db.commit()
+
+        worker = JobWorker(
+            sessions,
+            get_settings(),
+            f"v1-demo-schedule-{marker}",
+        )
+
+        for job_name in (
+            "scheduled scan",
+            "discovery",
+            "evaluation",
+        ):
+            _assert(
+                worker.process_one() is True,
+                f"{job_name} worker processed no job",
+            )
+
+        with sessions() as db:
+            persisted_run = db.get(ScanRun, scan_run_id)
+            assert persisted_run is not None
+            assert persisted_run.status == ScanRunStatus.COMPLETED
+            assert persisted_run.discovery_job_id is not None
+            assert persisted_run.evaluation_job_id is not None
     recorder.record(
         14, "Schedule run-now route completed with deterministic delegates", schedule_run
     )

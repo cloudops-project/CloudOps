@@ -1,0 +1,221 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: cloudops_test
+          POSTGRES_USER: cloudops
+          POSTGRES_PASSWORD: cloudops_test_password
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U cloudops -d cloudops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: sqlite:///./cloudops_ci_test.db
+      POSTGRES_TEST_DATABASE_URL: postgresql+psycopg://cloudops:cloudops_test_password@localhost:5433/cloudops_test
+      JWT_SECRET_KEY: ci-local-verification-key-with-at-least-32-characters
+      APP_ENV: testing
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install package with development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Ruff
+        run: >-
+          python -m ruff check
+          app
+          alembic/versions/0014_distributed_platform_jobs.py
+          alembic/versions/0015_notification_delivery_evidence.py
+          alembic/versions/0016_governed_remediation.py
+          alembic/versions/0017_remediation_json_trigger.py
+          ../../scripts/migration_preflight.py
+          ../../scripts/deployment_smoke.py
+          ../../scripts/staging_smoke.py
+
+      - name: Mypy
+        run: python -m mypy app
+
+      - name: Dependency consistency
+        run: python -m pip check
+
+      - name: Dependency vulnerability audit
+        run: |
+          python -m pip install pip-audit
+          python -m pip-audit --skip-editable --progress-spinner off
+
+      - name: Backend tests
+        run: python -m pytest app/tests -ra
+
+      - name: Alembic - single head
+        run: |
+          python -m alembic heads | tee /tmp/alembic_heads.txt
+          test "$(wc -l < /tmp/alembic_heads.txt)" -eq 1
+
+      - name: Alembic - upgrade disposable PostgreSQL database
+        run: python -m alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+psycopg://cloudops:cloudops_test_password@localhost:5433/cloudops_test
+
+      - name: Alembic - current revision
+        run: python -m alembic current
+        env:
+          DATABASE_URL: postgresql+psycopg://cloudops:cloudops_test_password@localhost:5433/cloudops_test
+
+      - name: Alembic - schema check
+        run: python -m alembic check
+        env:
+          DATABASE_URL: postgresql+psycopg://cloudops:cloudops_test_password@localhost:5433/cloudops_test
+
+      - name: Migration preflight
+        run: python ../../scripts/migration_preflight.py
+        env:
+          DATABASE_URL: postgresql+psycopg://cloudops:cloudops_test_password@localhost:5433/cloudops_test
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install from lockfile
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm run test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Dependency vulnerability audit
+        run: npm audit --audit-level=high
+
+  containers:
+    name: Containers
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Build API image
+        run: docker build -f apps/api/Dockerfile -t cloudops-api:ci .
+
+      - name: Build production web image
+        run: docker build -f apps/web/Dockerfile -t cloudops-web:ci .
+
+      - name: Validate Compose configuration
+        run: docker compose -f compose.yml config --quiet
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks
+        run: >-
+          docker run --rm
+          -v "$PWD:/repo"
+          zricethezav/gitleaks:v8.28.0
+          detect --source=/repo --redact --no-banner
+
+  infrastructure:
+    name: Terraform and IaC security
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Terraform format
+        run: terraform fmt -check -recursive infra
+
+      - name: Terraform validate bootstrap
+        working-directory: infra/bootstrap
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Terraform validate environments
+        run: |
+          for environment in staging production; do
+            terraform -chdir="infra/environments/${environment}" init -backend=false
+            terraform -chdir="infra/environments/${environment}" validate
+          done
+
+      - name: Checkov
+        run: >-
+          docker run --rm
+          -v "$PWD:/workspace"
+          bridgecrew/checkov:3.2.471
+          --directory /workspace/infra
+          --framework terraform
+          --compact
+          --quiet

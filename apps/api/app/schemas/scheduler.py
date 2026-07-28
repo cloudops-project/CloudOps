@@ -24,6 +24,7 @@ class ScanScheduleResponse(ApiModel):
     enabled: bool
     created_by_user_id: uuid.UUID | None
     last_run_at: datetime | None
+    last_enqueued_at: datetime | None
     next_run_at: datetime | None
     created_at: datetime
     updated_at: datetime

@@ -1469,7 +1469,7 @@ describe("Stage 3 asset discovery", () => {
     );
     expect(
       fetchMock.mock.calls.filter(([input]) =>
-        new URL(String(input)).pathname.endsWith("/discover"),
+        new URL(String(input), "http://testserver").pathname.endsWith("/discover"),
       ),
     ).toHaveLength(1);
   });
@@ -1498,7 +1498,7 @@ describe("Stage 3 asset discovery", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(
       fetchMock.mock.calls.filter(([input]) =>
-        new URL(String(input)).pathname.endsWith("/discover"),
+        new URL(String(input), "http://testserver").pathname.endsWith("/discover"),
       ),
     ).toHaveLength(0);
   });

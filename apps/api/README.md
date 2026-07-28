@@ -50,7 +50,7 @@ persisted Stage 4 findings only; it performs no discovery, live AWS calls, or AI
 
 ## Stage 7 AI explanation assistant
 
-Migration `0009_stage7_ai_assistant` is the current head. It adds
+Migration `0009_stage7_ai_assistant` introduced the AI request schema. The current repository head is `0017_remediation_json_trigger`. It adds
 versioned prompt templates, tenant-scoped idempotent requests, immutable source
 references and structured responses, and organization-hour usage windows. The
 default mock provider is deterministic and offline. AI consumes bounded
@@ -61,8 +61,8 @@ execute remediation, or deliver Jira/email drafts.
 
 Stage 8A adds `GET /api/v1/dashboard/summary` as a read-only, organization-scoped dashboard
 contract. It derives posture from existing AWS account, asset, finding, compliance, risk, and
-AI-era records without creating dashboard snapshot tables or changing Alembic head
-`0009_stage7_ai_assistant`.
+AI-era records without creating dashboard snapshot tables. Later stages advance the repository Alembic head to
+`0017_remediation_json_trigger`.
 
 The response includes metadata, account posture, asset type/region distributions, finding
 status/severity/service/account summaries, recent critical/high findings without raw evidence,
@@ -98,8 +98,8 @@ CloudWatch alarms/log groups, and CloudTrail. Boto3 remains in discovery. Typed 
 `app/security_rules` evaluate persisted assets only. Evaluation/finding APIs enforce tenant
 scope and RBAC. Revisions `0005_stage4_rule_engine` and
 `0006_stage4_verification_repairs` add and harden evaluation jobs and findings. Stage 5
-compliance consumes that persisted evidence. Raw provider events, risk, AI, and remediation are
-not implemented.
+compliance consumes that persisted evidence. Later sections describe the implemented risk, AI,
+notification, job, and dry-run remediation boundaries.
 
 ## Stage 6 deterministic risk scoring
 

@@ -1,5 +1,17 @@
 ﻿# Deployment Strategy
 
+## Current release path (authoritative)
+
+The implemented GitHub Actions release pipeline uses short-lived OIDC identities, builds API/web once, generates SBOMs, scans images, pushes once, captures ECR digests, promotes those exact digests to staging, runs an additive one-shot migration, then moves ECS services. Production planning preserves the exact binary and JSON plan as review evidence; only the subsequent apply job enters the protected GitHub Environment. Production also requires the explicit workflow input and exact `ALLOW_PRODUCTION_DEPLOY=YES` variable.
+
+Terraform initially creates ECS services at zero tasks, and service resources deliberately ignore task-definition and desired-count drift. This lets infrastructure register new definitions without starting a new environment or moving existing services before the migration succeeds. After migration, the workflow activates the declared target counts and exact task definitions. Production records prior task definitions and restores them on rollout or smoke failure; schema downgrade is never automatic.
+
+Required evidence is the release manifest, SBOMs, scan output, reviewed Terraform plan JSON, migration task ARN/exit code, service events, alarm states, smoke output, approver, and final task definitions.
+
+The workflow and Terraform are implemented but have not been run against AWS staging or production. Cloud-side state, OIDC, ECR, secret content, ACM/DNS, SES, Bedrock, alerting, and protected-environment prerequisites remain external gates.
+
+The historical text below predates the implemented Docker, Terraform, and pipeline files and is retained only as planning history.
+
 ## Purpose and audience
 
 Platform, security, and engineering teams use this proposed path for later deployment. Stage 0 creates no Dockerfiles, Terraform resources, pipelines, or cloud services.

@@ -25,9 +25,10 @@ class RemediationExecutor(Protocol):
     def execute(
         self,
         *,
-        rule_key: str,
+        action_key: str,
         finding_id: uuid.UUID,
-        context: dict[str, object],
+        snapshot_hash: str,
+        dry_run: bool,
     ) -> RemediationExecutionResult: ...
 
 
@@ -47,22 +48,29 @@ class MockRemediationExecutor:
     def execute(
         self,
         *,
-        rule_key: str,
+        action_key: str,
         finding_id: uuid.UUID,
-        context: dict[str, object],
+        snapshot_hash: str,
+        dry_run: bool,
     ) -> RemediationExecutionResult:
         self.invocations += 1
         before_state = {
             "simulated": True,
-            "rule_key": rule_key,
+            "action_key": action_key,
             "finding_id": str(finding_id),
+            "snapshot_hash": snapshot_hash,
+            "dry_run": dry_run,
             "attempt": self.invocations,
         }
         if self.fault_mode == "success":
             return RemediationExecutionResult(
                 outcome=RemediationExecutionOutcome.SUCCESS,
                 before_state=before_state,
-                after_state={"simulated_remediated": True, **context},
+                after_state={
+                    "simulated_remediated": True,
+                    "action_key": action_key,
+                    "dry_run": dry_run,
+                },
             )
         if self.fault_mode == "always_fail":
             return RemediationExecutionResult(
@@ -79,5 +87,9 @@ class MockRemediationExecutor:
         return RemediationExecutionResult(
             outcome=RemediationExecutionOutcome.SUCCESS,
             before_state=before_state,
-            after_state={"simulated_remediated": True, **context},
+            after_state={
+                "simulated_remediated": True,
+                "action_key": action_key,
+                "dry_run": dry_run,
+            },
         )

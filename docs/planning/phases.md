@@ -1,5 +1,9 @@
 # Implementation Phases
 
+> **Superseded planning snapshot:** [../../phases.md](../../phases.md) is the authoritative current
+> stage map. Branch names, migration heads, test counts, and completion statements below are
+> historical evidence only and must not be used as current status.
+
 ## Current delivery status
 
 Stages 1-8 are independently clean-room verified, merged, and regression-tested in `main` at

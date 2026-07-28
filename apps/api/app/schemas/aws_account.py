@@ -33,7 +33,6 @@ class AWSAccountResponse(ApiModel):
     name: str
     account_id: str
     role_arn: str | None
-    external_id: str
     status: AWSAccountStatus
     connection_status: AWSAccountStatus
     failure_reason: str | None
@@ -45,6 +44,11 @@ class AWSAccountResponse(ApiModel):
 
 class AWSAccountDetailResponse(ApiModel):
     account: AWSAccountResponse
+
+
+class AWSAccountOnboardingResponse(ApiModel):
+    account: AWSAccountResponse
+    external_id: str
     trust_policy: dict[str, Any]
     permission_policy: dict[str, str]
     onboarding_instructions: list[str]

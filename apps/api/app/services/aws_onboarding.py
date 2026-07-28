@@ -17,6 +17,7 @@ from app.models import AWSAccount, AWSExternalIDReservation, OrganizationMembers
 from app.models.enums import AuditResult, AWSAccountStatus
 from app.repositories.data import Repository
 from app.security.rbac import Capability, role_has_capability
+from app.services.aws_credentials import AWSConnectionFailure, TenantRoleCredentialProvider
 from app.services.common import now_utc, record_audit
 from app.services.organizations import OrganizationService
 
@@ -25,14 +26,8 @@ ROLE_ARN_PATTERN = re.compile(
     r"^arn:(aws|aws-us-gov|aws-cn):iam::(?P<account_id>[0-9]{12}):role/(?P<role>[A-Za-z0-9+=,.@_/-]{1,512})$"
 )
 PRINCIPAL_ARN_PATTERN = re.compile(
-    r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:(root|role/[A-Za-z0-9+=,.@_/-]+)$"
+    r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:(root|role/[A-Za-z0-9+=,.@_/-]+|user/[A-Za-z0-9+=,.@_/-]+)$"
 )
-
-
-class AWSConnectionFailure(Exception):
-    def __init__(self, reason: str) -> None:
-        super().__init__(reason)
-        self.reason = reason
 
 
 class AWSOnboardingService:
@@ -138,7 +133,7 @@ class AWSOnboardingService:
         # Account creation always returns onboarding trust policy details.
         # Validate the service principal before reserving an external ID or
         # committing anything, so a 503 cannot leave a hidden account behind.
-        self._trusted_principal()
+        self._trusted_principals()
         provider_account_id = self.validate_account_id(account_id)
         if self.repo.aws_account_by_provider_id(organization_id, provider_account_id):
             raise ConflictError(
@@ -222,27 +217,21 @@ class AWSOnboardingService:
         account, _ = self._require_account(account_id, actor, Capability.AWS_ACCOUNTS_READ)
         return account
 
+    def get_onboarding_account(self, account_id: uuid.UUID, actor: User) -> AWSAccount:
+        account, _ = self._require_account(account_id, actor, Capability.AWS_ACCOUNTS_MANAGE)
+        self._audit("aws.account.onboarding_material_accessed", account, actor.id)
+        self.db.commit()
+        return account
+
     def assume_role(self, account: AWSAccount) -> str:
-        credentials = self.assume_role_credentials(account)
-        try:
-            assumed_sts = self.sts_client_factory(
-                "sts",
-                config=self.settings.aws_client_config,
-                aws_access_key_id=credentials["AccessKeyId"],
-                aws_secret_access_key=credentials["SecretAccessKey"],
-                aws_session_token=credentials["SessionToken"],
-            )
-            identity = assumed_sts.get_caller_identity()
-            return str(identity["Account"])
-        except ClientError as exc:
-            code = str(exc.response.get("Error", {}).get("Code", "client_error"))
-            safe_code = re.sub(r"[^a-z0-9]+", "_", code.casefold()).strip("_")
-            raise AWSConnectionFailure(f"sts_{safe_code or 'client_error'}") from exc
-        except (BotoCoreError, KeyError, TypeError) as exc:
-            raise AWSConnectionFailure("sts_validation_failed") from exc
+        return TenantRoleCredentialProvider(
+            account,
+            self.settings,
+            sts_client_factory=self.sts_client_factory,
+        ).validate_account()
 
     def assume_role_credentials(self, account: AWSAccount) -> dict[str, str]:
-        """Return short-lived STS credentials for immediate in-memory use only."""
+        """Legacy validation helper; discovery uses TenantRoleCredentialProvider."""
         if account.role_arn is None:
             raise AWSConnectionFailure("role_arn_missing")
         try:
@@ -262,9 +251,9 @@ class AWSOnboardingService:
         except ClientError as exc:
             code = str(exc.response.get("Error", {}).get("Code", "client_error"))
             safe_code = re.sub(r"[^a-z0-9]+", "_", code.casefold()).strip("_")
-            raise AWSConnectionFailure(f"sts_{safe_code or 'client_error'}") from exc
-        except (BotoCoreError, KeyError, TypeError) as exc:
-            raise AWSConnectionFailure("sts_validation_failed") from exc
+            raise AWSConnectionFailure(f"sts_{safe_code or 'client_error'}") from None
+        except (BotoCoreError, KeyError, TypeError):
+            raise AWSConnectionFailure("sts_validation_failed") from None
 
     def validate_connection(self, account_id: uuid.UUID, actor: User) -> AWSAccount:
         account, _ = self._require_account(account_id, actor, for_update=True)
@@ -336,7 +325,8 @@ class AWSOnboardingService:
         self.db.commit()
 
     def trust_policy(self, account: AWSAccount) -> dict[str, Any]:
-        principal = self._trusted_principal()
+        principals = self._trusted_principals()
+        principal: str | list[str] = principals[0] if len(principals) == 1 else principals
         return {
             "Version": "2012-10-17",
             "Statement": [
@@ -349,15 +339,26 @@ class AWSOnboardingService:
             ],
         }
 
-    def _trusted_principal(self) -> str:
-        principal = self.settings.aws_trusted_principal_arn.strip()
-        if not PRINCIPAL_ARN_PATTERN.fullmatch(principal):
+    def _trusted_principals(self) -> list[str]:
+        configured = [
+            principal.strip()
+            for principal in self.settings.aws_trusted_principal_arns.split(",")
+            if principal.strip()
+        ]
+        if not configured and self.settings.aws_trusted_principal_arn.strip():
+            configured = [self.settings.aws_trusted_principal_arn.strip()]
+        principals = list(dict.fromkeys(configured))
+        if (
+            not principals
+            or len(principals) > 4
+            or any(not PRINCIPAL_ARN_PATTERN.fullmatch(principal) for principal in principals)
+        ):
             raise AppError(
                 "aws_principal_not_configured",
-                "CloudOps AWS trusted principal is not configured.",
+                "CloudOps AWS trusted principals are not configured.",
                 503,
             )
-        return principal
+        return principals
 
     @staticmethod
     def permission_policy() -> dict[str, str]:

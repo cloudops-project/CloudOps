@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings, get_settings
 from app.exceptions.errors import ConflictError, NotFoundError
 from app.models import Finding, RemediationRequest, User
 from app.models.enums import (
@@ -15,7 +17,12 @@ from app.models.enums import (
     RemediationStatus,
 )
 from app.security_rules import RuleRegistry, default_registry
+from app.services.ai_safety import canonical_json
 from app.services.common import now_utc, record_audit
+from app.services.remediation_actions import (
+    RemediationActionRegistry,
+    default_remediation_actions,
+)
 from app.services.remediation_executor import (
     MockRemediationExecutor,
     RemediationExecutionOutcome,
@@ -41,10 +48,14 @@ class RemediationService:
         db: Session,
         executor: RemediationExecutor | None = None,
         registry: RuleRegistry = default_registry,
+        action_registry: RemediationActionRegistry = default_remediation_actions,
+        settings: Settings | None = None,
     ) -> None:
         self.db = db
         self.executor = executor or MockRemediationExecutor()
         self.registry = registry
+        self.action_registry = action_registry
+        self.settings = settings or get_settings()
 
     def _get_finding(self, organization_id: uuid.UUID, finding_id: uuid.UUID) -> Finding:
         finding = self.db.scalar(
@@ -93,6 +104,55 @@ class RemediationService:
             rule.remediation if rule else "Review the finding evidence and remediate manually."
         )
         rule_version = rule.version if rule else finding.rule_version
+        action = self.action_registry.for_rule(finding.rule_key)
+        action_key = action.key if action else "manual.review"
+        action_version = action.version if action else 1
+        preview_steps = (
+            list(action.preview_steps)
+            if action
+            else ["Review the immutable finding snapshot and plan a manual change."]
+        )
+        verification_steps = (
+            list(action.verification_steps)
+            if action
+            else [
+                "Re-run discovery and evaluation for the affected AWS account.",
+                f"Confirm rule {finding.rule_key} no longer produces this finding.",
+            ]
+        )
+        rollback_steps = (
+            list(action.rollback_steps)
+            if action
+            else [
+                "Use the organization's approved change rollback procedure.",
+            ]
+        )
+        snapshot = {
+            "schema_version": 1,
+            "organization_id": str(organization_id),
+            "aws_account_id": str(finding.aws_account_id),
+            "finding_id": str(finding.id),
+            "asset_id": str(finding.asset_id) if finding.asset_id else None,
+            "rule_key": finding.rule_key,
+            "rule_version": rule_version,
+            "finding_evidence_hash": hashlib.sha256(
+                canonical_json(finding.evidence_json).encode()
+            ).hexdigest(),
+            "action_key": action_key,
+            "action_version": action_version,
+            "execution_mode": (
+                RemediationExecutionMode.MOCK_AUTOMATION.value
+                if action
+                else RemediationExecutionMode.MANUAL.value
+            ),
+            "dry_run": True,
+            "timeout_seconds": action.timeout_seconds if action else 0,
+            "max_attempts": action.max_attempts if action else 0,
+        }
+        snapshot_hash = hashlib.sha256(canonical_json(snapshot).encode()).hexdigest()
+        idempotency_key = hashlib.sha256(
+            f"{organization_id}:{finding.id}:{snapshot_hash}".encode()
+        ).hexdigest()
 
         candidate = RemediationRequest(
             organization_id=organization_id,
@@ -100,21 +160,30 @@ class RemediationService:
             finding_id=finding.id,
             rule_key=finding.rule_key,
             rule_version=rule_version,
+            action_key=action_key,
+            action_version=action_version,
+            idempotency_key=idempotency_key,
             requested_by_user_id=requester.id,
-            execution_mode=RemediationExecutionMode.MOCK_AUTOMATION,
-            automation_eligible=True,
-            title=f"Remediate {rule_name}",
+            execution_mode=(
+                RemediationExecutionMode.MOCK_AUTOMATION
+                if action
+                else RemediationExecutionMode.MANUAL
+            ),
+            automation_eligible=action is not None,
+            title=action.title if action else f"Remediate {rule_name}",
             summary=rule_description,
             remediation_steps_json=[rule_remediation],
-            verification_steps_json=[
-                "Re-run discovery and evaluation for the affected AWS account.",
-                f"Confirm rule {finding.rule_key} no longer produces this finding.",
-            ],
-            rollback_steps_json=[
-                "Mock automation makes no AWS changes in Version 1; no rollback is required.",
-                "If a manual change was made outside this workflow, revert it using your "
-                "organization's standard change-management process.",
-            ],
+            verification_steps_json=verification_steps,
+            rollback_steps_json=rollback_steps,
+            preview_json={
+                "action_key": action_key,
+                "action_version": action_version,
+                "steps": preview_steps,
+                "dry_run": True,
+            },
+            request_snapshot_json=snapshot,
+            request_snapshot_hash=snapshot_hash,
+            dry_run=True,
         )
         try:
             with self.db.begin_nested():
@@ -143,7 +212,9 @@ class RemediationService:
         )
         return candidate
 
-    def _get_scoped(self, organization_id: uuid.UUID, request_id: uuid.UUID) -> RemediationRequest:
+    def get_scoped(
+        self, organization_id: uuid.UUID, request_id: uuid.UUID
+    ) -> RemediationRequest:
         request = self.db.scalar(
             select(RemediationRequest).where(
                 RemediationRequest.id == request_id,
@@ -159,7 +230,15 @@ class RemediationService:
     def approve(
         self, organization_id: uuid.UUID, request_id: uuid.UUID, approver: User
     ) -> RemediationRequest:
-        request = self._get_scoped(organization_id, request_id)
+        request = self.get_scoped(organization_id, request_id)
+        if (
+            hashlib.sha256(canonical_json(request.request_snapshot_json).encode()).hexdigest()
+            != request.request_snapshot_hash
+        ):
+            raise ConflictError(
+                "remediation_snapshot_changed",
+                "The remediation preview changed and cannot be approved.",
+            )
         if request.status == RemediationStatus.APPROVED:
             return request
         if request.status != RemediationStatus.PENDING_APPROVAL:
@@ -170,6 +249,7 @@ class RemediationService:
         request.status = RemediationStatus.APPROVED
         request.approved_at = now_utc()
         request.approved_by_user_id = approver.id
+        request.approved_snapshot_hash = request.request_snapshot_hash
         self.db.flush()
         record_audit(
             self.db,
@@ -188,7 +268,7 @@ class RemediationService:
         rejector: User,
         reason: str,
     ) -> RemediationRequest:
-        request = self._get_scoped(organization_id, request_id)
+        request = self.get_scoped(organization_id, request_id)
         if request.status == RemediationStatus.REJECTED:
             return request
         if request.status != RemediationStatus.PENDING_APPROVAL:
@@ -215,7 +295,7 @@ class RemediationService:
     def cancel(
         self, organization_id: uuid.UUID, request_id: uuid.UUID, actor: User
     ) -> RemediationRequest:
-        request = self._get_scoped(organization_id, request_id)
+        request = self.get_scoped(organization_id, request_id)
         if request.status == RemediationStatus.CANCELLED:
             return request
         if request.status not in (
@@ -239,14 +319,20 @@ class RemediationService:
         )
         return request
 
-    def execute(self, organization_id: uuid.UUID, request_id: uuid.UUID) -> RemediationRequest:
+    def execute(
+        self,
+        organization_id: uuid.UUID,
+        request_id: uuid.UUID,
+        *,
+        execution_lease_id: uuid.UUID,
+    ) -> RemediationRequest:
         """Attempt mock execution of an APPROVED remediation request exactly
         once per call. A retryable failure leaves the request APPROVED with
         an incremented attempt_count; the third failed attempt transitions
         the request to FAILED. Only MOCK_AUTOMATION requests are
         executable; MANUAL and JIRA_DRAFT requests are informational only
         and are rejected here."""
-        request = self._get_scoped(organization_id, request_id)
+        request = self.get_scoped(organization_id, request_id)
         if request.status != RemediationStatus.APPROVED:
             raise ConflictError(
                 "remediation_invalid_transition",
@@ -257,13 +343,57 @@ class RemediationService:
                 "remediation_not_automatable",
                 "Only mock_automation requests can be executed in Version 1.",
             )
+        if not self.settings.remediation_execution_enabled:
+            raise ConflictError(
+                "remediation_execution_disabled",
+                "Remediation execution is disabled by the operator kill switch.",
+            )
+        if self.settings.remediation_live_aws_enabled:
+            raise ConflictError(
+                "remediation_live_execution_unavailable",
+                "Live AWS remediation is not implemented or enabled for this release.",
+            )
+        calculated_hash = hashlib.sha256(
+            canonical_json(request.request_snapshot_json).encode()
+        ).hexdigest()
+        if (
+            calculated_hash != request.request_snapshot_hash
+            or request.approved_snapshot_hash != request.request_snapshot_hash
+        ):
+            raise ConflictError(
+                "remediation_snapshot_changed",
+                "The approved remediation snapshot no longer matches the execution request.",
+            )
+        action = self.action_registry.get(request.action_key)
+        if (
+            action is None
+            or action.version != request.action_version
+            or request.rule_key not in action.rule_keys
+        ):
+            raise ConflictError(
+                "remediation_action_not_allowed",
+                "The remediation action is not in the deterministic allowlist.",
+            )
+        finding = self._get_finding(organization_id, request.finding_id)
+        evidence_hash = hashlib.sha256(
+            canonical_json(finding.evidence_json).encode()
+        ).hexdigest()
+        if (
+            finding.status != FindingStatus.OPEN
+            or finding.rule_key != request.rule_key
+            or evidence_hash
+            != request.request_snapshot_json.get("finding_evidence_hash")
+        ):
+            raise ConflictError(
+                "remediation_precondition_changed",
+                "The finding changed after approval; create and approve a new preview.",
+            )
+        request.execution_lease_id = execution_lease_id
         result = self.executor.execute(
-            rule_key=request.rule_key,
+            action_key=request.action_key,
             finding_id=request.finding_id,
-            context={
-                "organization_id": str(organization_id),
-                "aws_account_id": str(request.aws_account_id),
-            },
+            snapshot_hash=request.request_snapshot_hash,
+            dry_run=request.dry_run,
         )
         request.attempt_count += 1
         request.before_state_json = result.before_state

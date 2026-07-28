@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1 import router as api_router
 from app.api.v1.health import router as health_router
@@ -13,19 +12,27 @@ from app.logging.middleware import (
     AuthenticationRateLimitMiddleware,
     CookieOriginMiddleware,
     RequestContextMiddleware,
+    SecurityHeadersMiddleware,
 )
+from app.security.trusted_host import HealthCheckTrustedHostMiddleware
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings.log_level)
     application = FastAPI(title=settings.app_name, version="1.0.0")
-    application.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+    application.add_middleware(
+        SecurityHeadersMiddleware, hsts_enabled=settings.hsts_enabled
+    )
+    application.add_middleware(
+        HealthCheckTrustedHostMiddleware,
+        allowed_hosts=settings.allowed_hosts,
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
     application.add_middleware(

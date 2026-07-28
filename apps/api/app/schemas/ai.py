@@ -9,6 +9,16 @@ from pydantic import Field
 from app.models.enums import AIRequestStatus, AISourceType, AITaskType
 from app.schemas.common import ApiModel
 
+AIOptionKey = Annotated[
+    str,
+    Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.:-]+$"),
+]
+AIOptionValue = (
+    Annotated[str, Field(max_length=500)]
+    | Annotated[int, Field(ge=-1_000_000, le=1_000_000)]
+    | bool
+)
+
 
 class AISourceInput(ApiModel):
     source_type: AISourceType
@@ -20,7 +30,7 @@ class AIGenerateRequest(ApiModel):
     task_type: AITaskType
     sources: list[AISourceInput] = Field(min_length=1, max_length=20)
     idempotency_key: str = Field(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")
-    options: dict[str, str | int | bool] = Field(default_factory=dict, max_length=10)
+    options: dict[AIOptionKey, AIOptionValue] = Field(default_factory=dict, max_length=10)
 
 
 class AIShortcutRequest(ApiModel):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,10 +17,11 @@ from app.models.enums import (
     MembershipStatus,
     OrganizationRole,
 )
-from app.services.aws_onboarding import AWSOnboardingService
+from app.services.aws_credentials import TenantRoleCredentialProvider
 from app.services.discovery import DiscoveryOrchestrator, IAMDiscoveryService
-from app.tests.conftest import register_and_login
+from app.tests.conftest import TestingSession, register_and_login
 from app.tests.test_discovery import FakeService, asset, organization_and_account
+from app.worker.job_worker import JobWorker
 
 
 class Pages:
@@ -42,22 +43,21 @@ def test_discovery_clients_receive_bounded_timeout_and_retry_config(
         external_id="cloudops-test",
         created_by_user_id=uuid.uuid4(),
     )
-    monkeypatch.setattr(
-        AWSOnboardingService,
-        "assume_role_credentials",
-        lambda *_args: {
-            "AccessKeyId": "temporary",
-            "SecretAccessKey": "temporary",
-            "SessionToken": "temporary",
-        },
-    )
     calls: list[dict[str, Any]] = []
 
-    def client(_service: str, **kwargs: Any) -> object:
-        calls.append(kwargs)
+    def client(
+        _self: TenantRoleCredentialProvider, service: str, region: str | None
+    ) -> object:
+        calls.append(
+            {
+                "service": service,
+                "region": region,
+                "config": _self.settings.aws_client_config,
+            }
+        )
         return object()
 
-    monkeypatch.setattr("app.services.discovery.boto3.client", client)
+    monkeypatch.setattr(TenantRoleCredentialProvider, "client", client)
     factory = DiscoveryOrchestrator(db, get_settings())._assumed_client_factory(account)
     factory("ec2", "us-east-1")
     config = calls[0]["config"]
@@ -68,8 +68,11 @@ def test_discovery_clients_receive_bounded_timeout_and_retry_config(
 
 def test_every_iam_operation_handles_multiple_pages_and_duplicates() -> None:
     class IAM:
+        tag_calls: ClassVar[list[str]] = []
+
         def get_paginator(self, operation: str) -> Pages:
             if operation.endswith("_tags"):
+                self.tag_calls.append(operation)
                 return Pages([{"Tags": []}, {"Tags": []}])
             values = {
                 "list_users": ("Users", "UserId", "UserName", "U"),
@@ -100,6 +103,11 @@ def test_every_iam_operation_handles_multiple_pages_and_duplicates() -> None:
         AssetType.IAM_POLICY,
     ):
         assert len([item for item in assets if item.asset_type == asset_type]) == 2
+    # IAM groups do not support the tagging API; a regression that calls
+    # list_group_tags for either group asset must fail here.
+    assert IAM.tag_calls == ["list_user_tags"] * 2 + ["list_role_tags"] * 2 + [
+        "list_policy_tags"
+    ] * 2
 
 
 @pytest.mark.parametrize(
@@ -215,9 +223,9 @@ def test_complete_api_discovery_uses_every_collector_and_exposes_safe_details(
         lambda *_args: lambda service, _region: clients[service],
     )
     response = client.post(f"/api/v1/aws/accounts/{account.id}/discover", headers=headers)
-    assert response.status_code == 201
-    assert response.json()["status"] == "completed"
-    assert response.json()["assets_discovered"] == 13
+    assert response.status_code == 202
+    assert response.json()["status"] == "available"
+    assert JobWorker(TestingSession, get_settings(), "complete-discovery-test").process_one()
     assert db.scalar(select(func.count()).select_from(Asset)) == 7
     events = set(db.scalars(select(AuditEvent.event_type)).all())
     assert {"aws.discovery.started", "aws.discovery.completed"} <= events
@@ -410,12 +418,12 @@ def test_complete_discovery_rbac_and_membership_matrix(
         client.post(
             f"/api/v1/aws/accounts/{account.id}/discover", headers=owner_headers
         ).status_code
-        == 201
+        == 202
     )
     for role, headers, _membership in identities:
         response = client.post(f"/api/v1/aws/accounts/{account.id}/discover", headers=headers)
         expected = (
-            201
+            202
             if role
             in {
                 OrganizationRole.ADMIN,

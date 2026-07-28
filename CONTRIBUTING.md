@@ -1,26 +1,21 @@
-﻿# Contributing to CloudOps
+# Contributing to CloudFix
 
-## Purpose and audience
-
-This guide defines collaboration rules for all contributors and reviewers during Stage 0 and later implementation stages.
-
-## Before contributing
-
-Work from a linked issue with acceptance criteria. During Stage 0, submit only documentation, governance, planning, or non-executable configuration. Do not initialize frameworks, add dependencies, credentials, workflow YAML, or cloud resources. Review [development rules](docs/engineering/development-rules.md), [Git workflow](docs/engineering/git-workflow.md), and the [definition of done](docs/engineering/definition-of-done.md).
+CloudFix uses the CloudOps name in runtime components and historical records. Contributors must treat current source, migrations, tests, infrastructure definitions, and workflows as stronger evidence than older planning text.
 
 ## Workflow
 
-1. Branch from protected `main` using `feature/<issue>-description`, `fix/<issue>-description`, `docs/<issue>-description`, or `research/<issue>-description`.
-2. Make focused commits using Conventional Commits, for example `docs(architecture): define STS trust boundary`.
-3. Keep documentation consistent: Version 1 covers EC2, S3, and IAM; AI is advisory; scans are read-only; remediation requires approval.
-4. Open a pull request, link the issue, complete the checklist, and request at least one independent reviewer.
-5. Obtain designated security/architecture review for authorization, tenancy, IAM, remediation, audit, secrets, AI data handling, or schema-boundary changes.
-6. Squash merge after checks and review; delete the short-lived branch.
+1. Start from the approved baseline and a short-lived `feature/`, `fix/`, `docs/`, or `research/` branch.
+2. Link work to acceptance criteria and keep changes focused.
+3. Stage reviewed files explicitly, for example `git add -- docs/file-one.md docs/file-two.md`.
+4. Use Conventional Commits such as `docs(architecture): reconcile current job flow`.
+5. Run proportionate checks and record whether evidence is local, reported, or externally retained.
+6. Open a pull request; obtain independent review and designated security/architecture review for authorization, tenancy, IAM, remediation, audit, secrets, AI data handling, or schema-boundary changes.
+7. Merge only through the protected branch process after required checks and approvals.
+
+Never commit secrets, use broad staging, push directly to shared branches, force-push shared branches, deploy without authorization, or test live AWS without explicit opt-in. Version 1 remains EC2/S3/IAM focused; deterministic rules detect findings; AI is advisory; remediation is dry-run only unless future code and authorization prove otherwise.
 
 ## Review expectations
 
-Reviewers verify correctness, tenant isolation, least privilege, failure behavior, accessibility, test implications, auditability, and documentation impact. Authors must not approve their own PR. Material architectural changes require an ADR. Never post vulnerabilities or secrets in public issues; follow [SECURITY.md](SECURITY.md).
+Review correctness, tenant isolation, least privilege, failure behavior, accessibility, tests, auditability, migration safety, operations, and documentation impact. Authors do not approve their own changes. Material architecture changes require an ADR. Report vulnerabilities through [SECURITY.md](SECURITY.md), never through a public issue.
 
-## Governance proposals
-
-Recommended repository settings are a private repository, protected `main`, pull requests required, one approval minimum, stale approval dismissal, resolved conversations, and restricted force-push/deletion. Dependabot, secret scanning, and code scanning are future setup work; enabling them is not part of Stage 0.
+Repository protection, required reviewers, secret scanning, dependency automation, and code scanning are externally administered controls. Their live configuration must be verified rather than inferred from repository files.

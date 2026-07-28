@@ -3,10 +3,10 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy import func, select
 
-from app.dependencies.auth import CurrentUser, DbSession
+from app.dependencies.auth import AppSettings, CurrentUser, DbSession, UserRateLimiter
 from app.exceptions.errors import NotFoundError
 from app.models import AIRequest, AIRequestSource
 from app.models.enums import AIRequestStatus, AISourceType, AITaskType
@@ -21,7 +21,15 @@ from app.security.rbac import Capability
 from app.services.ai import AIService
 from app.services.organizations import OrganizationService
 
-router = APIRouter()
+_generation_rate_limit = UserRateLimiter("ai_generation", limit=10, window_seconds=60)
+
+
+def _limit_ai_mutations(request: Request, user: CurrentUser, settings: AppSettings) -> None:
+    if request.method == "POST":
+        _generation_rate_limit(user, settings)
+
+
+router = APIRouter(dependencies=[Depends(_limit_ai_mutations)])
 
 
 def _shortcut(

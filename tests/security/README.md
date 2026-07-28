@@ -1,9 +1,7 @@
-﻿# Security Tests — Stage 0 Placeholder
+# Security Testing
 
-## Purpose and audience
+Security, QA, and feature owners use the [threat model](../../docs/architecture/threat-model.md) and automated tests to evaluate tenant isolation, authorization, data handling, and provider boundaries.
 
-Security, QA, and feature owners will use this area for automated and authorized manual tests based on the [threat model](../../docs/architecture/threat-model.md).
+Automated security coverage is implemented primarily under [../../apps/api/app/tests](../../apps/api/app/tests), including tenant isolation, authorization, secret redaction, workload identity, durable-job safety, remediation governance, notification safety, and mocked provider behavior.
 
-Coverage will include cross-tenant access, IDOR/mass assignment, auth/session/CSRF, injection/XSS/SSRF, abuse/rate/replay, IAM and confused deputy, queue/remediation idempotency, secret/log leakage, AI prompt injection/disclosure, webhook forgery, audit integrity, and restore behavior.
-
-No scanner, exploit, test code, credentials, target, or claimed result exists in Stage 0. Testing outside explicitly authorized environments is prohibited.
+Repository evidence does not prove live penetration testing, live AWS validation, or backup restoration. Testing outside explicitly authorized environments is prohibited.

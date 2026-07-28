@@ -1,0 +1,15 @@
+aws_region         = "us-east-1"
+availability_zones = ["us-east-1a", "us-east-1b"]
+
+api_image = "000000000000.dkr.ecr.us-east-1.amazonaws.com/cloudops-production-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+web_image = "000000000000.dkr.ecr.us-east-1.amazonaws.com/cloudops-production-web@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+allowed_origins = ["https://cloudops.example.com"]
+frontend_url    = "https://cloudops.example.com"
+trusted_hosts   = ["cloudops.example.com"]
+
+customer_role_arns = ["arn:aws:iam::000000000000:role/CloudOpsDiscoveryRole"]
+bedrock_model_arn  = "arn:aws:bedrock:us-east-1::foundation-model/replace-with-approved-model"
+bedrock_model_id   = "replace-with-approved-model"
+ses_identity_arn   = "arn:aws:ses:us-east-1:000000000000:identity/cloudops.example.com"
+certificate_arn    = "arn:aws:acm:us-east-1:000000000000:certificate/00000000-0000-0000-0000-000000000000"

@@ -3,19 +3,25 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, select
 
-from app.dependencies.auth import CurrentUser, DbSession
+from app.dependencies.auth import CurrentUser, DbSession, UserRateLimiter
 from app.exceptions.errors import NotFoundError
-from app.models import NotificationEvent
+from app.models import NotificationDeliveryAttempt, NotificationEvent
 from app.models.enums import NotificationChannel, NotificationStatus
-from app.schemas.notification import NotificationEventListResponse, NotificationEventResponse
+from app.schemas.notification import (
+    NotificationDeliveryAttemptResponse,
+    NotificationEventListResponse,
+    NotificationEventResponse,
+)
+from app.schemas.platform_job import PlatformJobResponse
 from app.security.rbac import Capability
 from app.services.notifications import NotificationService
 from app.services.organizations import OrganizationService
 
 router = APIRouter()
+_delivery_rate_limit = UserRateLimiter("notification_delivery", limit=10, window_seconds=60)
 
 
 def _require_read(db: DbSession, user: CurrentUser, organization_id: uuid.UUID) -> None:
@@ -84,6 +90,38 @@ def notification_detail(
     return item
 
 
+@router.get(
+    "/notifications/{event_id}/attempts",
+    response_model=list[NotificationDeliveryAttemptResponse],
+)
+def notification_delivery_attempts(
+    event_id: uuid.UUID,
+    user: CurrentUser,
+    db: DbSession,
+    organization_id: Annotated[uuid.UUID, Query()],
+) -> list[NotificationDeliveryAttempt]:
+    _require_read(db, user, organization_id)
+    event = db.scalar(
+        select(NotificationEvent.id).where(
+            NotificationEvent.id == event_id,
+            NotificationEvent.organization_id == organization_id,
+        )
+    )
+    if event is None:
+        raise NotFoundError("notification_event_not_found", "Notification event was not found.")
+    return list(
+        db.scalars(
+            select(NotificationDeliveryAttempt)
+            .where(
+                NotificationDeliveryAttempt.notification_event_id == event_id,
+                NotificationDeliveryAttempt.organization_id == organization_id,
+            )
+            .order_by(NotificationDeliveryAttempt.attempt_number)
+            .limit(20)
+        ).all()
+    )
+
+
 @router.post("/notifications/{event_id}/approve", response_model=NotificationEventResponse)
 def approve_notification(
     event_id: uuid.UUID,
@@ -97,14 +135,35 @@ def approve_notification(
     return event
 
 
-@router.post("/notifications/{event_id}/deliver", response_model=NotificationEventResponse)
-def deliver_notification(
+@router.post(
+    "/notifications/{event_id}/revoke-approval",
+    response_model=NotificationEventResponse,
+)
+def revoke_notification_approval(
     event_id: uuid.UUID,
     user: CurrentUser,
     db: DbSession,
     organization_id: Annotated[uuid.UUID, Query()],
 ) -> NotificationEvent:
     _require_approve(db, user, organization_id)
-    event = NotificationService(db).deliver(organization_id, event_id)
+    event = NotificationService(db).revoke_approval(organization_id, event_id, user)
     db.commit()
     return event
+
+
+@router.post(
+    "/notifications/{event_id}/deliver",
+    response_model=PlatformJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(_delivery_rate_limit)],
+)
+def deliver_notification(
+    event_id: uuid.UUID,
+    user: CurrentUser,
+    db: DbSession,
+    organization_id: Annotated[uuid.UUID, Query()],
+) -> PlatformJobResponse:
+    _require_approve(db, user, organization_id)
+    job = NotificationService(db).enqueue_delivery(organization_id, event_id, user)
+    db.commit()
+    return PlatformJobResponse.model_validate(job)

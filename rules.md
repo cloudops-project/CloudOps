@@ -1,278 +1,179 @@
-# CloudOps Development Rules
+# CloudFix Development Rules
 
-## Scope and authority
+These rules govern AI-assisted and human changes. See [PRD.md](PRD.md),
+[architecture.md](architecture.md), [phases.md](phases.md), and [memory.md](memory.md).
 
-These rules govern current CloudOps development. More detailed policies remain under
-`docs/engineering/`. When documents conflict, stop and resolve the contradiction before changing
-code.
+## Approved stack
 
-The governed baseline contains independently clean-room verified, merged Stages 1-8 at main
-commit `889660ecb8a378d107f6737b4466b70362066793`. Stages 9-12 (notifications, remediation,
-scheduler, audit query/export) are implemented and committed on `feature/v1-demo-completion`,
-not yet merged into `main`. The current demo-readiness work adds local Mailpit SMTP delivery
-and migration `0013_demo_notification_delivery`, Docker-only demo helpers, development-only
-Mailpit invitation messages, and the root `demo_v1.md` runbook.
+- Backend: Python 3.12+, FastAPI, Pydantic Settings, SQLAlchemy 2, Alembic, PostgreSQL, Boto3.
+- Frontend: React, TypeScript, Vite, Tailwind, TanStack Query, React Hook Form, Zod.
+- Runtime: Docker; AWS target is ECS/Fargate, RDS PostgreSQL, ALB/WAF, KMS, Secrets Manager,
+  CloudWatch, and ECR.
+- Infrastructure: Terraform 1.10.5-compatible configuration.
+- Durable jobs: PostgreSQL. Do not introduce a second broker/state store without an ADR.
 
-## Technology stack
+## Coding and typing
 
-### Backend
+- Keep functions cohesive, dependencies explicit, and side effects bounded.
+- New Python code must pass Ruff and strict Mypy.
+- New TypeScript must pass ESLint and both application/node typechecks.
+- Use typed schemas at trust boundaries; do not pass unvalidated dictionaries through services.
+- Preserve deterministic ordering and UTC-aware timestamps.
+- Do not weaken errors, validation, or types to make tests pass.
 
-- Python 3.12+
-- FastAPI
-- Pydantic v2 and Pydantic Settings
-- SQLAlchemy 2.x
-- Alembic
-- PostgreSQL in production and for database/concurrency verification
-- Boto3/Botocore for AWS STS and read-only discovery
-- Argon2 password hashing and signed JWT access tokens
-- Ruff, Mypy, Pytest, and pytest-cov
+## Testing
 
-SQLite is permitted only for isolated fast tests and is not evidence for PostgreSQL locking,
-partial indexes, composite foreign keys, or concurrency.
+- Add unit tests for logic, authorization, redaction, failure, and boundary cases.
+- Use PostgreSQL integration tests for constraints, concurrency, leases, and migrations.
+- Use at least two organizations for tenant-isolation regressions.
+- Use fakes or Botocore Stubber; automated tests must not call live AWS.
+- Run affected tests before the bounded full gates.
+- Never claim a test passed without current retained evidence.
+- Live AWS tests require explicit opt-in and an approved sandbox.
 
-### Frontend
+## Migrations and database transactions
 
-- React and TypeScript
-- Vite
-- Tailwind CSS
-- React Router
-- TanStack Query
-- React Hook Form and Zod
-- Lucide React
-- Vitest and Testing Library
-- ESLint and Prettier
+- Alembic history must remain linear with one head.
+- Never modify historical migrations merely to satisfy formatting.
+- Use additive expand-and-contract migrations; deploy compatible code before destructive cleanup.
+- Test clean upgrade and upgrade from the prior schema.
+- Runtime and migration identities must have distinct least privileges.
+- Keep queue acquire/complete/fail operations transactional and short.
+- Use row locks/`SKIP LOCKED` only with explicit concurrency tests.
+- Never hold a database transaction open across a slow provider call unless the existing design
+  explicitly proves it safe.
 
-## Code boundaries
+## Tenant isolation and RBAC
 
-- Python uses strict Mypy-compatible annotations; TypeScript must pass both application and Node
-  project type checks. Do not add broad type ignores to hide defects.
-- Route handlers remain thin.
-- Services own business workflows, transaction boundaries, and audit emission.
-- Repositories own database access and tenant predicates.
-- Pydantic schemas explicitly control request and response fields.
-- Frontend visibility is usability only; backend authorization is authoritative.
-- Rules evaluate persisted normalized data only; boto3 stays in discovery.
-- Compliance consumes persisted Stage 4 results; it never performs detection or live AWS calls.
-- Do not introduce raw event ingestion or real customer AWS mutation. Stage 7 AI must remain
-  advisory and draft-only. Stage 9 notification delivery defaults to a deterministic mock/no-op
-  provider and always requires explicit human approval; a Mailpit-only SMTP provider is allowed
-  for the guarded local demo. Development invitation messages may be sent to Mailpit only in the
-  local demo path; production invitation email remains deferred. AWS SES and production SMTP are
-  possible future providers, not yet implemented. Stage 10 remediation execution is a deterministic mock executor only and never
-  mutates real AWS resources; it always requires explicit human approval for
-  propose/approve/reject/cancel/execute transitions. Stage 11's scheduler delegates every run to
-  the existing discovery/evaluation services and must not duplicate boto3 or rule-evaluation
-  logic; it is a deterministic, synchronously invokable foundation, not a distributed queue or
-  cron daemon. Stage 12 reuses `AuditEvent`/`record_audit()` and must not introduce a second
-  write path for audit data.
+- Never weaken tenant isolation.
+- Scope tenant-owned reads/writes by `organization_id` or a parent join in the same query.
+- Do not rely on post-fetch tenant checks.
+- Do not disclose whether another tenant's identifier exists.
+- Enforce RBAC independently from tenant scoping.
+- Workers must reload references with tenant scope; job payloads are not authorization.
+- Platform-admin status is not an automatic tenant bypass.
+- Preserve organization-consistent foreign keys, uniqueness, indexes, and cascade behavior.
 
-## Security rules
+## Detection, AI, and remediation boundary
 
-- Never commit real secrets, credentials, account identifiers, role ARNs, or tokens.
-- Never store or log plaintext passwords, raw refresh/invitation tokens, authorization headers,
-  cookie headers, or AWS credentials.
-- Access JWTs are short lived, algorithm restricted, signature/expiry/claims validated, and held
-  only in browser memory.
-- Refresh tokens are opaque, stored in HttpOnly cookies, hashed in the database, rotated, and
-  family-revocable.
-- Production invitation responses must not expose development tokens.
-- Authentication errors must avoid account enumeration.
-- All organization-owned operations require active membership and tenant scope.
-- Platform admin never silently bypasses tenant isolation.
-- AWS access uses cross-account IAM roles, external IDs, STS `AssumeRole`, and temporary
-  credentials only.
-- External IDs are permanently reserved and never reused, including after account deletion.
-- Temporary AWS credentials remain in memory and are excluded from metadata, responses, logs,
-  exceptions, audit events, and fixtures.
-- AWS SDK connect/read timeouts and retry counts must be explicit and bounded.
-- A missing finding is never sufficient evidence for compliance `PASS`.
-- Rule errors become compliance `ERROR`; missing or version-mismatched evidence becomes
-  `NOT_ASSESSED`; suppression does not turn a failure into a pass.
-- Compliance assessment snapshots and finalized per-rule evaluation summaries are immutable.
-- Automated tests must use synthetic fixtures, deterministic AWS doubles, and disposable
-  PostgreSQL. Production/customer AWS accounts and credentials are forbidden.
+- Deterministic rules detect findings.
+- Never allow AI to detect or approve remediation.
+- AI may explain, summarize, prioritize, and draft content only from authorized persisted sources.
+- Treat provider output as untrusted; validate structured output and bound size/time/retries.
+- AI output must not change finding, compliance, risk, approval, or execution state.
+- Never execute arbitrary user-supplied AWS operations.
+- Remediation actions must be static, typed, allowlisted, versioned, previewed, approved, and
+  revalidated against an immutable snapshot.
+- Current remediation remains dry-run/mock only. A live executor requires a separate threat model,
+  least-privilege mutation role, sandbox proof, action-specific rollback, and explicit approval.
 
-## Structured logging and audit rules
+## AWS identity and providers
 
-- Operational logs use bounded structured fields and correlation IDs.
-- Durable audit events record accepted user-visible lifecycle transitions.
-- Never log JWTs, authorization/cookie headers, passwords, AWS credentials, full policies, raw
-  provider/database exceptions, or unbounded evidence.
-- Do not claim audit data is absolutely immutable; database controls and retention/archive
-  guarantees must be described precisely.
-- Owner governance exceptions must state the exact PR and must not be described as independent,
-  CODEOWNER, CI, or repository-policy approval.
+- Never store long-lived AWS access keys.
+- Use the default credential provider chain and workload identity in production.
+- Reject static AWS credential environment variables in production.
+- Customer access uses STS AssumeRole, External ID, account verification, bounded sessions, and
+  memory-only credentials.
+- Cache credentials only with tenant/account-safe keys and refresh before expiry without stampedes.
+- Bedrock model/region must be allowlisted and task-role permission narrowly scoped.
+- Bedrock cannot become the detection or authorization engine.
+- SES requires an approved identity, bounded recipients/body, header validation, approval recheck,
+  sanitized errors, and bounce/complaint monitoring.
+- Do not send a notification without explicit authorization and an approved synthetic/live gate.
 
-## RBAC and governance
+## Secrets and logging
 
-- Roles are owner, admin, security analyst, cloud engineer, auditor, and viewer.
-- Central capability policy is the single source for authorization decisions.
-- Admins cannot assign owner or govern an existing owner.
-- The final active owner cannot be demoted, suspended, or removed.
-- Discovery start is allowed for owner, admin, security analyst, and cloud engineer.
-- Auditor and viewer cannot start discovery.
-- Active members may view organization-scoped inventory according to the capability map.
-- Owner/admin/security analyst/cloud engineer may run evaluations; auditor/viewer may not.
-- All active roles may view rules/findings. Owner/admin/security analyst may suppress findings.
-- Notifications: all active roles may read (`NOTIFICATIONS_READ`); owner/admin/security analyst
-  may approve/deliver (`NOTIFICATIONS_APPROVE`).
-- Remediation: all active roles may read (`REMEDIATION_READ`); owner/admin/security
-  analyst/cloud engineer may propose/cancel (`REMEDIATION_REQUEST`); owner/admin/security
-  analyst may approve/reject/execute.
-- Scheduling: all active roles may read (`SCHEDULE_READ`); owner/admin/security
-  analyst/cloud engineer may create/enable/disable/delete/run-now (`SCHEDULE_MANAGE`).
-- Audit query/export reuses the existing `AUDIT_READ` capability (owner, admin, auditor); no new
-  capability was added because the existing one already fit.
-- Every new endpoint must resolve organization scope through the existing centralized RBAC
-  dependency (`OrganizationService.require_capability`) before any service call; frontend
-  role-gating is a usability aid only and is never a substitute for this backend check.
+- Never commit secrets.
+- Secret settings use `SecretStr` or equivalent redaction.
+- Never log credentials, tokens, cookies, webhook URLs, private keys, database connection strings,
+  provider bodies, or secret values.
+- Job payloads contain identifiers and bounded non-secret references only.
+- Frontend `VITE_` variables are public build-time configuration and must never hold secrets.
+- Audit metadata and API errors must be sanitized.
+- Use managed secret injection; do not write generated secret files.
 
-## Scheduling and audit invariants
+## API behavior
 
-- A schedule's cadence never bypasses the existing discovery/evaluation authorization path: a
-  scheduled or manual run authorizes as the acting user (or, for the worker, the schedule's
-  creator) exactly as a manual "run evaluation" click would.
-- Only one pending/running scan run may exist per AWS account at a time (database partial unique
-  index); this overlap protection is enforced independently of whether the trigger was manual or
-  scheduled.
-- The scheduler worker must never duplicate boto3 discovery calls or rule-evaluation logic; it
-  may only delegate to `DiscoveryOrchestrator` and `EvaluationService`.
-- Audit query and export are read-only against the existing `AuditEvent` table; they must never
-  gain write access, and `record_audit()` remains the only write path.
-- Audit export is bounded (currently 5,000 rows) and synchronous for Version 1; a background
-  export job is future work and must not be implied as already implemented.
-- Remediation execution remains mock-only for local/demo Version 1. Notification delivery uses
-  the mock provider by default; local Mailpit SMTP is permitted only for approved demo
-  notifications. Real AWS mutation, production SMTP, AWS SES, webhook delivery, and any other
-  real external side effect require new explicit authorization before implementation.
+- Authenticate before authorization; authorize before mutation.
+- Use stable typed error codes and non-disclosing cross-tenant responses.
+- Apply bounded pagination, input sizes, timeouts, retries, and rate limits.
+- Separate liveness from dependency-backed readiness.
+- Do not expose internal exceptions or provider responses.
 
-## Database and tenant rules
+## Durable jobs
 
-- PostgreSQL is the authoritative database behavior.
-- Tenant IDs must be present in organization-owned repository predicates.
-- Asset and discovery-job account/organization agreement is enforced with composite foreign keys.
-- Unique constraints and partial indexes must enforce invariants subject to races.
-- Asset timestamps cannot move backward.
-- Discovery-job counts cannot be negative.
-- Job status and timestamps must remain a valid state-machine combination.
-- Historical assets are deactivated, not deleted, when absent from a successful collector.
-- A failed collector must not deactivate its prior assets.
-- Evaluation/finding tenant consistency, positive versions, nonnegative counters,
-  status/timestamp lifecycles, and active-job/finding uniqueness are database enforced.
+- PostgreSQL remains the durable source of truth.
+- Enqueue must be tenant-scoped and idempotent.
+- Acquisition uses leases and generations; completion/failure requires the active lease token.
+- Workers heartbeat, reject stale ownership, use bounded retry/backoff, and dead-letter exhausted
+  work.
+- Requeue/cancel requires capability checks and audit evidence.
+- Never share an unkeyed global credential/provider cache across tenants.
 
-## Concurrency expectations
+## Docker
 
-- Use PostgreSQL `SELECT ... FOR UPDATE`, an atomic conditional update, or a database uniqueness
-  invariant for race-sensitive workflows.
-- Locks must be tenant scoped and transactions must be as short as practical.
-- Do not hold a row lock across a slow AWS call. Use operation tokens/versions and re-lock before
-  applying results.
-- Refresh rotation, invitation acceptance, final-owner mutation, AWS account lifecycle changes,
-  discovery starts, and account-level asset lifecycle require tested concurrency behavior.
-- Acquire multiple locks in deterministic order and leave no permanent deadlock.
+- Use current, narrowly pinned supported bases and run final containers as non-root.
+- Keep runtime images minimal; do not copy development credentials or local environments.
+- Use read-only root filesystems where configured and dependency-aware health checks.
+- Build once, scan, and promote immutable image digests.
+- Never push an image without explicit authorization.
 
-## Migration policy
+## Terraform
 
-- Add a new Alembic revision; do not rewrite an already reviewed migration.
-- Keep a single linear head unless an approved ADR states otherwise.
-- Provide a downgrade where practical.
-- Verify empty upgrade, incremental upgrade, current, check, downgrade, and re-upgrade on
-  disposable PostgreSQL.
-- Compare models and migration metadata.
-- Preserve valid existing data; fail clearly on invalid data instead of deleting it silently.
+- Format and validate bootstrap, staging, and production roots.
+- Keep staging and production state/configuration separated.
+- Separate runtime, migration, publish, and deployment roles.
+- Use least privilege, KMS, private subnets, flow/access logs, WAF, deletion protection, and managed
+  secrets as defined.
+- Do not apply Terraform or contact AWS without explicit authorization.
+- Checkov exceptions must be resource-specific, justified, and reviewed; no broad suppressions.
+- Do not place secret values in plans, examples, outputs, or state documentation.
 
-## Testing policy
+## CI/CD
 
-Every change must receive proportional unit, integration, security, regression, and PostgreSQL
-coverage. Required gates are:
+- CI must gate backend, frontend, migrations, containers, dependencies, secrets, and Terraform.
+- GitHub Actions AWS access uses OIDC; no long-lived AWS secrets.
+- Build once and promote immutable image digests.
+- Pull requests cannot assume production roles.
+- Production requires a protected environment, exact reviewed plan/digests, and explicit gate.
+- Workflow existence is not deployment evidence.
 
-- Backend: Ruff format, Ruff lint, Mypy, import/startup, Pytest, coverage, Alembic lifecycle,
-  PostgreSQL concurrency, `pip check`, and `pip-audit`
-- Frontend: Prettier, ESLint, TypeScript, Vitest, production build, and `npm audit`
-- Repository: secret/private-key/AWS-key/environment scans, conflict-marker scan, and
-  `git diff --check`
+## Git
 
-The maintained baseline expects at least 95% backend coverage. Run focused unit/integration tests
-first, then PostgreSQL integrity/concurrency and the complete regression suite. Verify the exact
-pushed SHA from a separate clean detached worktree before integration.
+- Inspect status/diff before staging.
+- Stage explicit paths only, for example:
+  `git add -- docs/file-one.md docs/file-two.md`
+- Never use `git add .`.
+- Never use `git add -A`.
+- Never stage generated logs, credentials, local environments, coverage, or dependency directories.
+- Never force-push shared branches.
+- Do not push directly to shared branches; use reviewed branches/pull requests.
+- Do not reset, clean, amend, merge, rebase, push, or tag without scope and authorization.
+- Review `git diff --check`, conflicts, untracked files, and staged diff before committing.
 
-Do not mark a check passed unless its command ran successfully. Mock AWS deterministically; live
-AWS validation belongs only in a controlled sandbox and must never use customer credentials.
+## Protected files
 
-## Documentation policy
+- `CLAUDE.md` must remain untouched.
+- `compose.aws.override.yml` must remain untouched.
+- Do not read, summarize, edit, stage, delete, or display either file.
 
-- `NEW_CHAT_CONTEXT.md` is the portable master context.
-- `memory.md` records where the current work stopped.
-- `PRD.md`, `architecture.md`, `design.md`, `rules.md`, and `phases.md` are concise sources of
-  truth for fresh AI sessions.
-- Update architecture documentation after material design changes and memory after substantial
-  sessions.
-- Clearly label implemented, verification-pending, and future behavior.
-- Never treat historical ADR context as current behavior when it has been superseded.
+## Documentation
 
-## Branch strategy
+- Source code and migrations outrank prose.
+- Distinguish implemented/local verification, implemented/external validation pending, and
+  deferred work.
+- Never claim external validation without evidence.
+- Never claim production readiness, deployment, canary, rollback, restore, provider delivery, or
+  UAT based only on definitions.
+- Update `NEW_CHAT_CONTEXT.md` after major architectural changes.
+- Update `memory.md` after each substantial coding session.
+- Validate links, paths, commands, settings names, workflow names, and migration head.
 
-- `main`: active integration and release baseline
-- `develop`: legacy long-lived branch; do not base new work on it unless policy is explicitly
-  changed
-- `feature/*`: stage implementation branches
-- `fix/*`: narrowly scoped repair branches when needed
-- `docs/*`: documentation-only branches
+## Production authorization gate
 
-Use pull requests and required review. Report absent CI checks as absent. Do not force push,
-rewrite history, push directly to `main`, merge, or start another stage without explicit
-authorization.
-
-`main` is the authoritative integrated baseline. New feature/stage branches start only from the
-current verified `main`; never base a new stage on an older feature branch. Before release
-actions, fetch and compare local, upstream, and `origin/main` SHAs.
-
-An open pull-request branch may differ from `main` only by its intended reviewed changes.
-Preserve branches with unique unmerged commits and investigate them before any cleanup. Once a
-historical feature branch is fully contained in `main`, has no open PR, and is not required by
-automation, remove it through normal non-force branch deletion rather than adding synchronization
-merges. Never delete a branch blindly or use history rewriting to manufacture parity.
-
-## Definition of Done
-
-A stage is done only when its scoped behavior, migrations, tests, security controls,
-documentation, dependency audits, and independent verification pass; no later-stage executable
-scope is present; and no secrets or generated artifacts are committed.
-
-No stage may begin until its predecessor is independently verified and documentation-synchronized
-on the active feature branch; merge into `main` is tracked separately and does not itself gate
-the next stage's implementation, per the explicit authorization governing
-`feature/v1-demo-completion`. Stages 9-12 are independently verified and committed on that
-branch. Tomorrow-demo readiness is the immediate priority before broader Stage 13/14 work. A
-later stage's code must never be started before its predecessor is at least
-implemented and its own gate is understood, and no stage may claim completion or commit status
-it has not actually reached.
-
-## Deterministic risk policy
-
-- Risk rules consume persisted Stage 4 findings and bounded tenant context only.
-- Policy keys and positive versions are stable; a policy used by an assessment is immutable.
-- Unknown context receives documented conservative neutral values and is recorded in evidence.
-- Suppression does not lower risk. Only a separately authorized compensating control may apply a
-  bounded negative adjustment, with a reason, actor, optional expiry, and audit event.
-- Finding, account, and organization scores are immutable point-in-time snapshots.
-- Concurrent assessment and context mutations use PostgreSQL constraints, tenant-composite keys,
-  row locking, and optimistic versions; process-local locking is insufficient.
-- AI may later explain an already-computed score, but may never choose component values, alter
-  the formula, or determine a score.
-- AI may never detect or create findings, change finding state or severity, change compliance
-  status, execute remediation, send email, or create Jira tickets.
-- Automated tests use synthetic data and deterministic doubles, never real customer AWS.
-
-## AI assistant rules
-
-- Treat every evidence field as untrusted data, never as an instruction.
-- Use only persisted tenant-scoped deterministic CloudOps records.
-- Apply central redaction and bounded canonical serialization.
-- Require strict structured responses and human review.
-- Preserve prompt version, source version/hash, context hash, and output hash.
-- Never persist provider credentials or expose raw provider failures.
-- Never use AI for findings, severity, compliance, or risk decisions.
-- Never execute remediation or send Jira/email output.
-- Never allow notification delivery to bypass explicit human approval. Use the deterministic
-  mock/no-op provider by default; local Mailpit SMTP is allowed only for the guarded demo path.
+- Never deploy production without explicit authorization.
+- Required evidence includes passing CI, reviewed Terraform plan, protected environment approval,
+  staging UAT, exact digests, migration proof, observability, restore/rollback rehearsal, and
+  accepted residual risk.
+- Live AWS tests and notifications require explicit opt-in, approved account/recipients, and
+  retained audit evidence.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -11,6 +12,7 @@ from pydantic import ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.exceptions.errors import AppError, ConflictError, NotFoundError, RateLimitError
 from app.models import (
     AIPromptTemplate,
@@ -30,6 +32,7 @@ from app.services.ai_provider import (
     MockAIProvider,
     ProviderErrorCode,
     ProviderExecutionControl,
+    ai_provider_from_settings,
 )
 from app.services.ai_safety import canonical_json, sanitize
 from app.services.common import record_audit
@@ -68,7 +71,12 @@ class AIService:
         utc_now: Callable[[], datetime] | None = None,
     ) -> None:
         self.db = db
-        self.provider = provider or MockAIProvider()
+        settings = get_settings()
+        self.provider = provider or (
+            MockAIProvider()
+            if settings.ai_provider == "mock"
+            else ai_provider_from_settings(settings)
+        )
         self.fault_at = fault_at
         self.utc_now = utc_now or (lambda: datetime.now(UTC))
 
@@ -504,12 +512,39 @@ class AIService:
             raise AIProviderError(ProviderErrorCode.DISABLED)
         for attempt in range(self.MAX_PROVIDER_ATTEMPTS):
             control = ProviderExecutionControl(self.PROVIDER_TIMEOUT_SECONDS)
+            started = time.perf_counter()
             try:
                 result = self.provider.generate(task_type, context, control)
                 control.ensure_active()
+                logger.info(
+                    "ai.provider.completed",
+                    extra={
+                        "provider_key": self.provider.key,
+                        "result": "succeeded",
+                        "attempt": attempt + 1,
+                        "duration_ms": round(
+                            (time.perf_counter() - started) * 1000,
+                            2,
+                        ),
+                    },
+                )
                 return result
             except AIProviderError as exc:
                 control.exit()
+                logger.warning(
+                    "ai.provider.failed",
+                    extra={
+                        "provider_key": self.provider.key,
+                        "result": "failed",
+                        "attempt": attempt + 1,
+                        "duration_ms": round(
+                            (time.perf_counter() - started) * 1000,
+                            2,
+                        ),
+                        "error_code": exc.code.value,
+                        "retryable": exc.retryable,
+                    },
+                )
                 if not exc.retryable or attempt + 1 >= self.MAX_PROVIDER_ATTEMPTS:
                     raise
         raise AIProviderError(ProviderErrorCode.FAILED)

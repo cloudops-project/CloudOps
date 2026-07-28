@@ -1,0 +1,509 @@
+name: Immutable release
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_production:
+        description: "Promote the staging-tested image digests to production"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudops-release
+  cancel-in-progress: false
+
+jobs:
+  build-publish:
+    name: Build, scan, and publish once
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Configure short-lived AWS publish identity
+        uses: aws-actions/configure-aws-credentials@v6.1.2
+        with:
+          role-to-assume: ${{ vars.AWS_PUBLISH_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: cloudops-publish-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Authenticate to ECR
+        run: >-
+          aws ecr get-login-password --region "${{ vars.AWS_REGION }}"
+          | docker login
+          --username AWS
+          --password-stdin
+          "${{ vars.ECR_REGISTRY }}"
+
+      - name: Build immutable images
+        run: |
+          docker build -f apps/api/Dockerfile -t "${{ vars.ECR_API_REPOSITORY }}:${GITHUB_SHA}" .
+          docker build \
+            -f apps/web/Dockerfile \
+            -t "${{ vars.ECR_WEB_REPOSITORY }}:${GITHUB_SHA}" \
+            .
+
+      - name: Generate SBOMs
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            anchore/syft:v1.27.1 \
+            "${{ vars.ECR_API_REPOSITORY }}:${GITHUB_SHA}" \
+            -o cyclonedx-json > api-sbom.cdx.json
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            anchore/syft:v1.27.1 \
+            "${{ vars.ECR_WEB_REPOSITORY }}:${GITHUB_SHA}" \
+            -o cyclonedx-json > web-sbom.cdx.json
+
+      - name: Scan images
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.61.0 \
+            image --exit-code 1 --severity HIGH,CRITICAL \
+            "${{ vars.ECR_API_REPOSITORY }}:${GITHUB_SHA}"
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.61.0 \
+            image --exit-code 1 --severity HIGH,CRITICAL \
+            "${{ vars.ECR_WEB_REPOSITORY }}:${GITHUB_SHA}"
+
+      - name: Push once and capture registry digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker push "${{ vars.ECR_API_REPOSITORY }}:${GITHUB_SHA}"
+          docker push "${{ vars.ECR_WEB_REPOSITORY }}:${GITHUB_SHA}"
+          api_digest="$(aws ecr describe-images \
+            --repository-name "${{ vars.ECR_API_REPOSITORY_NAME }}" \
+            --image-ids "imageTag=${GITHUB_SHA}" \
+            --query 'imageDetails[0].imageDigest' --output text)"
+          web_digest="$(aws ecr describe-images \
+            --repository-name "${{ vars.ECR_WEB_REPOSITORY_NAME }}" \
+            --image-ids "imageTag=${GITHUB_SHA}" \
+            --query 'imageDetails[0].imageDigest' --output text)"
+          jq -n \
+            --arg commit "${GITHUB_SHA}" \
+            --arg api "${{ vars.ECR_API_REPOSITORY }}@${api_digest}" \
+            --arg web "${{ vars.ECR_WEB_REPOSITORY }}@${web_digest}" \
+            '{commit: $commit, api_image: $api, web_image: $web}' \
+            > release-manifest.json
+
+      - name: Preserve build evidence
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-${{ github.sha }}
+          path: |
+            release-manifest.json
+            api-sbom.cdx.json
+            web-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 90
+
+  staging:
+    name: Deploy and verify staging
+    needs: build-publish
+    runs-on: ubuntu-24.04
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/download-artifact@v4.3.0
+        with:
+          name: release-${{ github.sha }}
+
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Configure short-lived staging deployment identity
+        uses: aws-actions/configure-aws-credentials@v6.1.2
+        with:
+          role-to-assume: ${{ vars.AWS_STAGING_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: cloudops-staging-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Plan reviewed staging digests
+        working-directory: infra/environments/staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_image="$(jq -r .api_image ../../../release-manifest.json)"
+          web_image="$(jq -r .web_image ../../../release-manifest.json)"
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=cloudops/staging.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
+          terraform plan \
+            -out=staging.tfplan \
+            -var="aws_region=${{ vars.AWS_REGION }}" \
+            -var='availability_zones=${{ vars.STAGING_AVAILABILITY_ZONES }}' \
+            -var="api_image=${api_image}" \
+            -var="web_image=${web_image}" \
+            -var='allowed_origins=${{ vars.STAGING_ALLOWED_ORIGINS }}' \
+            -var='trusted_hosts=${{ vars.STAGING_TRUSTED_HOSTS }}' \
+            -var="frontend_url=${{ vars.STAGING_BASE_URL }}" \
+            -var='customer_role_arns=${{ vars.STAGING_CUSTOMER_ROLE_ARNS }}' \
+            -var="bedrock_model_arn=${{ vars.STAGING_BEDROCK_MODEL_ARN }}" \
+            -var="bedrock_model_id=${{ vars.STAGING_BEDROCK_MODEL_ID }}" \
+            -var="ses_identity_arn=${{ vars.STAGING_SES_IDENTITY_ARN }}" \
+            -var="certificate_arn=${{ vars.STAGING_CERTIFICATE_ARN }}"
+          terraform show -json staging.tfplan > staging-plan.json
+
+      - name: Check reviewed staging plan
+        run: >-
+          docker run --rm
+          -v "$PWD:/workspace"
+          bridgecrew/checkov:3.2.471
+          --file /workspace/infra/environments/staging/staging-plan.json
+          --framework terraform_plan
+          --compact
+
+      - name: Apply staging plan
+        working-directory: infra/environments/staging
+        run: terraform apply -auto-approve staging.tfplan
+
+      - name: Capture staging rollback state
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws ecs describe-services \
+            --cluster cloudops-staging \
+            --services \
+              cloudops-staging-api \
+              cloudops-staging-web \
+              cloudops-staging-worker \
+              cloudops-staging-scheduler \
+            --query \
+              'services[].{service:serviceName,taskDefinition:taskDefinition,desiredCount:desiredCount}' \
+            > previous-staging-services.json
+
+      - name: Run one-shot migration
+        working-directory: infra/environments/staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          task_definition="$(terraform output -raw migration_task_definition_arn)"
+          subnets="$(terraform output -json private_subnet_ids | jq -r 'join(",")')"
+          security_group="$(terraform output -raw application_security_group_id)"
+          task_arn="$(aws ecs run-task \
+            --cluster cloudops-staging \
+            --task-definition "${task_definition}" \
+            --launch-type FARGATE \
+            --network-configuration \
+              "awsvpcConfiguration={subnets=[${subnets}],securityGroups=[${security_group}],assignPublicIp=DISABLED}" \
+            --query 'tasks[0].taskArn' --output text)"
+          test "${task_arn}" != "None"
+          aws ecs wait tasks-stopped --cluster cloudops-staging --tasks "${task_arn}"
+          exit_code="$(aws ecs describe-tasks \
+            --cluster cloudops-staging --tasks "${task_arn}" \
+            --query 'tasks[0].containers[0].exitCode' --output text)"
+          test "${exit_code}" = "0"
+
+      - name: Deploy exact staging task definitions
+        working-directory: infra/environments/staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in api web worker scheduler; do
+            task_definition="$(terraform output -json service_task_definition_arns | jq -r ".${service}")"
+            desired_count="$(terraform output -json service_desired_counts | jq -r ".${service}")"
+            aws ecs update-service \
+              --cluster cloudops-staging \
+              --service "cloudops-staging-${service}" \
+              --task-definition "${task_definition}" \
+              --desired-count "${desired_count}" \
+              --force-new-deployment >/dev/null
+          done
+          aws ecs wait services-stable \
+            --cluster cloudops-staging \
+            --services \
+              cloudops-staging-api \
+              cloudops-staging-web \
+              cloudops-staging-worker \
+              cloudops-staging-scheduler
+
+      - name: Staging readiness and smoke tests
+        run: python scripts/deployment_smoke.py --base-url "${{ vars.STAGING_BASE_URL }}"
+
+      - name: Restore prior staging service state after failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f previous-staging-services.json; then
+            jq -c '.[]' previous-staging-services.json | while read -r service; do
+              aws ecs update-service \
+                --cluster cloudops-staging \
+                --service "$(jq -r .service <<<"${service}")" \
+                --task-definition "$(jq -r .taskDefinition <<<"${service}")" \
+                --desired-count "$(jq -r .desiredCount <<<"${service}")" \
+                --force-new-deployment >/dev/null
+            done
+          fi
+
+      - name: Preserve staging evidence
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: staging-evidence-${{ github.sha }}
+          path: |
+            infra/environments/staging/staging-plan.json
+            release-manifest.json
+            previous-staging-services.json
+          retention-days: 90
+
+  production-plan:
+    name: Create reviewable production plan
+    if: >-
+      ${{
+        inputs.deploy_production &&
+        vars.ALLOW_PRODUCTION_DEPLOY == 'YES'
+      }}
+    needs: staging
+    runs-on: ubuntu-24.04
+    env:
+      ALLOW_PRODUCTION_DEPLOY: ${{ vars.ALLOW_PRODUCTION_DEPLOY }}
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/download-artifact@v4.3.0
+        with:
+          name: release-${{ github.sha }}
+
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Configure short-lived production deployment identity
+        uses: aws-actions/configure-aws-credentials@v6.1.2
+        with:
+          role-to-assume: ${{ vars.AWS_PRODUCTION_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: cloudops-production-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Enforce deliberate production authorization
+        shell: bash
+        run: test "${ALLOW_PRODUCTION_DEPLOY}" = "YES"
+
+      - name: Create exact staging-tested production plan
+        working-directory: infra/environments/production
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_image="$(jq -r .api_image ../../../release-manifest.json)"
+          web_image="$(jq -r .web_image ../../../release-manifest.json)"
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=cloudops/production.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
+          terraform plan \
+            -out=production.tfplan \
+            -var="aws_region=${{ vars.AWS_REGION }}" \
+            -var='availability_zones=${{ vars.PRODUCTION_AVAILABILITY_ZONES }}' \
+            -var="api_image=${api_image}" \
+            -var="web_image=${web_image}" \
+            -var='allowed_origins=${{ vars.PRODUCTION_ALLOWED_ORIGINS }}' \
+            -var='trusted_hosts=${{ vars.PRODUCTION_TRUSTED_HOSTS }}' \
+            -var="frontend_url=${{ vars.PRODUCTION_BASE_URL }}" \
+            -var='customer_role_arns=${{ vars.PRODUCTION_CUSTOMER_ROLE_ARNS }}' \
+            -var="bedrock_model_arn=${{ vars.PRODUCTION_BEDROCK_MODEL_ARN }}" \
+            -var="bedrock_model_id=${{ vars.PRODUCTION_BEDROCK_MODEL_ID }}" \
+            -var="ses_identity_arn=${{ vars.PRODUCTION_SES_IDENTITY_ARN }}" \
+            -var="certificate_arn=${{ vars.PRODUCTION_CERTIFICATE_ARN }}"
+          terraform show -json production.tfplan > production-plan.json
+
+      - name: Check production plan
+        run: >-
+          docker run --rm
+          -v "$PWD:/workspace"
+          bridgecrew/checkov:3.2.471
+          --file /workspace/infra/environments/production/production-plan.json
+          --framework terraform_plan
+          --compact
+
+      - name: Preserve plan for protected review
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: production-plan-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            infra/environments/production/production.tfplan
+            infra/environments/production/production-plan.json
+            release-manifest.json
+          if-no-files-found: error
+          retention-days: 7
+
+  production:
+    name: Approve and promote exact digests to production
+    if: >-
+      ${{
+        inputs.deploy_production &&
+        vars.ALLOW_PRODUCTION_DEPLOY == 'YES'
+      }}
+    needs: production-plan
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      ALLOW_PRODUCTION_DEPLOY: ${{ vars.ALLOW_PRODUCTION_DEPLOY }}
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/download-artifact@v4.3.0
+        with:
+          name: production-plan-${{ github.sha }}-${{ github.run_id }}
+
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Configure short-lived production deployment identity
+        uses: aws-actions/configure-aws-credentials@v6.1.2
+        with:
+          role-to-assume: ${{ vars.AWS_PRODUCTION_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: cloudops-production-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Enforce deliberate production authorization
+        shell: bash
+        run: test "${ALLOW_PRODUCTION_DEPLOY}" = "YES"
+
+      - name: Initialize reviewed production state
+        working-directory: infra/environments/production
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=cloudops/production.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
+
+      - name: Apply protected production plan
+        working-directory: infra/environments/production
+        run: terraform apply -auto-approve production.tfplan
+
+      - name: Capture rollback task definitions
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws ecs describe-services \
+            --cluster cloudops-production \
+            --services \
+              cloudops-production-api \
+              cloudops-production-web \
+              cloudops-production-worker \
+              cloudops-production-scheduler \
+            --query \
+              'services[].{service:serviceName,taskDefinition:taskDefinition,desiredCount:desiredCount}' \
+            > previous-task-definitions.json
+
+      - name: Run one-shot production migration
+        working-directory: infra/environments/production
+        shell: bash
+        run: |
+          set -euo pipefail
+          task_definition="$(terraform output -raw migration_task_definition_arn)"
+          subnets="$(terraform output -json private_subnet_ids | jq -r 'join(",")')"
+          security_group="$(terraform output -raw application_security_group_id)"
+          task_arn="$(aws ecs run-task \
+            --cluster cloudops-production \
+            --task-definition "${task_definition}" \
+            --launch-type FARGATE \
+            --network-configuration \
+              "awsvpcConfiguration={subnets=[${subnets}],securityGroups=[${security_group}],assignPublicIp=DISABLED}" \
+            --query 'tasks[0].taskArn' --output text)"
+          test "${task_arn}" != "None"
+          aws ecs wait tasks-stopped --cluster cloudops-production --tasks "${task_arn}"
+          exit_code="$(aws ecs describe-tasks \
+            --cluster cloudops-production --tasks "${task_arn}" \
+            --query 'tasks[0].containers[0].exitCode' --output text)"
+          test "${exit_code}" = "0"
+
+      - name: Deploy exact production task definitions
+        working-directory: infra/environments/production
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in api web worker scheduler; do
+            task_definition="$(terraform output -json service_task_definition_arns | jq -r ".${service}")"
+            desired_count="$(terraform output -json service_desired_counts | jq -r ".${service}")"
+            aws ecs update-service \
+              --cluster cloudops-production \
+              --service "cloudops-production-${service}" \
+              --task-definition "${task_definition}" \
+              --desired-count "${desired_count}" \
+              --force-new-deployment >/dev/null
+          done
+
+      - name: Wait for circuit-breaker protected rollout
+        run: >-
+          aws ecs wait services-stable
+          --cluster cloudops-production
+          --services
+          cloudops-production-api
+          cloudops-production-web
+          cloudops-production-worker
+          cloudops-production-scheduler
+
+      - name: Production smoke test
+        run: python scripts/deployment_smoke.py --base-url "${{ vars.PRODUCTION_BASE_URL }}"
+
+      - name: Restore previous task definitions after deployment failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f previous-task-definitions.json; then
+            jq -c '.[]' previous-task-definitions.json | while read -r service; do
+              aws ecs update-service \
+                --cluster cloudops-production \
+                --service "$(jq -r .service <<<"${service}")" \
+                --task-definition "$(jq -r .taskDefinition <<<"${service}")" \
+                --desired-count "$(jq -r .desiredCount <<<"${service}")" \
+                --force-new-deployment >/dev/null
+            done
+          fi
+
+      - name: Preserve production evidence
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: production-evidence-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            infra/environments/production/production-plan.json
+            release-manifest.json
+            previous-task-definitions.json
+          retention-days: 365

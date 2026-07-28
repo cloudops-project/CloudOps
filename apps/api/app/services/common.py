@@ -3,12 +3,13 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.orm import Session
 
 from app.models import AuditEvent
 from app.models.enums import AuditResult
+from app.services.ai_safety import redact_text, sanitize
 
 
 def now_utc() -> datetime:
@@ -51,9 +52,9 @@ def record_audit(
         organization_id=organization_id,
         actor_user_id=actor_user_id,
         resource_id=resource_id,
-        metadata_json=metadata or {},
+        metadata_json=cast(dict[str, Any], sanitize(metadata or {})),
         ip_address=ip_address,
-        user_agent=user_agent,
+        user_agent=redact_text(user_agent)[:512] if user_agent else None,
     )
     db.add(event)
     return event

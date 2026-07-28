@@ -367,12 +367,12 @@ def test_attempt_count_increments_exactly_once_per_invocation(db: Session) -> No
 def test_smtp_provider_selection_keeps_mock_default() -> None:
     test_secret = SecretStr("x" * 32)
     mock_settings = Settings(
-        database_url="sqlite+pysqlite:///:memory:",
+        database_url=SecretStr("sqlite+pysqlite:///:memory:"),
         jwt_secret_key=test_secret,
         notification_provider="mock",
     )
     smtp_settings = Settings(
-        database_url="sqlite+pysqlite:///:memory:",
+        database_url=SecretStr("sqlite+pysqlite:///:memory:"),
         jwt_secret_key=test_secret,
         notification_provider="smtp",
         smtp_host="mailpit",
@@ -405,7 +405,7 @@ def test_smtp_provider_sends_mailpit_compatible_message(monkeypatch: pytest.Monk
 
     monkeypatch.setattr("app.services.notification_provider.smtplib.SMTP", FakeSMTP)
     settings = Settings(
-        database_url="sqlite+pysqlite:///:memory:",
+        database_url=SecretStr("sqlite+pysqlite:///:memory:"),
         jwt_secret_key=SecretStr("x" * 32),
         notification_provider="smtp",
         smtp_host="mailpit",
@@ -437,7 +437,7 @@ def test_smtp_provider_returns_sanitized_failure(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr("app.services.notification_provider.smtplib.SMTP", FailingSMTP)
     settings = Settings(
-        database_url="sqlite+pysqlite:///:memory:",
+        database_url=SecretStr("sqlite+pysqlite:///:memory:"),
         jwt_secret_key=SecretStr("x" * 32),
         notification_provider="smtp",
     )

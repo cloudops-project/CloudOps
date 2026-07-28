@@ -3,13 +3,14 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, select
 
-from app.dependencies.auth import CurrentUser, DbSession
-from app.exceptions.errors import NotFoundError
+from app.dependencies.auth import CurrentUser, DbSession, UserRateLimiter
+from app.exceptions.errors import ConflictError, NotFoundError
 from app.models import RemediationRequest
-from app.models.enums import RemediationStatus
+from app.models.enums import PlatformJobType, RemediationStatus
+from app.schemas.platform_job import PlatformJobResponse
 from app.schemas.remediation import (
     RemediationRejectRequest,
     RemediationRequestListResponse,
@@ -17,9 +18,11 @@ from app.schemas.remediation import (
 )
 from app.security.rbac import Capability
 from app.services.organizations import OrganizationService
+from app.services.platform_jobs import PlatformJobService
 from app.services.remediation import RemediationService
 
 router = APIRouter()
+_execution_rate_limit = UserRateLimiter("remediation_execution", limit=10, window_seconds=60)
 
 
 def _require(
@@ -136,14 +139,36 @@ def cancel_remediation(
     return request
 
 
-@router.post("/remediations/{request_id}/execute", response_model=RemediationRequestResponse)
+@router.post(
+    "/remediations/{request_id}/execute",
+    response_model=PlatformJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(_execution_rate_limit)],
+)
 def execute_remediation(
     request_id: uuid.UUID,
     user: CurrentUser,
     db: DbSession,
     organization_id: Annotated[uuid.UUID, Query()],
-) -> RemediationRequest:
+) -> PlatformJobResponse:
     _require(db, user, organization_id, Capability.REMEDIATION_EXECUTE)
-    request = RemediationService(db).execute(organization_id, request_id)
+    request = RemediationService(db).get_scoped(organization_id, request_id)
+    if request.status != RemediationStatus.APPROVED:
+        raise ConflictError(
+            "remediation_invalid_transition",
+            f"Cannot execute a remediation request in status '{request.status.value}'.",
+        )
+    job, _created = PlatformJobService(db).enqueue(
+        organization_id=organization_id,
+        job_type=PlatformJobType.REMEDIATION_SIMULATION,
+        reference_id=request.id,
+        idempotency_key=f"remediation:{request.idempotency_key}",
+        payload={
+            "remediation_request_id": str(request.id),
+            "actor_user_id": str(user.id),
+        },
+        max_attempts=3,
+        actor_user_id=user.id,
+    )
     db.commit()
-    return request
+    return PlatformJobResponse.model_validate(job)

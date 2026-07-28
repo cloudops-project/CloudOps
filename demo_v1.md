@@ -113,8 +113,7 @@ Acceptance check from the host, using the disposable verification database, rema
 ```powershell
 docker compose -f compose.verify.yml up -d
 $env:APP_ENV="testing"
-$env:DATABASE_URL="postgresql+psycopg://cloudops:cloudops_test_password@localhost:5433/cloudops_test"
-$env:POSTGRES_TEST_DATABASE_URL=$env:DATABASE_URL
+# Inject DATABASE_URL and POSTGRES_TEST_DATABASE_URL with the same disposable test-database endpoint.
 $env:JWT_SECRET_KEY="replace-with-a-test-only-secret-at-least-32-characters"
 $env:AWS_ACCESS_KEY_ID="testing"
 $env:AWS_SECRET_ACCESS_KEY="testing"
@@ -330,8 +329,8 @@ Open `Notifications`.
 10. Verify body includes organization, masked AWS account, finding count, compliance summary,
     risk summary, and simulated-remediation warning.
 
-The tomorrow demo uses local SMTP through Mailpit. Amazon SES is not implemented; it is future
-production adapter work.
+The local demo uses SMTP through Mailpit. Amazon SES is implemented and Stubber-tested, but live
+SES delivery remains external production-readiness work.
 
 ## 14. Remediation flow
 

@@ -35,3 +35,21 @@ class NotificationEventListResponse(ApiModel):
     total: int
     page: int
     page_size: int
+
+
+class NotificationDeliveryAttemptResponse(ApiModel):
+    id: uuid.UUID
+    notification_event_id: uuid.UUID
+    attempt_number: int
+    provider_key: str
+    destination_reference: str
+    template_key: str
+    template_version: int
+    content_hash: str
+    provider_message_id: str | None
+    response_classification: str
+    error_code: str | None
+    error_summary: str | None
+    attempted_at: datetime
+    delivered_at: datetime | None
+    failed_at: datetime | None
