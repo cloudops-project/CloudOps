@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models import (
     Asset,
     AWSAccount,
@@ -42,7 +43,8 @@ from app.services.discovery import (
     S3DiscoveryService,
 )
 from app.services.evaluations import EvaluationService
-from app.tests.conftest import register_and_login
+from app.tests.conftest import TestingSession, register_and_login
+from app.worker.job_worker import JobWorker
 
 
 def asset(asset_type: AssetType, metadata: dict[str, object]) -> Asset:
@@ -345,7 +347,13 @@ def test_finding_api_rbac_suppression_and_safe_response(client: TestClient, db: 
         headers=headers,
         json={},
     )
-    assert evaluation.status_code == 201, evaluation.text
+    assert evaluation.status_code == 202, evaluation.text
+    assert JobWorker(TestingSession, get_settings(), "evaluation-api-test").process_one()
+    db.expire_all()
+    domain_evaluation = db.scalar(
+        select(EvaluationJob).order_by(EvaluationJob.created_at.desc())
+    )
+    assert domain_evaluation is not None
     rules = client.get(f"/api/v1/rules?organization_id={organization_id}", headers=headers)
     assert rules.status_code == 200
     rule_detail = client.get(
@@ -366,7 +374,7 @@ def test_finding_api_rbac_suppression_and_safe_response(client: TestClient, db: 
     )
     assert evaluations.status_code == 200
     assert evaluations.json()["total"] == 1
-    evaluation_id = evaluation.json()["id"]
+    evaluation_id = domain_evaluation.id
     assert (
         client.get(
             f"/api/v1/evaluations/{evaluation_id}?organization_id={organization_id}",
@@ -457,9 +465,9 @@ def test_finding_api_rbac_suppression_and_safe_response(client: TestClient, db: 
     assert unsuppressed.json()["status"] == "open"
 
     role_expectations = {
-        OrganizationRole.ADMIN: (201, 200),
-        OrganizationRole.SECURITY_ANALYST: (201, 200),
-        OrganizationRole.CLOUD_ENGINEER: (201, 403),
+        OrganizationRole.ADMIN: (202, 200),
+        OrganizationRole.SECURITY_ANALYST: (202, 200),
+        OrganizationRole.CLOUD_ENGINEER: (202, 403),
         OrganizationRole.AUDITOR: (403, 403),
         OrganizationRole.VIEWER: (403, 403),
     }

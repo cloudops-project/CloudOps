@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models import (
     Asset,
     AuditEvent,
@@ -37,7 +38,16 @@ from app.services.discovery import (
     json_safe,
     safe_aws_error,
 )
-from app.tests.conftest import register_and_login
+from app.tests.conftest import TestingSession, register_and_login
+from app.worker.job_worker import JobWorker
+
+
+def _process_discovery(db: Session) -> DiscoveryJob:
+    assert JobWorker(TestingSession, get_settings(), "discovery-api-test").process_one()
+    db.expire_all()
+    job = db.scalar(select(DiscoveryJob).order_by(DiscoveryJob.created_at.desc()))
+    assert job is not None
+    return job
 
 
 class Paginator:
@@ -251,9 +261,10 @@ def test_complete_repeated_discovery_upserts_and_stales(
     monkeypatch.setattr(DiscoveryOrchestrator, "services", (FakeService([asset("i-1")]),))
     monkeypatch.setattr(DiscoveryOrchestrator, "_assumed_client_factory", lambda *_args: object())
     first = client.post(f"/api/v1/aws/accounts/{account.id}/discover", headers=headers)
-    assert first.status_code == 201, first.text
-    assert first.json()["status"] == "completed"
-    assert first.json()["assets_created"] == 1
+    assert first.status_code == 202, first.text
+    first_job = _process_discovery(db)
+    assert first_job.status == DiscoveryJobStatus.COMPLETED
+    assert first_job.assets_created == 1
     stored = db.scalar(select(Asset).where(Asset.resource_id == "i-1"))
     assert stored is not None
     first_seen = stored.first_seen_at
@@ -264,15 +275,19 @@ def test_complete_repeated_discovery_upserts_and_stales(
         (FakeService([asset("i-1", status="stopped"), asset("i-2")]),),
     )
     repeated = client.post(f"/api/v1/aws/accounts/{account.id}/discover", headers=headers)
-    assert repeated.json()["assets_updated"] == 1
-    assert repeated.json()["assets_created"] == 1
+    assert repeated.status_code == 202
+    repeated_job = _process_discovery(db)
+    assert repeated_job.assets_updated == 1
+    assert repeated_job.assets_created == 1
     db.expire_all()
     stored = db.scalar(select(Asset).where(Asset.resource_id == "i-1"))
     assert stored is not None and stored.first_seen_at == first_seen and stored.status == "stopped"
 
     monkeypatch.setattr(DiscoveryOrchestrator, "services", (FakeService([]),))
     stale = client.post(f"/api/v1/aws/accounts/{account.id}/discover", headers=headers)
-    assert stale.json()["assets_deactivated"] == 2
+    assert stale.status_code == 202
+    stale_job = _process_discovery(db)
+    assert stale_job.assets_deactivated == 2
     listing = client.get(
         "/api/v1/assets",
         headers=headers,
@@ -312,8 +327,10 @@ def test_partial_failure_does_not_deactivate_failed_service_assets(
     monkeypatch.setattr(DiscoveryOrchestrator, "services", (FakeService(failure), successful))
     monkeypatch.setattr(DiscoveryOrchestrator, "_assumed_client_factory", lambda *_args: object())
     response = client.post(f"/api/v1/aws/accounts/{account.id}/discover", headers=headers)
-    assert response.json()["status"] == "partially_completed"
-    assert response.json()["error_summary"] == "fakeservice:accessdenied"
+    assert response.status_code == 202
+    discovered = _process_discovery(db)
+    assert discovered.status == DiscoveryJobStatus.PARTIALLY_COMPLETED
+    assert discovered.error_summary == "fakeservice:accessdenied"
     db.expire_all()
     assert db.get(Asset, existing.id).is_active is True  # type: ignore[union-attr]
     assert "SECRET" not in response.text
@@ -330,8 +347,10 @@ def test_failed_discovery_state_rbac_tenant_audit_and_bounds(
     )
     monkeypatch.setattr(DiscoveryOrchestrator, "_assumed_client_factory", lambda *_args: object())
     failed = client.post(f"/api/v1/aws/accounts/{account.id}/discover", headers=headers)
-    assert failed.json()["status"] == "failed"
-    assert failed.json()["error_summary"] == "fakeservice:discovery_service_failed"
+    assert failed.status_code == 202
+    failed_job = _process_discovery(db)
+    assert failed_job.status == DiscoveryJobStatus.FAILED
+    assert failed_job.error_summary == "fakeservice:discovery_service_failed"
     events = set(db.scalars(select(AuditEvent.event_type)).all())
     assert {"aws.discovery.started", "aws.discovery.failed"} <= events
     assert "credential=secret" not in str(db.scalars(select(AuditEvent.metadata_json)).all())

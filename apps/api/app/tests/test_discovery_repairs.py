@@ -19,8 +19,9 @@ from app.models.enums import (
 )
 from app.services.aws_onboarding import AWSOnboardingService
 from app.services.discovery import DiscoveryOrchestrator, IAMDiscoveryService
-from app.tests.conftest import register_and_login
+from app.tests.conftest import TestingSession, register_and_login
 from app.tests.test_discovery import FakeService, asset, organization_and_account
+from app.worker.job_worker import JobWorker
 
 
 class Pages:
@@ -223,9 +224,9 @@ def test_complete_api_discovery_uses_every_collector_and_exposes_safe_details(
         lambda *_args: lambda service, _region: clients[service],
     )
     response = client.post(f"/api/v1/aws/accounts/{account.id}/discover", headers=headers)
-    assert response.status_code == 201
-    assert response.json()["status"] == "completed"
-    assert response.json()["assets_discovered"] == 13
+    assert response.status_code == 202
+    assert response.json()["status"] == "available"
+    assert JobWorker(TestingSession, get_settings(), "complete-discovery-test").process_one()
     assert db.scalar(select(func.count()).select_from(Asset)) == 7
     events = set(db.scalars(select(AuditEvent.event_type)).all())
     assert {"aws.discovery.started", "aws.discovery.completed"} <= events
@@ -418,12 +419,12 @@ def test_complete_discovery_rbac_and_membership_matrix(
         client.post(
             f"/api/v1/aws/accounts/{account.id}/discover", headers=owner_headers
         ).status_code
-        == 201
+        == 202
     )
     for role, headers, _membership in identities:
         response = client.post(f"/api/v1/aws/accounts/{account.id}/discover", headers=headers)
         expected = (
-            201
+            202
             if role
             in {
                 OrganizationRole.ADMIN,

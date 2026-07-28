@@ -9,13 +9,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models import Asset, AWSAccount, User
 from app.models.enums import AssetType, AWSAccountStatus
 from app.security_rules import default_registry
 from app.security_rules.base import RuleContext
 from app.services.common import now_utc
-from app.tests.conftest import register_and_login
+from app.tests.conftest import TestingSession, register_and_login
 from app.tests.test_stage4_rules import asset
+from app.worker.job_worker import JobWorker
 
 
 def _percentile(values: list[float], percentile: float) -> float:
@@ -88,7 +90,8 @@ def test_stage4_local_performance_and_query_diagnostics(
     db.add(item)
     db.commit()
     evaluated = client.post(f"/api/v1/aws/accounts/{account.id}/evaluate", headers=headers, json={})
-    assert evaluated.status_code == 201
+    assert evaluated.status_code == 202
+    assert JobWorker(TestingSession, get_settings(), "performance-test").process_one()
     finding_id = client.get(
         "/api/v1/findings",
         headers=headers,

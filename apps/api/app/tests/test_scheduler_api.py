@@ -135,9 +135,9 @@ def test_run_now_via_api(client: TestClient, db: Session, monkeypatch: pytest.Mo
         headers=_headers(user),
     )
 
-    assert response.status_code == 200, response.text
+    assert response.status_code == 202, response.text
     body = response.json()
-    assert body["status"] == "completed"
+    assert body["status"] == "pending"
     assert body["trigger"] == "manual"
 
 

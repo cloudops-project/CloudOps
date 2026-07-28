@@ -11,7 +11,9 @@ from app.models.enums import FindingSeverity, NotificationStatus, OrganizationRo
 from app.security.tokens import create_access_token
 from app.services.notification_provider import MockNotificationProvider
 from app.services.notifications import NotificationService
+from app.tests.conftest import TestingSession
 from app.tests.test_risk import _finding, _tenant
+from app.worker.job_worker import JobWorker
 
 
 def _headers(user: User) -> dict[str, str]:
@@ -121,11 +123,15 @@ def test_deliver_success_transitions_to_delivered(client: TestClient, db: Sessio
         headers=headers,
     )
 
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["status"] == "delivered"
-    assert body["delivered_at"] is not None
-    assert body["attempt_count"] == 1
+    assert response.status_code == 202, response.text
+    assert response.json()["status"] == "available"
+    assert JobWorker(TestingSession, get_settings(), "notification-api-test").process_one()
+    db.expire_all()
+    delivered = db.get(NotificationEvent, event.id)
+    assert delivered is not None
+    assert delivered.status == NotificationStatus.DELIVERED
+    assert delivered.delivered_at is not None
+    assert delivered.attempt_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +239,7 @@ def test_approve_already_delivered_event_returns_409(client: TestClient, db: Ses
         f"/api/v1/notifications/{event.id}/deliver?organization_id={organization_id}",
         headers=headers,
     )
+    assert JobWorker(TestingSession, get_settings(), "notification-transition-test").process_one()
 
     response = client.post(
         f"/api/v1/notifications/{event.id}/approve?organization_id={organization_id}",
