@@ -13,10 +13,51 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
+data "aws_iam_policy_document" "state_kms" {
+  # checkov:skip=CKV_AWS_109:This is a KMS resource policy, not an identity policy; the account-root statement is the required key-administration control plane.
+  # checkov:skip=CKV_AWS_111:KMS key policies require Resource "*" because the policy is attached to the key being created.
+  # checkov:skip=CKV_AWS_356:KMS key policies require Resource "*" because the policy is attached to the key being created.
+  statement {
+    sid    = "AccountKeyAdministration"
+    effect = "Allow"
+    actions = [
+      "kms:CancelKeyDeletion",
+      "kms:CreateAlias",
+      "kms:CreateGrant",
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:DisableKey",
+      "kms:EnableKey",
+      "kms:Encrypt",
+      "kms:GenerateDataKey*",
+      "kms:GetKeyPolicy",
+      "kms:GetKeyRotationStatus",
+      "kms:List*",
+      "kms:PutKeyPolicy",
+      "kms:ReEncrypt*",
+      "kms:RevokeGrant",
+      "kms:ScheduleKeyDeletion",
+      "kms:TagResource",
+      "kms:UntagResource",
+      "kms:UpdateAlias",
+      "kms:UpdateKeyDescription",
+    ]
+    resources = ["*"]
+
+    principals {
+      type = "AWS"
+      identifiers = [
+        "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
+      ]
+    }
+  }
+}
+
 resource "aws_kms_key" "state" {
   description             = "CloudOps Terraform state encryption"
   deletion_window_in_days = 30
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.state_kms.json
 }
 
 resource "aws_kms_alias" "state" {
@@ -27,9 +68,130 @@ resource "aws_kms_alias" "state" {
 resource "aws_s3_bucket" "state" {
   bucket = var.state_bucket_name
 
+  # checkov:skip=CKV_AWS_144:Cross-region replication requires a separately approved disaster-recovery region and key; versioning, retention, and backup procedures protect the V1 backend meanwhile.
+
   lifecycle {
     prevent_destroy = true
   }
+}
+
+resource "aws_s3_bucket" "state_access_logs" {
+  bucket = "${substr(var.state_bucket_name, 0, 43)}-access-logs"
+
+  # checkov:skip=CKV_AWS_18:This is the terminal server-access-log destination; recursively logging it would create an unbounded log loop.
+  # checkov:skip=CKV_AWS_144:Cross-region replication is deferred until the separately approved disaster-recovery region exists.
+  # checkov:skip=CKV_AWS_145:S3 server access-log destinations support SSE-S3; the bucket is private, versioned, access-logged events are audited through EventBridge, and contains no application secrets.
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_s3_bucket_ownership_controls" "state_access_logs" {
+  bucket = aws_s3_bucket.state_access_logs.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "state_access_logs" {
+  bucket = aws_s3_bucket.state_access_logs.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "state_access_logs" {
+  bucket                  = aws_s3_bucket.state_access_logs.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "state_access_logs" {
+  bucket = aws_s3_bucket.state_access_logs.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "state_access_logs" {
+  bucket = aws_s3_bucket.state_access_logs.id
+
+  rule {
+    id     = "expire-access-logs"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 365
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
+data "aws_iam_policy_document" "state_access_logs" {
+  statement {
+    sid     = "S3ServerAccessLogDelivery"
+    effect  = "Allow"
+    actions = ["s3:PutObject"]
+    resources = [
+      "${aws_s3_bucket.state_access_logs.arn}/terraform-state/*",
+    ]
+
+    principals {
+      type        = "Service"
+      identifiers = ["logging.s3.amazonaws.com"]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = [aws_s3_bucket.state.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "state_access_logs" {
+  bucket = aws_s3_bucket.state_access_logs.id
+  policy = data.aws_iam_policy_document.state_access_logs.json
+}
+
+resource "aws_s3_bucket_notification" "state_access_logs" {
+  bucket      = aws_s3_bucket.state_access_logs.id
+  eventbridge = true
+}
+
+resource "aws_s3_bucket_logging" "state" {
+  bucket        = aws_s3_bucket.state.id
+  target_bucket = aws_s3_bucket.state_access_logs.id
+  target_prefix = "terraform-state/"
+
+  depends_on = [
+    aws_s3_bucket_ownership_controls.state_access_logs,
+    aws_s3_bucket_policy.state_access_logs,
+  ]
+}
+
+resource "aws_s3_bucket_notification" "state" {
+  bucket      = aws_s3_bucket.state.id
+  eventbridge = true
 }
 
 resource "aws_s3_bucket_versioning" "state" {
@@ -76,6 +238,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "state" {
 
     noncurrent_version_expiration {
       noncurrent_days = 365
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
     }
   }
 }
@@ -215,7 +381,7 @@ resource "aws_iam_role_policy" "github_publish" {
 
 data "aws_iam_policy_document" "deploy" {
   statement {
-    sid    = "DeployCloudOpsEcsServices"
+    sid    = "ReadCloudOpsEcsDeploymentState"
     effect = "Allow"
     actions = [
       "ecs:DescribeClusters",
@@ -223,12 +389,41 @@ data "aws_iam_policy_document" "deploy" {
       "ecs:DescribeTaskDefinition",
       "ecs:DescribeTasks",
       "ecs:ListTasks",
-      "ecs:RegisterTaskDefinition",
-      "ecs:RunTask",
-      "ecs:StopTask",
-      "ecs:UpdateService",
     ]
     resources = ["*"]
+  }
+
+  # checkov:skip=CKV_AWS_111:RegisterTaskDefinition does not support resource-level permissions; iam:PassRole below limits usable execution and task roles.
+  # checkov:skip=CKV_AWS_356:RegisterTaskDefinition requires Resource "*"; all resource-scoped ECS mutations are in separate statements.
+  statement {
+    sid       = "RegisterCloudOpsTaskDefinitions"
+    effect    = "Allow"
+    actions   = ["ecs:RegisterTaskDefinition"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "UpdateCloudOpsServices"
+    effect = "Allow"
+    actions = [
+      "ecs:UpdateService",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:ecs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:service/cloudops-*/*",
+    ]
+  }
+
+  statement {
+    sid    = "OperateCloudOpsDeploymentTasks"
+    effect = "Allow"
+    actions = [
+      "ecs:RunTask",
+      "ecs:StopTask",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:ecs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:task-definition/cloudops-*:*",
+      "arn:${data.aws_partition.current.partition}:ecs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:task/cloudops-*/*",
+    ]
   }
 
   statement {

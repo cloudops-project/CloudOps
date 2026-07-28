@@ -71,15 +71,46 @@ variable "bedrock_model_arn" {
   default = ""
 }
 
+variable "bedrock_model_id" {
+  description = "Approved Bedrock model or inference-profile identifier."
+  type        = string
+  default     = ""
+}
+
 variable "ses_identity_arn" {
   type    = string
   default = ""
 }
 
+variable "frontend_url" {
+  type = string
+
+  validation {
+    condition     = can(regex("^https://", var.frontend_url))
+    error_message = "frontend_url must use HTTPS."
+  }
+}
+
+variable "trusted_hosts" {
+  type = list(string)
+
+  validation {
+    condition = (
+      length(var.trusted_hosts) > 0 &&
+      alltrue([for host in var.trusted_hosts : host != "*" && !strcontains(host, "://")])
+    )
+    error_message = "trusted_hosts must contain host names without schemes or a global wildcard."
+  }
+}
+
 variable "certificate_arn" {
-  description = "ACM certificate ARN. Required by the production root module."
+  description = "ACM certificate ARN required for the HTTPS-only public listener."
   type        = string
-  default     = ""
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:acm:", var.certificate_arn))
+    error_message = "certificate_arn must be an ACM certificate ARN."
+  }
 }
 
 variable "allowed_origins" {

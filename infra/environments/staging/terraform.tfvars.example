@@ -5,8 +5,11 @@ api_image = "000000000000.dkr.ecr.us-east-1.amazonaws.com/cloudops-staging-api@s
 web_image = "000000000000.dkr.ecr.us-east-1.amazonaws.com/cloudops-staging-web@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 allowed_origins = ["https://staging.cloudops.example.com"]
+frontend_url    = "https://staging.cloudops.example.com"
+trusted_hosts   = ["staging.cloudops.example.com"]
 
 customer_role_arns = []
 bedrock_model_arn  = ""
+bedrock_model_id   = ""
 ses_identity_arn   = ""
-certificate_arn    = ""
+certificate_arn    = "arn:aws:acm:us-east-1:000000000000:certificate/00000000-0000-0000-0000-000000000000"

@@ -1,8 +1,84 @@
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
+data "aws_iam_policy_document" "database_kms" {
+  # checkov:skip=CKV_AWS_109:This is a KMS resource policy, not an identity policy; the account-root statement is the required key-administration control plane.
+  # checkov:skip=CKV_AWS_111:KMS key policies require Resource "*" because the policy is attached to the key being created.
+  # checkov:skip=CKV_AWS_356:KMS key policies require Resource "*" because the policy is attached to the key being created.
+  statement {
+    sid    = "AccountKeyAdministration"
+    effect = "Allow"
+    actions = [
+      "kms:CancelKeyDeletion",
+      "kms:CreateAlias",
+      "kms:CreateGrant",
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:DisableKey",
+      "kms:EnableKey",
+      "kms:Encrypt",
+      "kms:GenerateDataKey*",
+      "kms:GetKeyPolicy",
+      "kms:GetKeyRotationStatus",
+      "kms:List*",
+      "kms:PutKeyPolicy",
+      "kms:ReEncrypt*",
+      "kms:RevokeGrant",
+      "kms:ScheduleKeyDeletion",
+      "kms:TagResource",
+      "kms:UntagResource",
+      "kms:UpdateAlias",
+      "kms:UpdateKeyDescription",
+    ]
+    resources = ["*"]
+
+    principals {
+      type = "AWS"
+      identifiers = [
+        "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
+      ]
+    }
+  }
+}
+
 resource "aws_kms_key" "database" {
   description             = "${var.name} RDS encryption"
   deletion_window_in_days = 30
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.database_kms.json
   tags                    = var.tags
+}
+
+resource "aws_db_parameter_group" "this" {
+  name_prefix = "${var.name}-postgres16-"
+  family      = "postgres16"
+  description = "CloudOps PostgreSQL audit logging"
+
+  parameter {
+    name         = "log_connections"
+    value        = "1"
+    apply_method = "immediate"
+  }
+
+  parameter {
+    name         = "log_disconnections"
+    value        = "1"
+    apply_method = "immediate"
+  }
+
+  parameter {
+    name         = "log_min_duration_statement"
+    value        = "1000"
+    apply_method = "immediate"
+  }
+
+  parameter {
+    name         = "rds.force_ssl"
+    value        = "1"
+    apply_method = "immediate"
+  }
+
+  tags = var.tags
 }
 
 resource "aws_kms_alias" "database" {
@@ -75,13 +151,15 @@ resource "aws_db_instance" "this" {
   db_name  = "cloudops"
   username = "cloudops_runtime"
 
-  manage_master_user_password   = true
-  master_user_secret_kms_key_id = aws_kms_key.database.arn
+  manage_master_user_password         = true
+  master_user_secret_kms_key_id       = aws_kms_key.database.arn
+  iam_database_authentication_enabled = true
 
   db_subnet_group_name   = aws_db_subnet_group.this.name
   vpc_security_group_ids = [aws_security_group.database.id]
   publicly_accessible    = false
   multi_az               = var.multi_az
+  parameter_group_name   = aws_db_parameter_group.this.name
 
   backup_retention_period = var.backup_retention_days
   backup_window           = "03:00-04:00"

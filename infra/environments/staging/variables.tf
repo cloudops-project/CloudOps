@@ -28,14 +28,31 @@ variable "bedrock_model_arn" {
   default = ""
 }
 
+variable "bedrock_model_id" {
+  type    = string
+  default = ""
+}
+
 variable "ses_identity_arn" {
   type    = string
   default = ""
 }
 
 variable "certificate_arn" {
-  type    = string
-  default = ""
+  type = string
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:acm:", var.certificate_arn))
+    error_message = "Production-like staging requires an ACM certificate ARN."
+  }
+}
+
+variable "frontend_url" {
+  type = string
+}
+
+variable "trusted_hosts" {
+  type = list(string)
 }
 
 variable "alarm_email_endpoint" {

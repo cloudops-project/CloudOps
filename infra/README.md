@@ -10,8 +10,9 @@ The runtime task secret is an empty Secrets Manager container. Terraform never r
 
 - `DATABASE_URL`
 - `JWT_SECRET_KEY`
+- `AWS_SES_FROM_EMAIL` when SES delivery is enabled
 
-Optional provider configuration remains non-secret environment metadata. SMTP/provider credentials, when used, belong in the same environment-specific secret or a separately named secret with an equally narrow task-definition reference.
+Optional provider configuration remains non-secret environment metadata. SMTP/provider credentials, when used, belong in the same environment-specific secret or a separately named secret with an equally narrow task-definition reference. The release variables must also provide the public frontend URL, exact trusted hosts, and matching Bedrock model ARN/ID when Bedrock is enabled. Terraform injects the exact API and worker task-role ARNs used in customer trust policies, avoiding an account-root principal.
 
 ## State bootstrap
 
@@ -32,18 +33,18 @@ terraform init \
 
 Staging uses one NAT gateway, one API/web/worker replica, a single-AZ small database, seven-day backups, and 30-day logs. Production fixes two NAT gateways, Multi-AZ RDS, two API/web replicas, two job workers, deletion protection, final snapshots, 35-day backups, and 365-day logs. Changing those production safeguards requires code review.
 
-Route 53 records and ACM certificate issuance are deliberately external inputs because domain ownership is organization-specific. Production rejects an empty certificate ARN.
+Route 53 records and ACM certificate issuance are deliberately external inputs because domain ownership is organization-specific. Both production-like staging and production reject an empty certificate ARN.
 
 ## Release ordering
 
-Task definitions are immutable and use only `@sha256` images. ECS services ignore task-definition drift in Terraform so a full infrastructure apply cannot accidentally deploy application code. The release workflow:
+Task definitions are immutable and use only `@sha256` images. Terraform creates services at zero tasks and then ignores task-definition and desired-count drift; the release workflow owns those two deployment fields. This prevents a first environment creation or later infrastructure apply from starting application code before the migration gate. The release workflow:
 
 1. applies reviewed infrastructure and registers the new task definitions;
 2. runs the additive migration task and requires exit code zero;
-3. updates services to the captured task-definition ARNs;
+3. updates services to the captured task-definition ARNs and declared target counts;
 4. waits for the ECS deployment circuit breaker;
 5. runs smoke tests;
-6. restores the prior task definitions on failure.
+6. restores prior task definitions and counts on failure.
 
 Schema rollback is never automatic. Database evolution follows expand-and-contract.
 

@@ -35,6 +35,11 @@ output "service_task_definition_arns" {
   }
 }
 
+output "service_desired_counts" {
+  description = "Release-managed target task counts activated only after migrations succeed."
+  value       = var.desired_counts
+}
+
 output "private_subnet_ids" {
   value = var.private_subnet_ids
 }

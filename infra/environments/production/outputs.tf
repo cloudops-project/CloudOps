@@ -29,3 +29,7 @@ output "application_security_group_id" {
 output "service_task_definition_arns" {
   value = module.platform.service_task_definition_arns
 }
+
+output "service_desired_counts" {
+  value = module.platform.service_desired_counts
+}

@@ -31,6 +31,10 @@ variable "bedrock_model_arn" {
   type = string
 }
 
+variable "bedrock_model_id" {
+  type = string
+}
+
 variable "ses_identity_arn" {
   type = string
 }
@@ -44,6 +48,15 @@ variable "certificate_arn" {
   }
 }
 
-variable "alarm_email_endpoint" {
+variable "frontend_url" {
   type = string
+}
+
+variable "trusted_hosts" {
+  type = list(string)
+}
+
+variable "alarm_email_endpoint" {
+  type    = string
+  default = ""
 }
