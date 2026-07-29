@@ -112,9 +112,12 @@ jobs:
 
   staging:
     name: Deploy and verify staging
+    if: ${{ vars.ALLOW_STAGING_DEPLOY == 'YES' }}
     needs: build-publish
     runs-on: ubuntu-24.04
     environment: staging
+    env:
+      ALLOW_STAGING_DEPLOY: ${{ vars.ALLOW_STAGING_DEPLOY }}
     permissions:
       contents: read
       id-token: write
@@ -130,6 +133,10 @@ jobs:
         with:
           terraform_version: 1.10.5
           terraform_wrapper: false
+
+      - name: Enforce deliberate staging authorization
+        shell: bash
+        run: test "${ALLOW_STAGING_DEPLOY}" = "YES"
 
       - name: Configure short-lived staging deployment identity
         uses: aws-actions/configure-aws-credentials@v6.1.2
