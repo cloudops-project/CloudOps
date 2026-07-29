@@ -86,8 +86,8 @@ variable "frontend_url" {
   type = string
 
   validation {
-    condition     = can(regex("^https://", var.frontend_url))
-    error_message = "frontend_url must use HTTPS."
+    condition     = can(regex(var.enable_http_only_staging ? "^http://" : "^https://", var.frontend_url))
+    error_message = "frontend_url must use HTTPS unless temporary HTTP-only staging is explicitly enabled."
   }
 }
 
@@ -104,12 +104,15 @@ variable "trusted_hosts" {
 }
 
 variable "certificate_arn" {
-  description = "ACM certificate ARN required for the HTTPS-only public listener."
+  description = "ACM certificate ARN required unless temporary HTTP-only staging is explicitly enabled."
   type        = string
 
   validation {
-    condition     = can(regex("^arn:aws[a-z-]*:acm:", var.certificate_arn))
-    error_message = "certificate_arn must be an ACM certificate ARN."
+    condition = (
+      var.enable_http_only_staging ||
+      can(regex("^arn:aws[a-z-]*:acm:", var.certificate_arn))
+    )
+    error_message = "certificate_arn must be an ACM certificate ARN unless temporary HTTP-only staging is explicitly enabled."
   }
 }
 
@@ -117,8 +120,33 @@ variable "allowed_origins" {
   type = list(string)
 
   validation {
-    condition     = length(var.allowed_origins) > 0
-    error_message = "At least one explicit allowed origin is required."
+    condition = (
+      length(var.allowed_origins) > 0 &&
+      alltrue([
+        for origin in var.allowed_origins :
+        can(regex(var.enable_http_only_staging ? "^http://" : "^https://", origin))
+      ])
+    )
+    error_message = "Explicit allowed origins must use HTTPS unless temporary HTTP-only staging is enabled."
+  }
+}
+
+variable "enable_http_only_staging" {
+  description = "Temporary staging-only escape hatch for an unencrypted port-80 listener."
+  type        = bool
+  default     = false
+
+  validation {
+    condition = (
+      !var.enable_http_only_staging ||
+      (
+        var.environment == "staging" &&
+        var.bedrock_model_arn == "" &&
+        var.bedrock_model_id == "" &&
+        var.ses_identity_arn == ""
+      )
+    )
+    error_message = "HTTP-only mode is staging-only and requires Bedrock and SES to remain disabled."
   }
 }
 

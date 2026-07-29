@@ -2,6 +2,16 @@
 
 Record environment, commit, API/web digests, migration head, tester, date, and evidence links.
 
+## Transport prerequisite
+
+- [ ] HTTPS is active before any credential, customer-data, sensitive, Bedrock, or SES test.
+- [ ] If the temporary HTTP-only staging escape hatch is active, UAT is limited to non-sensitive
+      infrastructure health checks with synthetic public data.
+- [ ] Temporary HTTP mode reports port 80 and its warning output; WAF and private ECS/RDS boundaries
+      remain present.
+- [ ] Full UAT remains blocked until DNS and ACM are ready, HTTP mode is disabled, port 443 is the
+      only public listener, and secure cookies plus HSTS are restored.
+
 ## Tenant and access
 
 - [ ] Owner/member/viewer/admin capabilities match policy.
