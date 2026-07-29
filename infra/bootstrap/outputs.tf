@@ -11,7 +11,13 @@ output "lock_table_name" {
 }
 
 output "github_oidc_provider_arn" {
-  value = aws_iam_openid_connect_provider.github.arn
+  description = "Resolved GitHub Actions OIDC provider ARN, whether created or supplied."
+  value       = local.github_oidc_provider_arn
+}
+
+output "github_oidc_provider_created" {
+  description = "Whether this bootstrap configuration manages a newly created GitHub Actions OIDC provider."
+  value       = var.github_oidc_provider_mode == "create"
 }
 
 output "github_publish_role_arn" {
@@ -19,5 +25,6 @@ output "github_publish_role_arn" {
 }
 
 output "github_deploy_role_arns" {
-  value = { for environment, role in aws_iam_role.github_deploy : environment => role.arn }
+  description = "Deployment role ARNs keyed only by explicitly selected environment."
+  value       = { for environment, role in aws_iam_role.github_deploy : environment => role.arn }
 }

@@ -13,6 +13,14 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
+locals {
+  github_oidc_provider_arn = (
+    var.github_oidc_provider_mode == "create"
+    ? one(aws_iam_openid_connect_provider.github[*].arn)
+    : var.existing_github_oidc_provider_arn
+  )
+}
+
 data "aws_iam_policy_document" "state_kms" {
   # checkov:skip=CKV_AWS_109:This is a KMS resource policy, not an identity policy; the account-root statement is the required key-administration control plane.
   # checkov:skip=CKV_AWS_111:KMS key policies require Resource "*" because the policy is attached to the key being created.
@@ -271,6 +279,8 @@ resource "aws_dynamodb_table" "locks" {
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
+  count = var.github_oidc_provider_mode == "create" ? 1 : 0
+
   url = "https://token.actions.githubusercontent.com"
 
   client_id_list = ["sts.amazonaws.com"]
@@ -289,7 +299,7 @@ data "aws_iam_policy_document" "github_publish_trust" {
 
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      identifiers = [local.github_oidc_provider_arn]
     }
 
     condition {
@@ -307,7 +317,7 @@ data "aws_iam_policy_document" "github_publish_trust" {
 }
 
 data "aws_iam_policy_document" "github_environment_trust" {
-  for_each = toset(["staging", "production"])
+  for_each = var.deployment_environments
 
   statement {
     effect  = "Allow"
@@ -315,7 +325,7 @@ data "aws_iam_policy_document" "github_environment_trust" {
 
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      identifiers = [local.github_oidc_provider_arn]
     }
 
     condition {
@@ -340,7 +350,7 @@ resource "aws_iam_role" "github_publish" {
 }
 
 resource "aws_iam_role" "github_deploy" {
-  for_each = toset(["staging", "production"])
+  for_each = var.deployment_environments
 
   name                 = "cloudops-github-${each.key}-deploy"
   assume_role_policy   = data.aws_iam_policy_document.github_environment_trust[each.key].json
