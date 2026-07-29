@@ -36,6 +36,7 @@ data "aws_iam_policy_document" "state_kms" {
       "kms:DescribeKey",
       "kms:DisableKey",
       "kms:EnableKey",
+      "kms:EnableKeyRotation",
       "kms:Encrypt",
       "kms:GenerateDataKey*",
       "kms:GetKeyPolicy",
