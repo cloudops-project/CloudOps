@@ -59,6 +59,7 @@ module "platform" {
   bedrock_model_id           = var.bedrock_model_id
   ses_identity_arn           = var.ses_identity_arn
   certificate_arn            = var.certificate_arn
+  enable_http_only_staging   = var.enable_http_only_staging
   allowed_origins            = var.allowed_origins
   frontend_url               = var.frontend_url
   trusted_hosts              = var.trusted_hosts
@@ -66,7 +67,10 @@ module "platform" {
   enable_deletion_protection = true
   log_retention_days         = 365
   desired_counts             = { api = 1, web = 1, scheduler = 1, worker = 1 }
-  tags                       = local.tags
+  tags = merge(
+    local.tags,
+    var.enable_http_only_staging ? { TemporaryHttpStaging = "true" } : {},
+  )
 }
 
 module "database" {

@@ -2,6 +2,21 @@ output "load_balancer_dns_name" {
   value = module.platform.load_balancer_dns_name
 }
 
+output "public_protocol" {
+  description = "Active public listener protocol."
+  value       = module.platform.public_protocol
+}
+
+output "public_listener_ports" {
+  description = "Active public listener ports."
+  value       = module.platform.public_listener_ports
+}
+
+output "temporary_http_staging_warning" {
+  description = "Non-empty only while the temporary unencrypted staging mode is enabled."
+  value       = module.platform.temporary_http_staging_warning
+}
+
 output "ecr_repository_urls" {
   value = module.platform.repository_urls
 }

@@ -126,6 +126,41 @@ def test_configuration_security_validation() -> None:
         settings(jwt_secret_key="short")
 
 
+def test_insecure_transport_is_explicitly_staging_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises((ValidationError, ValueError), match="APP_ENV=staging"):
+        settings(
+            app_env="production",
+            allow_insecure_staging_transport=True,
+            cookie_secure=False,
+            cors_allowed_origins="http://temporary.example.invalid",
+        )
+    with pytest.raises((ValidationError, ValueError), match="COOKIE_SECURE"):
+        settings(app_env="staging", cookie_secure=False)
+
+    temporary = settings(
+        app_env="staging",
+        allow_insecure_staging_transport=True,
+        cookie_secure=False,
+        hsts_enabled=False,
+        cors_allowed_origins="http://temporary.example.invalid",
+        frontend_url="http://temporary.example.invalid",
+    )
+    assert temporary.app_env == "staging"
+    assert temporary.cookie_secure is False
+    assert temporary.hsts_enabled is False
+
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "synthetic-workload-chain-regression")
+    with pytest.raises((ValidationError, ValueError), match="Static AWS credentials"):
+        settings(
+            app_env="staging",
+            allow_insecure_staging_transport=True,
+            cookie_secure=False,
+            cors_allowed_origins="http://temporary.example.invalid",
+        )
+
+
 def test_cors_allowed_origins_rejects_wildcard_and_malformed_values() -> None:
     invalid_origins = (
         "*",

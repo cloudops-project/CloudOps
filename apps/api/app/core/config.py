@@ -70,7 +70,7 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    app_env: Literal["development", "testing", "production"] = "development"
+    app_env: Literal["development", "testing", "staging", "production"] = "development"
     app_name: str = "CloudOps API"
     api_v1_prefix: str = "/api/v1"
     database_url: SecretStr
@@ -89,6 +89,7 @@ class Settings(BaseSettings):
     cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     cookie_domain: str | None = None
     hsts_enabled: bool = False
+    allow_insecure_staging_transport: bool = False
     log_level: str = "INFO"
     frontend_url: str = "http://localhost:5173"
     auth_rate_limit_per_minute: int = Field(default=10, ge=1, le=1000)
@@ -180,6 +181,7 @@ class Settings(BaseSettings):
         return value
 
     def model_post_init(self, __context: object) -> None:
+        production_like = self.app_env in {"staging", "production"}
         if (self.jwt_previous_secret_key is None) != (self.jwt_previous_key_id is None):
             raise ValueError(
                 "JWT_PREVIOUS_SECRET_KEY and JWT_PREVIOUS_KEY_ID must be configured together"
@@ -189,9 +191,17 @@ class Settings(BaseSettings):
             and self.jwt_previous_key_id == self.jwt_active_key_id
         ):
             raise ValueError("JWT key identifiers must be distinct")
-        if self.app_env == "production" and not self.cookie_secure:
-            raise ValueError("COOKIE_SECURE must be true in production")
-        if self.app_env == "production":
+        if self.allow_insecure_staging_transport and self.app_env != "staging":
+            raise ValueError(
+                "ALLOW_INSECURE_STAGING_TRANSPORT is permitted only when APP_ENV=staging"
+            )
+        if (
+            production_like
+            and not self.allow_insecure_staging_transport
+            and not self.cookie_secure
+        ):
+            raise ValueError("COOKIE_SECURE must be true in production-like environments")
+        if production_like:
             static_variables = (
                 "AWS_ACCESS_KEY_ID",
                 "AWS_SECRET_ACCESS_KEY",
@@ -199,7 +209,7 @@ class Settings(BaseSettings):
             )
             if any(variable in os.environ for variable in static_variables):
                 raise ValueError(
-                    "Static AWS credentials are forbidden in production; "
+                    "Static AWS credentials are forbidden in production-like environments; "
                     "use the workload credential provider chain"
                 )
             if self.ai_provider == "external" and not self.ai_provider_api_key.get_secret_value():
@@ -224,22 +234,26 @@ class Settings(BaseSettings):
                 )
         if self.cookie_samesite == "none" and not self.cookie_secure:
             raise ValueError("COOKIE_SECURE must be true when COOKIE_SAMESITE is none")
-        if self.app_env == "production" and any(
+        if (
+            production_like
+            and not self.allow_insecure_staging_transport
+            and any(
             urlsplit(origin).scheme != "https" for origin in self.allowed_origins
+            )
         ):
-            raise ValueError("Production CORS_ALLOWED_ORIGINS must use HTTPS")
-        if self.hsts_enabled and (self.app_env != "production" or not self.cookie_secure):
+            raise ValueError("Production-like CORS_ALLOWED_ORIGINS must use HTTPS")
+        if self.hsts_enabled and (not production_like or not self.cookie_secure):
             raise ValueError(
-                "HSTS_ENABLED requires APP_ENV=production and COOKIE_SECURE=true; "
+                "HSTS_ENABLED requires a production-like APP_ENV and COOKIE_SECURE=true; "
                 "enable it only when HTTPS is guaranteed by deployment"
             )
-        if self.app_env == "production" and self.notification_provider == "smtp":
+        if production_like and self.notification_provider == "smtp":
             if self.smtp_security == "none" and not self.smtp_use_tls:
                 raise ValueError("Production SMTP requires STARTTLS or implicit TLS")
             if self.smtp_username and not self.smtp_password.get_secret_value():
                 raise ValueError("SMTP_PASSWORD is required when SMTP_USERNAME is configured")
         if (
-            self.app_env == "production"
+            production_like
             and self.notification_provider == "slack"
             and not _validate_provider_endpoint(
                 self.slack_webhook_url.get_secret_value(), ("hooks.slack.com",)
@@ -247,7 +261,7 @@ class Settings(BaseSettings):
         ):
             raise ValueError("SLACK_WEBHOOK_URL must be an approved HTTPS endpoint")
         if (
-            self.app_env == "production"
+            production_like
             and self.notification_provider == "teams"
             and not _validate_provider_endpoint(
                 self.teams_webhook_url.get_secret_value(),

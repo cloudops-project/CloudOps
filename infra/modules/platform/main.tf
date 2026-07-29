@@ -252,15 +252,15 @@ resource "aws_iam_role_policy" "worker_ses" {
 
 resource "aws_security_group" "load_balancer" {
   name_prefix = "${var.name}-alb-"
-  description = "Public TLS entry point"
+  description = "Public staging or production entry point"
   vpc_id      = var.vpc_id
   tags        = var.tags
 
   ingress {
-    description = "HTTPS"
+    description = var.enable_http_only_staging ? "Temporary staging HTTP" : "HTTPS"
     protocol    = "tcp"
-    from_port   = 443
-    to_port     = 443
+    from_port   = var.enable_http_only_staging ? 80 : 443
+    to_port     = var.enable_http_only_staging ? 80 : 443
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -428,6 +428,7 @@ resource "aws_s3_bucket_notification" "alb_access_logs" {
 }
 
 resource "aws_lb" "this" {
+  # checkov:skip=CKV2_AWS_20:Temporary HTTP is reachable only when the validated staging-only escape hatch is true; production cannot enable it, and HTTPS remains the default.
   name                       = substr(var.name, 0, 32)
   internal                   = false
   load_balancer_type         = "application"
@@ -487,6 +488,8 @@ resource "aws_lb_target_group" "web" {
 }
 
 resource "aws_lb_listener" "https" {
+  count = var.enable_http_only_staging ? 0 : 1
+
   load_balancer_arn = aws_lb.this.arn
   port              = 443
   protocol          = "HTTPS"
@@ -500,7 +503,42 @@ resource "aws_lb_listener" "https" {
 }
 
 resource "aws_lb_listener_rule" "api_https" {
-  listener_arn = aws_lb_listener.https.arn
+  count = var.enable_http_only_staging ? 0 : 1
+
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.api.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/*", "/health", "/ready"]
+    }
+  }
+}
+
+resource "aws_lb_listener" "temporary_staging_http" {
+  # checkov:skip=CKV_AWS_2:Temporary staging-only listener while DNS and ACM validation are pending; production cannot enable this resource.
+  # checkov:skip=CKV_AWS_103:Temporary staging-only HTTP listener has no TLS policy by design; production cannot enable this resource.
+  count = var.enable_http_only_staging ? 1 : 0
+
+  load_balancer_arn = aws_lb.this.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "api_temporary_staging_http" {
+  count = var.enable_http_only_staging ? 1 : 0
+
+  listener_arn = aws_lb_listener.temporary_staging_http[0].arn
   priority     = 10
 
   action {
@@ -517,12 +555,13 @@ resource "aws_lb_listener_rule" "api_https" {
 
 locals {
   common_environment = [
-    { name = "APP_ENV", value = "production" },
+    { name = "APP_ENV", value = var.environment },
     { name = "CORS_ALLOWED_ORIGINS", value = join(",", var.allowed_origins) },
     { name = "TRUSTED_HOSTS", value = join(",", var.trusted_hosts) },
     { name = "FRONTEND_URL", value = var.frontend_url },
-    { name = "COOKIE_SECURE", value = "true" },
-    { name = "HSTS_ENABLED", value = "true" },
+    { name = "ALLOW_INSECURE_STAGING_TRANSPORT", value = tostring(var.enable_http_only_staging) },
+    { name = "COOKIE_SECURE", value = tostring(!var.enable_http_only_staging) },
+    { name = "HSTS_ENABLED", value = tostring(!var.enable_http_only_staging) },
     {
       name = "AWS_TRUSTED_PRINCIPAL_ARNS"
       value = join(",", [
@@ -743,7 +782,10 @@ resource "aws_ecs_service" "api" {
   enable_execute_command             = false
   tags                               = var.tags
 
-  depends_on = [aws_lb_listener.https]
+  depends_on = [
+    aws_lb_listener.https,
+    aws_lb_listener.temporary_staging_http,
+  ]
 
   lifecycle {
     ignore_changes = [task_definition, desired_count]
@@ -780,7 +822,10 @@ resource "aws_ecs_service" "web" {
   enable_execute_command             = false
   tags                               = var.tags
 
-  depends_on = [aws_lb_listener.https]
+  depends_on = [
+    aws_lb_listener.https,
+    aws_lb_listener.temporary_staging_http,
+  ]
 
   lifecycle {
     ignore_changes = [task_definition, desired_count]

@@ -83,7 +83,43 @@ terraform init \
 
 Staging uses one NAT gateway, one API/web/worker replica, a single-AZ small database, seven-day backups, and 30-day logs. Production fixes two NAT gateways, Multi-AZ RDS, two API/web replicas, two job workers, deletion protection, final snapshots, 35-day backups, and 365-day logs. Changing those production safeguards requires code review.
 
-Route 53 records and ACM certificate issuance are deliberately external inputs because domain ownership is organization-specific. Both production-like staging and production reject an empty certificate ARN.
+Route 53 records and ACM certificate issuance are deliberately external inputs because domain
+ownership is organization-specific. HTTPS is the default for every environment, and production
+always rejects an empty certificate ARN.
+
+### Temporary HTTP-only staging
+
+Staging alone has an explicit, default-off escape hatch for the period before DNS ownership and ACM
+certificate validation complete. It does not exist in the production root. The exact temporary
+staging values are:
+
+```hcl
+enable_http_only_staging = true
+certificate_arn          = ""
+frontend_url             = "http://<TEMPORARY_STAGING_HOST>"
+allowed_origins          = ["http://<TEMPORARY_STAGING_HOST>"]
+trusted_hosts            = ["<TEMPORARY_STAGING_HOST>"]
+bedrock_model_arn        = ""
+bedrock_model_id         = ""
+ses_identity_arn         = ""
+```
+
+This creates only a port-80 listener, labels the staging resources with
+`TemporaryHttpStaging = "true"`, emits a warning output, disables secure cookies and HSTS for that
+staging runtime, and keeps Bedrock and SES disabled. Traffic is unencrypted: do not enter real
+credentials, secrets, personal data, customer data, or other sensitive test content. WAF, private
+ECS tasks, restricted security-group paths, encrypted private RDS, Secrets Manager, logging, alarms,
+tenant authorization, and dry-run remediation controls remain in place.
+
+Return to HTTPS immediately after DNS and ACM are ready:
+
+1. Validate the certificate in the staging region and record its ARN.
+2. Change all staging URLs and origins to `https://`.
+3. Set `certificate_arn` to the validated ARN.
+4. Set `enable_http_only_staging = false`.
+5. Review a plan proving port 80 is removed and only the TLS 1.2/1.3 port-443 listener remains.
+6. Apply only after normal staging authorization, then verify HTTPS, secure cookies, HSTS, WAF, and
+   health checks before permitting sensitive or live-provider validation.
 
 ## Release ordering
 
@@ -114,8 +150,10 @@ terraform -chdir=infra/bootstrap init -backend=false
 terraform -chdir=infra/bootstrap validate
 terraform -chdir=infra/environments/staging init -backend=false
 terraform -chdir=infra/environments/staging validate
+terraform -chdir=infra/environments/staging test
 terraform -chdir=infra/environments/production init -backend=false
 terraform -chdir=infra/environments/production validate
+python infra/tests/test_temporary_http_staging.py
 ```
 
 CI also runs Checkov. Plans must be generated only with placeholder/non-secret variables and stored as protected deployment evidence.

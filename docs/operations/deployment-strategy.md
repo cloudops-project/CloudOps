@@ -10,6 +10,14 @@ Required evidence is the release manifest, SBOMs, scan output, reviewed Terrafor
 
 The workflow and Terraform are implemented but have not been run against AWS staging or production. Cloud-side state, OIDC, ECR, secret content, ACM/DNS, SES, Bedrock, alerting, and protected-environment prerequisites remain external gates.
 
+Staging includes a temporary, explicit, default-off HTTP-only escape hatch for use solely while DNS
+and ACM validation are pending. In that mode traffic is unencrypted, so credentials, customer data,
+sensitive security validation, live Bedrock, and live SES must remain out of scope. WAF and private
+task/database networking remain enabled. Production has no HTTP-only input and stays HTTPS-only.
+The escape hatch must be removed as soon as a validated staging certificate is available; the
+reviewed migration plan must replace port 80 with the TLS port-443 listener before normal staging
+qualification continues. See `infra/README.md` for the exact temporary values and removal sequence.
+
 The historical text below predates the implemented Docker, Terraform, and pipeline files and is retained only as planning history.
 
 ## Purpose and audience
