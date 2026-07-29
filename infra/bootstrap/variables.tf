@@ -34,3 +34,50 @@ variable "github_repository" {
     error_message = "github_repository must use owner/repository form."
   }
 }
+
+variable "deployment_environments" {
+  description = "GitHub deployment-role environments to create. Staging is the safe default; production requires explicit enablement."
+  type        = set(string)
+  default     = ["staging"]
+
+  validation {
+    condition = (
+      length(var.deployment_environments) > 0 &&
+      alltrue([
+        for environment in var.deployment_environments :
+        contains(["staging", "production"], environment)
+      ])
+    )
+    error_message = "deployment_environments must contain one or more supported values: staging or production."
+  }
+}
+
+variable "github_oidc_provider_mode" {
+  description = "How the GitHub Actions OIDC provider is resolved: create a new provider or reuse an explicitly supplied existing provider ARN."
+  type        = string
+
+  validation {
+    condition     = contains(["create", "existing"], var.github_oidc_provider_mode)
+    error_message = "github_oidc_provider_mode must be create or existing."
+  }
+}
+
+variable "existing_github_oidc_provider_arn" {
+  description = "Existing GitHub Actions OIDC provider ARN. Required only when github_oidc_provider_mode is existing."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      (var.github_oidc_provider_mode == "create" && var.existing_github_oidc_provider_arn == "") ||
+      (
+        var.github_oidc_provider_mode == "existing" &&
+        can(regex(
+          "^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:oidc-provider/token\\.actions\\.githubusercontent\\.com$",
+          var.existing_github_oidc_provider_arn
+        ))
+      )
+    )
+    error_message = "Create mode requires an empty existing provider ARN; existing mode requires the exact GitHub Actions OIDC provider ARN."
+  }
+}

@@ -16,7 +16,57 @@ Optional provider configuration remains non-secret environment metadata. SMTP/pr
 
 ## State bootstrap
 
-Run `bootstrap/` once with a tightly controlled platform identity. It creates a versioned, KMS-encrypted, public-blocked state bucket; a point-in-time-protected DynamoDB lock table; and GitHub OIDC roles. Record only its non-secret outputs as repository variables. Never commit backend configuration, state, plans, or populated tfvars.
+Run `bootstrap/` only with a tightly controlled, short-lived platform identity after verifying the
+caller account and region. It creates a versioned, KMS-encrypted, public-blocked state bucket; a
+point-in-time-protected DynamoDB lock table; and explicitly selected GitHub OIDC roles. It does not
+deploy the CloudOps application and does not create ECR repositories. Record only its non-secret
+outputs as repository variables. Never commit backend configuration, state, plans, or populated
+tfvars.
+
+The safe deployment-role default is staging only:
+
+```hcl
+deployment_environments = ["staging"]
+```
+
+Creating a production deployment role requires an explicit, separately reviewed selection:
+
+```hcl
+deployment_environments = ["staging", "production"]
+```
+
+Only `staging` and `production` are supported. Empty or unknown environment selections fail
+validation. Staging bootstrap authorization never authorizes the production selection.
+
+The GitHub Actions OIDC provider mode is also explicit and fail closed. Inspect the target account
+with an approved AWS SSO profile before choosing a mode:
+
+```text
+aws sts get-caller-identity --profile <STAGING_SSO_PROFILE>
+aws iam list-open-id-connect-providers --profile <STAGING_SSO_PROFILE>
+```
+
+Do not continue until the caller account and selected region match the approved staging target.
+Never display credential material. To create the provider when the account does not already have
+the GitHub Actions provider:
+
+```hcl
+github_oidc_provider_mode         = "create"
+existing_github_oidc_provider_arn = ""
+```
+
+To reuse the account's existing GitHub Actions provider without creating or importing another:
+
+```hcl
+github_oidc_provider_mode         = "existing"
+existing_github_oidc_provider_arn = "<EXISTING_GITHUB_OIDC_PROVIDER_ARN>"
+```
+
+Create mode rejects a supplied existing ARN. Existing mode requires the exact syntactically valid
+GitHub Actions provider ARN. The resolved ARN is used by the same repository-, branch-, and
+environment-restricted trust policies in both modes. Bootstrap outputs include the resolved OIDC
+provider ARN, whether it is managed by this root, the publishing-role ARN, and a deployment-role
+ARN map keyed only by selected environment.
 
 Example backend initialization:
 
@@ -69,6 +119,15 @@ terraform -chdir=infra/environments/production validate
 ```
 
 CI also runs Checkov. Plans must be generated only with placeholder/non-secret variables and stored as protected deployment evidence.
+
+Credential-free bootstrap tests:
+
+```text
+terraform -chdir=infra/bootstrap test
+python infra/bootstrap/tests/test_bootstrap_static.py
+```
+
+These tests use Terraform's mock provider and static source assertions; they do not call AWS.
 
 ## Live prerequisites
 
