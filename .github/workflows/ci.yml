@@ -77,7 +77,7 @@ jobs:
       - name: Dependency vulnerability audit
         run: |
           python -m pip install pip-audit
-          python -m pip-audit --skip-editable --progress-spinner off
+          python -m pip_audit --skip-editable --progress-spinner off
 
       - name: Backend tests
         run: python -m pytest app/tests -ra
@@ -179,6 +179,7 @@ jobs:
           -v "$PWD:/repo"
           zricethezav/gitleaks:v8.28.0
           detect --source=/repo --redact --no-banner
+          --gitleaks-ignore-path=/repo/.gitleaksignore
 
   infrastructure:
     name: Terraform and IaC security
