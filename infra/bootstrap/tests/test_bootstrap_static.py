@@ -7,9 +7,17 @@ import unittest
 BOOTSTRAP_ROOT = Path(__file__).resolve().parents[1]
 MAIN_TF = (BOOTSTRAP_ROOT / "main.tf").read_text(encoding="utf-8")
 VARIABLES_TF = (BOOTSTRAP_ROOT / "variables.tf").read_text(encoding="utf-8")
+STATE_KMS_POLICY = MAIN_TF.split(
+    'data "aws_iam_policy_document" "state_kms"',
+    maxsplit=1,
+)[1].split('resource "aws_kms_key" "state"', maxsplit=1)[0]
 
 
 class BootstrapStaticTests(unittest.TestCase):
+    def test_state_key_policy_authorizes_automatic_rotation(self) -> None:
+        self.assertIn('"kms:EnableKeyRotation"', STATE_KMS_POLICY)
+        self.assertNotIn('"kms:*"', STATE_KMS_POLICY)
+
     def test_environment_role_creation_uses_validated_input(self) -> None:
         self.assertIn('default     = ["staging"]', VARIABLES_TF)
         self.assertIn('contains(["staging", "production"], environment)', VARIABLES_TF)
