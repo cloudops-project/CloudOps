@@ -153,6 +153,8 @@ jobs:
           set -euo pipefail
           api_image="$(jq -r .api_image ../../../release-manifest.json)"
           web_image="$(jq -r .web_image ../../../release-manifest.json)"
+          enable_http_only_staging="${{ vars.STAGING_ENABLE_HTTP_ONLY }}"
+          enable_http_only_staging="${enable_http_only_staging:-false}"
           terraform init \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="key=cloudops/staging.tfstate" \
@@ -172,7 +174,8 @@ jobs:
             -var="bedrock_model_arn=${{ vars.STAGING_BEDROCK_MODEL_ARN }}" \
             -var="bedrock_model_id=${{ vars.STAGING_BEDROCK_MODEL_ID }}" \
             -var="ses_identity_arn=${{ vars.STAGING_SES_IDENTITY_ARN }}" \
-            -var="certificate_arn=${{ vars.STAGING_CERTIFICATE_ARN }}"
+            -var="certificate_arn=${{ vars.STAGING_CERTIFICATE_ARN }}" \
+            -var="enable_http_only_staging=${enable_http_only_staging}"
           terraform show -json staging.tfplan > staging-plan.json
 
       - name: Check reviewed staging plan
