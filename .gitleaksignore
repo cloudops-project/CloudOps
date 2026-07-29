@@ -1,0 +1,10 @@
+64bb7ec79adb1e1c5a878b32d7deb9858b5b3999:apps/api/app/services/remediation_actions.py:generic-api-key:84
+c71c2b08c1038ebb39e489f891c0b9de96ab7574:apps/api/app/tests/test_phase2_security.py:generic-api-key:54
+c71c2b08c1038ebb39e489f891c0b9de96ab7574:apps/api/app/tests/test_phase2_security.py:generic-api-key:77
+c71c2b08c1038ebb39e489f891c0b9de96ab7574:apps/api/app/tests/test_phase2_security.py:generic-api-key:85
+c71c2b08c1038ebb39e489f891c0b9de96ab7574:apps/api/app/tests/test_phase2_security.py:generic-api-key:105
+fd8c94fed9285ef2ac74666afb33aa06d426b54b:apps/api/app/tests/test_security.py:generic-api-key:279
+fd8c94fed9285ef2ac74666afb33aa06d426b54b:apps/api/app/tests/test_security.py:generic-api-key:287
+1f1264d3cc90dc40f3c324d3194a0cbff553a252:apps/api/app/tests/test_stage7_black_box.py:aws-access-token:515
+eee93551405c8bf8df9e658a3bd4b566ca95504a:apps/api/app/tests/test_ai_assistant.py:jwt:133
+878a32f209d217c02f6dbe6fffe78b858024c1c4:apps/api/app/tests/test_stage5_postgres.py:generic-api-key:404
