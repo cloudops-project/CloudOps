@@ -6,7 +6,7 @@ import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol
 
 import boto3  # type: ignore[import-untyped]
 from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import-untyped]
@@ -712,8 +712,19 @@ def safe_aws_error(exc: Exception) -> str:
     return "discovery_service_failed"
 
 
+class DiscoveryCollector(Protocol):
+    """Shape shared by the real collectors and the demo synthetic collectors."""
+
+    @property
+    def asset_types(self) -> set[AssetType]: ...
+
+    def discover(
+        self, factory: Any, regions: list[str], account_id: str
+    ) -> list[NormalizedAsset]: ...
+
+
 class DiscoveryOrchestrator:
-    services = (
+    services: tuple[DiscoveryCollector, ...] = (
         EC2DiscoveryService(),
         S3DiscoveryService(),
         IAMDiscoveryService(),
@@ -728,6 +739,20 @@ class DiscoveryOrchestrator:
         self.db, self.settings = db, settings
         self.assets, self.jobs = AssetRepository(db), DiscoveryJobRepository(db)
         self.client_factory = client_factory
+        if client_factory is None and settings.demo_synthetic_discovery:
+            # Local demo only; Settings forbids this flag in production-like
+            # environments. Imported lazily to avoid a circular import, since
+            # demo_inventory depends on NormalizedAsset from this module.
+            from app.services.demo_inventory import (
+                synthetic_client_factory,
+                synthetic_discovery_services,
+            )
+
+            # Instance attributes shadow the real class-level collectors, so the
+            # orchestrator keeps its genuine normalize/upsert/audit pipeline but
+            # never assumes a customer role or calls AWS.
+            self.services = synthetic_discovery_services()
+            self.client_factory = synthetic_client_factory
 
     def start(self, account_id: uuid.UUID, actor: User) -> DiscoveryJob:
         account = self.db.scalar(

@@ -1,15 +1,19 @@
-# CloudFix Product Requirements
+# CloudOps Product Requirements
 
-> **Naming:** CloudFix is the repository/project name. The implemented application, Python package,
-> infrastructure names, and UI remain branded **CloudOps**. No runtime rename has occurred.
+> **Naming:** Per [ADR-010](docs/architecture/decisions/ADR-010-cloudops-product-name.md),
+> **CloudOps** is the active product, application, and UI name. CloudFix remains only the
+> repository/directory name and appears in historical records. This document uses CloudOps.
 
 This file defines product intent and release acceptance. Implementation truth comes from source
 code, migrations, tests, Terraform, and workflows. See [architecture.md](architecture.md),
-[phases.md](phases.md), [rules.md](rules.md), and [memory.md](memory.md).
+[phases.md](phases.md), [rules.md](rules.md), and [memory.md](memory.md). For the current two-day
+demo's scope, limitations, and synthetic-only data, see [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md) and
+[SECURITY_MODEL.md](SECURITY_MODEL.md) — this PRD describes the full V1 product, not the demo
+subset.
 
 ## Executive summary
 
-CloudFix is a multi-tenant AWS security-posture application. Organizations onboard customer AWS
+CloudOps is a multi-tenant AWS security-posture application. Organizations onboard customer AWS
 accounts through cross-account IAM roles, inventory supported assets, apply deterministic security
 rules, review findings/compliance/risk, obtain bounded AI explanations, approve notifications, and
 govern simulated remediation. A locally verified V1 is implemented; no staging or production

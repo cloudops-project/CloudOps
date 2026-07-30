@@ -1,5 +1,9 @@
 ﻿# Deployment Strategy
 
+> See [DEPLOYMENT.md](../../DEPLOYMENT.md) at the repository root for how the local two-day demo
+> relates to (and does not exercise) this release path. This document remains authoritative for the
+> actual staging/production release path below.
+
 ## Current release path (authoritative)
 
 The implemented GitHub Actions release pipeline uses short-lived OIDC identities, builds API/web once, generates SBOMs, scans images, pushes once, captures ECR digests, promotes those exact digests to staging, runs an additive one-shot migration, then moves ECS services. Production planning preserves the exact binary and JSON plan as review evidence; only the subsequent apply job enters the protected GitHub Environment. Production also requires the explicit workflow input and exact `ALLOW_PRODUCTION_DEPLOY=YES` variable.

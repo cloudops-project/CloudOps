@@ -249,6 +249,15 @@ export function SchedulesPage() {
       api<Page<ScanRun>>(
         `/api/v1/scan-runs?organization_id=${organization!.id}&page=1&page_size=10`,
       ),
+    // "Run now" only enqueues a job; a worker processes it moments later. Without
+    // polling, the run would stay visibly PENDING after a single invalidation.
+    // Poll only while a run is actually active, then stop.
+    refetchInterval: (query) =>
+      query.state.data?.items.some(
+        (run) => run.status === "pending" || run.status === "running",
+      )
+        ? 2000
+        : false,
   });
 
   if (!organization) return <p>No organization selected.</p>;

@@ -1,5 +1,10 @@
 # Conceptual Database Design
 
+> See [DATA_MODEL.md](../../DATA_MODEL.md) at the repository root for a short index into this
+> document plus the one demo-specific note (synthetic seed data uses ordinary tables, no schema
+> change). This document remains the single authoritative source for schema fields, indexes, and
+> retention notes.
+
 ## Stage 1 implemented schema
 
 Alembic revision `0001_stage1` creates `users`, `organizations`, `organization_members`, `organization_invitations`, `refresh_token_sessions`, and `audit_events`. PostgreSQL is production; SQLite is limited to isolated tests.

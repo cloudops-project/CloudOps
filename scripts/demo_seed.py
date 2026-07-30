@@ -30,7 +30,6 @@ from app.models import (
 )
 from app.models.enums import (
     AWSAccountStatus,
-    AssetType,
     FindingSeverity,
     MembershipStatus,
     NotificationStatus,
@@ -40,6 +39,7 @@ from app.models.enums import (
 from app.security.passwords import hash_password
 from app.services.common import normalize_email
 from app.services.compliance import ComplianceService
+from app.services.demo_inventory import synthetic_inventory
 from app.services.evaluations import EvaluationService
 from app.services.notifications import NotificationService
 from app.services.remediation import RemediationService
@@ -57,11 +57,25 @@ DEMO_ACCOUNT_ID = "123456789012"
 
 def _assert_demo_database() -> None:
     settings = get_settings()
-    database_name = make_url(settings.database_url).database or ""
-    if settings.app_env == "production":
-        raise SystemExit("Refusing to seed or reset demo data with APP_ENV=production.")
+    # database_url is a SecretStr; make_url needs the revealed DSN. Passing the
+    # SecretStr directly raised "Expected string or URL object, got
+    # SecretStr('**********')". database_dsn is the sanctioned reveal boundary.
+    database_name = make_url(settings.database_dsn).database or ""
+    if settings.app_env in {"staging", "production"}:
+        raise SystemExit(
+            f"Refusing to seed or reset demo data with APP_ENV={settings.app_env}."
+        )
     if database_name != "cloudops_demo" and not database_name.startswith("cloudops_demo_"):
-        raise SystemExit("Refusing to seed or reset demo data outside a cloudops_demo* database.")
+        raise SystemExit(
+            "Refusing to seed or reset demo data outside a cloudops_demo* database "
+            f"(resolved database name: {database_name or '<none>'})."
+        )
+
+
+def _existing_demo_organization_slug() -> str | None:
+    with SessionLocal() as db:
+        organization = db.scalar(select(Organization).where(Organization.slug == DEMO_ORG_SLUG))
+        return organization.slug if organization is not None else None
 
 
 def _reset_database() -> None:
@@ -162,96 +176,24 @@ def _seed_demo(*, deliver_email: bool) -> dict[str, object]:
                 aws_account_id=account.id,
             )
         )
+        # Assets come from app.services.demo_inventory so the seeded inventory and
+        # the synthetic "Run now" rediscovery are byte-for-byte the same, and so
+        # metadata keys match what the deterministic rules actually read. Writing
+        # bespoke metadata here previously produced 17 rule errors per evaluation.
         assets = [
             Asset(
                 organization_id=organization.id,
                 aws_account_id=account.id,
-                asset_type=AssetType.EC2_INSTANCE,
-                resource_id="i-demo-unencrypted",
-                arn=f"arn:aws:ec2:us-east-1:{DEMO_ACCOUNT_ID}:instance/i-demo-unencrypted",
-                name="demo-unencrypted-instance",
-                region="us-east-1",
-                status="active",
-                metadata_json={
-                    "state": "running",
-                    "public_ip": "203.0.113.10",
-                    "imds_v2_required": False,
-                    "synthetic": True,
-                },
-            ),
-            Asset(
-                organization_id=organization.id,
-                aws_account_id=account.id,
-                asset_type=AssetType.CLOUDTRAIL_TRAIL,
-                resource_id="demo-cloudtrail-disabled",
-                arn=f"arn:aws:cloudtrail:us-east-1:{DEMO_ACCOUNT_ID}:trail/demo-disabled",
-                name="demo-disabled-trail",
-                region="us-east-1",
-                status="disabled",
-                metadata_json={"is_logging": False, "synthetic": True},
-            ),
-            Asset(
-                organization_id=organization.id,
-                aws_account_id=account.id,
-                asset_type=AssetType.S3_BUCKET,
-                resource_id="demo-public-bucket",
-                arn="arn:aws:s3:::demo-public-bucket",
-                name="demo-public-bucket",
-                region="global",
-                status="active",
-                metadata_json={
-                    "public_access_block": False,
-                    "encryption_enabled": False,
-                    "synthetic": True,
-                },
-            ),
-            Asset(
-                organization_id=organization.id,
-                aws_account_id=account.id,
-                asset_type=AssetType.EC2_SECURITY_GROUP,
-                resource_id="sg-demo-open-ssh",
-                arn=f"arn:aws:ec2:us-east-1:{DEMO_ACCOUNT_ID}:security-group/sg-demo-open-ssh",
-                name="demo-open-ssh",
-                region="us-east-1",
-                status="active",
-                metadata_json={
-                    "ingress": [
-                        {
-                            "ip_protocol": "tcp",
-                            "from_port": 22,
-                            "to_port": 22,
-                            "cidr_ipv4": "0.0.0.0/0",
-                        }
-                    ],
-                    "synthetic": True,
-                },
-            ),
-            Asset(
-                organization_id=organization.id,
-                aws_account_id=account.id,
-                asset_type=AssetType.IAM_USER,
-                resource_id="demo-admin-user",
-                arn=f"arn:aws:iam::{DEMO_ACCOUNT_ID}:user/demo-admin-user",
-                name="demo-admin-user",
-                region="global",
-                status="active",
-                metadata_json={
-                    "console_access": True,
-                    "mfa_enabled": False,
-                    "active_key_created_at": ["2025-01-01T00:00:00Z"],
-                    "attached_policy_arns": ["arn:aws:iam::aws:policy/AdministratorAccess"],
-                    "inline_policy_documents": [
-                        {
-                            "Statement": {
-                                "Effect": "Allow",
-                                "Action": "*",
-                                "Resource": "*",
-                            }
-                        }
-                    ],
-                    "synthetic": True,
-                },
-            ),
+                asset_type=item.asset_type,
+                resource_id=item.resource_id,
+                arn=item.arn,
+                name=item.name,
+                region=item.region,
+                status=item.status,
+                tags=item.tags,
+                metadata_json=item.metadata,
+            )
+            for item in synthetic_inventory(DEMO_ACCOUNT_ID)
         ]
         db.add_all(assets)
         db.commit()
@@ -294,6 +236,13 @@ def _seed_demo(*, deliver_email: bool) -> dict[str, object]:
                 db.commit()
                 delivered_notification_id = str(event.id)
 
+        severity_counts: dict[str, int] = {}
+        for finding in db.scalars(
+            select(Finding).where(Finding.organization_id == organization.id)
+        ):
+            key = finding.severity.value
+            severity_counts[key] = severity_counts.get(key, 0) + 1
+
         return {
             "email": DEMO_EMAIL,
             "analyst_email": DEMO_ANALYST_EMAIL,
@@ -303,6 +252,12 @@ def _seed_demo(*, deliver_email: bool) -> dict[str, object]:
             "organization_slug": organization.slug,
             "aws_account_id": str(account.id),
             "evaluation_id": str(evaluation.id),
+            # Surfaced so a regression that reintroduces metadata drift is visible
+            # in the seed output instead of only as repeated log warnings.
+            "evaluation_status": evaluation.status.value,
+            "evaluation_rules_evaluated": evaluation.rules_evaluated,
+            "evaluation_errors": evaluation.evaluation_errors,
+            "findings_by_severity": dict(sorted(severity_counts.items())),
             "compliance_assessment_id": str(compliance.id),
             "risk_assessment_id": str(risk.id),
             "schedule_id": str(schedule.id),
@@ -325,8 +280,24 @@ def main() -> int:
     _assert_demo_database()
     if args.reset:
         _reset_database()
+    elif _existing_demo_organization_slug() is not None:
+        # Re-running without --reset would violate the unique email/slug
+        # constraints partway through and leave the demo half-seeded. Fail
+        # clearly and name the safe reset mode instead.
+        raise SystemExit(
+            "Demo data is already present. Re-run with --reset to rebuild it from "
+            "scratch (this truncates the cloudops_demo* database)."
+        )
     summary = _seed_demo(deliver_email=args.deliver_email)
     print(json.dumps(summary, indent=2, sort_keys=True))
+    if summary["evaluation_errors"]:
+        print(
+            f"\nWARNING: {summary['evaluation_errors']} deterministic rule evaluation(s) "
+            "reported an error. Synthetic asset metadata no longer matches the rule "
+            "contract; see app/services/demo_inventory.py.",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

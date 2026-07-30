@@ -583,6 +583,7 @@ export interface RemediationRequest {
   status: RemediationStatus;
   execution_mode: RemediationExecutionMode;
   automation_eligible: boolean;
+  dry_run: boolean;
   title: string;
   summary: string;
   remediation_steps_json: string[];

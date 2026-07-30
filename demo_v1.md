@@ -1,7 +1,247 @@
 # CloudOps Version 1 Demo Runbook
 
+> **See [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md) first.** That file is the canonical operational runbook for
+> the current two-day demo: prerequisites, one-command startup, health verification, credentials,
+> temporary public URL, invitation flow, multi-user testing, logs, troubleshooting, validation
+> sequence and limitations. Where the two documents disagree, `DEMO_RUNBOOK.md` wins.
+>
+> This file remains the longer-form Version 1 narrative — demo purpose, per-stage talking points and
+> the historical rehearsal record. Section 0 below is a condensed quick start kept for continuity.
+>
+> **Stale evidence warning:** the "Verified in the current Codex rehearsal" list in section 4 describes
+> the demo stack *before* the port-mapping, same-origin proxy, synthetic-metadata and `job-worker`
+> fixes. Do not cite it as current. Tracked as DOC-02 in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
 This is the authoritative runbook for the local CloudOps Version 1 demonstration. It assumes the
 repository root is `D:\learn\cdac\cloudfix` and the product name is **CloudOps**.
+
+## 0. Two-day demo (quick start)
+
+Use this section for the two-day demo. The numbered sections below remain the
+long-form runbook.
+
+### Prerequisites
+
+- Docker Desktop with Docker Compose
+- PowerShell
+- Ports free: 5173, 8000, 8025, 1025, 5432
+- No AWS account, credentials, or network egress required
+
+### One command to start and bootstrap
+
+```powershell
+.\scripts\demo_bootstrap.ps1 -Reset
+```
+
+This validates the Compose file, builds images, starts the stack, waits for
+health, applies migrations (the `api` service runs `alembic upgrade head` before
+uvicorn), seeds synthetic demo data, verifies both workers are running, and
+prints the URLs and synthetic credentials. Any failing step aborts with a clear
+message. Omit `-Reset` only on a first run against an empty database; the seed is
+not additive and will tell you to re-run with `-Reset` if demo data exists.
+
+### URLs
+
+- Dashboard: <http://localhost:5173>
+- Mailpit inbox: <http://localhost:8025>
+- API health through the web origin: <http://localhost:5173/api/health>
+
+The dashboard and the API share one origin: the SPA calls relative `/api/v1/...`
+paths and Nginx proxies `/api/` to the API container. A single tunnel to port
+5173 therefore serves both, and no rebuild is needed when a temporary public
+hostname changes.
+
+### Synthetic credentials
+
+Demo-only values. These are **not** production defaults and must never be reused.
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Owner | `owner@cloudops-demo.testmail.com` | `CloudOps-Demo-Password-123!` |
+| Security analyst | `analyst@cloudops-demo.testmail.com` | `CloudOps-Demo-Password-123!` |
+| Cloud engineer | `engineer@cloudops-demo.testmail.com` | `CloudOps-Demo-Password-123!` |
+
+### Demo sequence
+
+1. **Login** — sign in as the owner at <http://localhost:5173>.
+2. **AWS account** — the connected synthetic account `123456789012` is visible.
+3. **Assets** — five synthetic assets: EC2 instance, security group, S3 bucket,
+   CloudTrail trail, IAM user.
+4. **Findings** — deterministic findings including CRITICAL open-SSH and public-S3.
+5. **Security posture** — dashboard summary over those records.
+6. **Compliance** — the seeded `cis_aws` assessment and its control snapshots.
+7. **Risk** — the seeded deterministic risk assessment, scores and ranked findings.
+8. **Schedules and Run now** — open the seeded "Daily demo scan", press **Run now**,
+   then watch the scan run progress as `job-worker` processes the queued job.
+   State it plainly: this is synthetic inventory, not a live AWS scan.
+9. **Notifications** — the approval-gated critical-finding notification; the
+   delivered message appears in Mailpit.
+10. **Audit log** — filter events and export CSV.
+11. **Dry-run remediation** — the seeded remediation request is `PENDING_APPROVAL`
+    with `dry_run = true` and `execution_mode = mock_automation`. Approve, then
+    execute; nothing in AWS is touched.
+12. **Members** — the owner, analyst and engineer with their roles.
+
+### Inspect logs
+
+```powershell
+docker compose -f compose.demo.yml logs --tail=100 api
+docker compose -f compose.demo.yml logs --tail=100 web
+docker compose -f compose.demo.yml logs --tail=100 scheduler-worker
+docker compose -f compose.demo.yml logs --tail=100 job-worker
+docker compose -f compose.demo.yml --profile tunnel logs --tail=100 cloudflared
+docker compose -f compose.demo.yml ps
+```
+
+The application audit log is in the UI (Audit page) and is the durable record;
+container logs are operational only.
+
+### Stop and reset
+
+```powershell
+# Stop, keep data
+docker compose -f compose.demo.yml down
+
+# Reseed synthetic data without rebuilding
+.\scripts\demo_bootstrap.ps1 -Reset -SkipBuild
+
+# Stop the tunnel only (the stack keeps running locally)
+docker compose -f compose.demo.yml --profile tunnel stop cloudflared
+
+# Stop and delete the demo database volume
+docker compose -f compose.demo.yml --profile tunnel down -v
+```
+
+### Temporary multi-user public access (Cloudflare Quick Tunnel)
+
+Several invited people can use the demo at the same time through one temporary
+public URL.
+
+```powershell
+# Local stack first, then the tunnel
+.\scripts\demo_bootstrap.ps1 -Reset -Tunnel
+
+# Or start/refresh the tunnel on its own
+.\scripts\demo_tunnel.ps1
+.\scripts\demo_tunnel.ps1 -Restart   # new URL
+```
+
+The script prints the current `https://<random>.trycloudflare.com` URL, the
+temporary-URL warning, and the invitation instructions, then keeps `cloudflared`
+running in the foreground.
+
+Quick Tunnel needs **no Cloudflare account, API token, or credentials.** The
+`cloudflared` service sits behind the `tunnel` Compose profile, so the default
+stack stays local-only.
+
+#### Why a new URL just works
+
+One origin serves everything: the SPA is built with an empty
+`VITE_API_BASE_URL`, so the browser calls relative `/api/v1/...` paths against
+whatever origin the page was loaded from, and Nginx proxies `/api/` to the API.
+The tunnel hostname is therefore never compiled into the bundle.
+
+Nginx forwards the browser-facing host and scheme as `X-Forwarded-Host` /
+`X-Forwarded-Proto`, and `TRUST_FORWARDED_HOST_SAME_ORIGIN=true` lets the API
+recognise a request whose `Origin` exactly equals that origin as same-origin on
+the two cookie-authenticated POST routes. Consequently a new URL needs **no
+source-code edit, image rebuild, CORS change, `TRUSTED_HOSTS` change, or API
+restart**. The API itself always sees `Host: api`, which is already trusted.
+
+This is not a wildcard: a mismatched `Origin`, a mismatched scheme, or a missing
+forwarded host is still rejected with 403, and the setting is refused outright
+when `APP_ENV` is `staging` or `production`.
+
+#### Inviting additional demo members
+
+1. Sign in as the owner and go to **Members → Invite**.
+2. Enter the guest's email and choose a **CloudFix application role**: `admin`,
+   `security_analyst`, `cloud_engineer`, `auditor`, or `viewer`.
+3. The invitation email lands in Mailpit (<http://localhost:8025>, local only —
+   it is deliberately not tunnelled).
+4. **The emailed link points at `FRONTEND_URL` (`http://localhost:5173`), which a
+   remote guest cannot open.** Do not change `FRONTEND_URL` for this; just copy
+   the `token` value out of the emailed link and send the guest:
+
+   ```text
+   https://<current-tunnel-host>.trycloudflare.com/invitations/accept?token=<TOKEN>
+   ```
+
+   The accept page reads `token` from the query string, so the origin is
+   interchangeable and the same token works on any tunnel URL.
+5. The guest opens that link, accepts, registers if needed, and logs in **in
+   their own browser**.
+
+Each participant authenticates separately, holds their own access token in their
+own browser memory, and keeps their own role, tenant, and organization scope. No
+one inherits another person's session, and no one can read another
+organization's data. There is no shared or automatic login, and no credentials
+appear in any URL.
+
+> **A CloudFix application role is not an AWS IAM permission.** Application
+> roles (owner, admin, security analyst, cloud engineer, auditor, viewer) govern
+> only what a user may do inside CloudFix. AWS access is entirely separate: it
+> comes from cross-account IAM onboarding — a customer-created role plus a
+> per-account External ID, assumed with temporary STS credentials. Inviting
+> somebody to the demo grants them no AWS access of any kind, and the demo
+> assumes no role at all because discovery replays synthetic inventory.
+
+#### When the tunnel stops
+
+The URL works only while `cloudflared` runs. If it exits, is interrupted, or the
+host sleeps, the URL dies immediately and permanently — Quick Tunnel hostnames
+are never reissued. Restart with:
+
+```powershell
+.\scripts\demo_tunnel.ps1 -Restart
+```
+
+The newly printed URL is usable straight away; the running stack needs no
+change. Share the new link with participants. **No URL persistence is claimed.**
+
+#### Quick Tunnel is demo-only
+
+- The hostname is random and assigned by Cloudflare.
+- It changes on every tunnel restart.
+- There is no uptime, latency, or availability guarantee.
+- Not suitable for sensitive or confidential information.
+- Not suitable for production or for customer data.
+- Share the active URL only with intended demo participants; anyone holding it
+  can reach the login page, though they still need valid credentials.
+
+#### After the demo
+
+Replace Quick Tunnel with one of:
+
+- **Named Cloudflare Tunnel** — a stable, controlled hostname on your own
+  Cloudflare zone with a persistent connector credential, access policies, and
+  optional Cloudflare Access in front of the login page.
+- **AWS ALB + ACM on the staging domain** — an Application Load Balancer with an
+  ACM certificate and a real DNS record, matching
+  `docs/operations/local-staging-deployment.md`.
+
+Either way, set `CORS_ALLOWED_ORIGINS` and `TRUSTED_HOSTS` to the real
+browser-facing origin, enable `COOKIE_SECURE` and `HSTS_ENABLED`, and turn
+`TRUST_FORWARDED_HOST_SAME_ORIGIN` **off** — it is refused in production-like
+environments anyway.
+
+### Limitations
+
+- **Synthetic AWS data only.** `DEMO_SYNTHETIC_DISCOVERY=true` makes discovery
+  replay seeded synthetic inventory instead of assuming a customer role. Never
+  describe a demo scan as a live AWS scan. Settings refuse this flag when
+  `APP_ENV` is `staging` or `production`.
+- No Jira integration.
+- No live Amazon Bedrock; the AI provider is the deterministic mock.
+- No live Amazon SES; email goes to Mailpit over local SMTP.
+- No production deployment, and no backup/restore or rollback drill.
+- Remediation is dry-run/mock only and never mutates AWS.
+- Temporary HTTP is acceptable for this demo. It is **not** suitable for
+  sensitive or customer data.
+- Public access uses a Cloudflare Quick Tunnel: random hostname, changes on
+  restart, no uptime guarantee, demo participants only.
+- Mailpit is intentionally **not** exposed through the tunnel; invitation links
+  are read locally by the presenter.
 
 ## 1. Demo purpose
 
@@ -36,7 +276,7 @@ demo account. The deterministic fallback route uses synthetic data and must be d
 The demo uses `compose.demo.yml`:
 
 - `web`: React/Vite CloudOps web application at `http://localhost:5173`.
-- `api`: FastAPI service at `http://localhost:8000`, including migration execution at startup.
+- `api`: internal FastAPI service reached through the web `/api/` proxy; migrations run at startup.
 - `postgres`: PostgreSQL database `cloudops_demo`.
 - `scheduler-worker`: manual-profile one-shot scheduler tick service.
 - `mailpit`: SMTP server on `localhost:1025` and browser inbox at `http://localhost:8025`.
@@ -60,7 +300,7 @@ Ports used:
 | Service | URL/port |
 | --- | --- |
 | CloudOps web | `http://localhost:5173` |
-| CloudOps API | `http://localhost:8000` |
+| CloudOps API health | `http://localhost:5173/api/health` |
 | PostgreSQL | `localhost:5432` |
 | Mailpit web UI | `http://localhost:8025` |
 | Mailpit SMTP | `localhost:1025` |
@@ -92,7 +332,6 @@ Run from `D:\learn\cdac\cloudfix`:
 
 ```powershell
 docker compose -f compose.demo.yml config
-docker compose -f compose.demo.yml --profile manual config
 docker compose -f compose.demo.yml build
 docker compose -f compose.demo.yml up -d
 docker compose -f compose.demo.yml ps
@@ -101,11 +340,13 @@ docker compose -f compose.demo.yml exec -T api python -m alembic current
 .\scripts\demo_reset.ps1
 ```
 
-Equivalent one-command startup:
+`scheduler-worker` and `job-worker` are no longer behind a manual Compose
+profile, so `up -d` starts every service the demo needs.
+
+Equivalent one-command startup (preferred — see section 0):
 
 ```powershell
-.\scripts\demo_start.ps1
-.\scripts\demo_reset.ps1
+.\scripts\demo_bootstrap.ps1 -Reset
 ```
 
 Acceptance check from the host, using the disposable verification database, remains:
@@ -128,7 +369,7 @@ The acceptance runner writes generated evidence under `%TEMP%\cloudops-v1-demo`;
 
 Verified in the current Codex rehearsal:
 
-- `compose.demo.yml config` and `compose.demo.yml --profile manual config`: passed.
+- `compose.demo.yml config`: passed.
 - `compose.demo.yml build`: passed.
 - Docker start/readiness through `scripts/demo_check.ps1`: passed.
 - Docker-only reset/seed through `scripts/demo_reset.ps1`: passed.
@@ -219,10 +460,11 @@ UI steps:
 3. Enter an employee email, for example `employee-engineer@cloudops-demo.testmail.com`.
 4. Select role `cloud_engineer`.
 5. Click `Send invitation`.
-6. In development mode, CloudOps shows a `Development invitation token`.
+6. In development mode, CloudOps shows a current-origin, URL-encoded invitation link and the raw
+   token fallback.
 7. With `NOTIFICATION_PROVIDER=smtp`, Mailpit also receives a `CloudOps demo invitation` email.
-8. Open Mailpit at `http://localhost:8025`, open the invitation email, copy the accept link, or use
-   `/invitations/accept?token=<token>`.
+8. For a remote guest, copy the link displayed in the UI; the Mailpit email uses configured
+   `FRONTEND_URL`. The complete invitation URL survives login redirection.
 9. Register the employee account with the same email.
 10. Log in as the employee and submit the token on `Accept invitation`.
 
@@ -359,11 +601,17 @@ Open `Schedules`.
 - Run-now: click `Run now`.
 - Recent scan runs appear below schedules.
 - Overlap protection prevents multiple pending/running scans for the same account.
-- The manual Docker worker is one tick:
+- `Run now` only *enqueues* a `SCHEDULED_SCAN` platform job; it never scans inline.
+  `job-worker` picks the job up and drives discovery then evaluation. Both
+  `scheduler-worker` and `job-worker` now start with the stack, so no
+  `--profile manual` step is required. To watch the run progress:
 
 ```powershell
-docker compose -f compose.demo.yml --profile manual run --rm scheduler-worker
+docker compose -f compose.demo.yml logs -f job-worker
 ```
+
+If neither worker is running, a scan run stays at `pending` forever — confirm
+with `docker compose -f compose.demo.yml ps`.
 
 If the account is disconnected, run-now reports a safe failure.
 

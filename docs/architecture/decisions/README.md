@@ -1,5 +1,11 @@
 ﻿# Architecture Decision Records
 
+> See [DECISIONS.md](../../../DECISIONS.md) for the consolidated index, which also carries the
+> `ADR-Dxx` records made during demo hardening (same-origin proxy, synthetic demo discovery, Quick
+> Tunnel as temporary access only, dry-run remediation, Mailpit/mock providers, the forwarded-host
+> same-origin allowance, no Jira, and application-role versus IAM-role separation). The numbered
+> `ADR-0xx` files in this directory remain authoritative for the decisions they cover.
+
 ## Purpose and audience
 
 ADRs give contributors a durable record of important choices, alternatives, consequences, and status. They describe intent and do not prove implementation.

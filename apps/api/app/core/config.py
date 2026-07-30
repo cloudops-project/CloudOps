@@ -137,6 +137,17 @@ class Settings(BaseSettings):
     aws_ses_max_retry_attempts: int = Field(default=3, ge=1, le=5)
     remediation_execution_enabled: bool = False
     remediation_live_aws_enabled: bool = False
+    # Demo-only escape hatch: replay persisted synthetic inventory instead of
+    # assuming a customer role and calling AWS. Refused in production-like
+    # environments by model_post_init so it can never silently disable real
+    # discovery in a deployed system.
+    demo_synthetic_discovery: bool = False
+    # Demo-only: accept a genuinely same-origin Origin on the cookie-authenticated
+    # POST routes by comparing it to X-Forwarded-Host/-Proto from the reverse
+    # proxy. Lets an ephemeral public hostname (Cloudflare Quick Tunnel) work
+    # without CORS edits. Refused in production-like environments because
+    # X-Forwarded-* is only trustworthy behind a trusted proxy on every path.
+    trust_forwarded_host_same_origin: bool = False
     notification_max_message_bytes: int = Field(
         default=262_144, ge=1024, le=1_048_576
     )
@@ -232,6 +243,17 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "AWS_SES_ENABLED and AWS_SES_FROM_EMAIL are required for the SES provider"
                 )
+        if production_like and self.demo_synthetic_discovery:
+            raise ValueError(
+                "DEMO_SYNTHETIC_DISCOVERY is a local demo control and is forbidden in "
+                "production-like environments; real discovery must assume the customer role"
+            )
+        if production_like and self.trust_forwarded_host_same_origin:
+            raise ValueError(
+                "TRUST_FORWARDED_HOST_SAME_ORIGIN is a local demo control and is forbidden "
+                "in production-like environments; configure CORS_ALLOWED_ORIGINS with the "
+                "real browser-facing origin instead"
+            )
         if self.cookie_samesite == "none" and not self.cookie_secure:
             raise ValueError("COOKIE_SECURE must be true when COOKIE_SAMESITE is none")
         if (

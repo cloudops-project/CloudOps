@@ -1,5 +1,9 @@
 # Testing Strategy
 
+> See [TESTING_STRATEGY.md](../../TESTING_STRATEGY.md) at the repository root for the demo-hardening
+> test coverage added during demo work, and for the current (unexecuted) validation status. This
+> document remains authoritative for the general per-stage strategy below.
+
 ## Stage 1 executable suite
 
 Backend tests inject a disposable SQLite database and cover password/JWT/token primitives, configuration and role policy, health/readiness, registration/login, token rotation/reuse/logout/password change, ownership, tenant isolation, invitations, idempotent acceptance, role/status/removal lifecycle, final-owner protection, audit creation, and sensitive response exclusion. Migration verification uses a separate disposable database and performs upgrade/current/schema inspection/downgrade/re-upgrade.

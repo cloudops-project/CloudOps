@@ -1,5 +1,9 @@
 ﻿# API Design
 
+> See [API_CONTRACTS.md](../../API_CONTRACTS.md) at the repository root for a short index into this
+> document plus the one demo-specific note (the same-origin Nginx proxy path). This document remains
+> the single authoritative source for route lists, the RBAC matrix, and the error envelope.
+
 ## Stage 1 implemented contract
 
 Stage 1 uses application-managed access JWTs and opaque refresh cookies per ADR-008. Access tokens use `Authorization: Bearer`; refresh/logout use an HttpOnly cookie scoped to `/api/v1/auth`. Errors use an `error` object with code, safe message, correlation ID, and validation details.
