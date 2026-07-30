@@ -40,6 +40,8 @@ class Capability(StrEnum):
     SCHEDULE_MANAGE = "schedule.manage"
     JOBS_READ = "jobs.read"
     JOBS_MANAGE = "jobs.manage"
+    JIRA_MANAGE = "jira.manage"
+    JIRA_READ = "jira.read"
 
 
 ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
@@ -79,6 +81,8 @@ ROLE_CAPABILITIES: dict[OrganizationRole, frozenset[Capability]] = {
             Capability.SCHEDULE_MANAGE,
             Capability.JOBS_READ,
             Capability.JOBS_MANAGE,
+            Capability.JIRA_MANAGE,
+            Capability.JIRA_READ,
         }
     ),
     OrganizationRole.SECURITY_ANALYST: frozenset(

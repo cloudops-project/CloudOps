@@ -160,6 +160,22 @@ class Settings(BaseSettings):
     job_poll_interval_seconds: float = Field(default=1.0, ge=0.1, le=60)
     job_shutdown_grace_seconds: int = Field(default=30, ge=1, le=300)
     notification_provider_api_key: SecretStr = SecretStr("")
+    # Global kill switch: when false, no organization may configure, read, or use
+    # a Jira connection, and no outbound call to Jira Cloud can occur, regardless
+    # of what is stored in jira_integrations. Per-organization connection details
+    # (base URL, project key, API token) are never global settings; they live in
+    # the jira_integrations table. This mirrors AWS_SES_ENABLED/AWS_BEDROCK_ENABLED:
+    # an environment-level permission gate in front of tenant-scoped configuration.
+    jira_enabled: bool = False
+    # Symmetric key (32 raw bytes, base64/url-safe-base64 encoded) used to encrypt
+    # per-organization Jira API tokens at rest via app.security.secret_box. This is
+    # an application-level stopgap: production deployments must source this from a
+    # KMS-backed secret (e.g. AWS Secrets Manager with envelope encryption), not a
+    # static environment variable committed anywhere.
+    jira_token_encryption_key: SecretStr = SecretStr("")
+    jira_connect_timeout_seconds: int = Field(default=5, ge=1, le=30)
+    jira_read_timeout_seconds: int = Field(default=15, ge=1, le=60)
+    jira_max_retry_attempts: int = Field(default=3, ge=1, le=5)
 
     @field_validator("jwt_secret_key", "jwt_previous_secret_key")
     @classmethod
@@ -291,6 +307,10 @@ class Settings(BaseSettings):
             )
         ):
             raise ValueError("TEAMS_WEBHOOK_URL must be an approved HTTPS endpoint")
+        if self.jira_enabled and not self.jira_token_encryption_key.get_secret_value():
+            raise ValueError(
+                "JIRA_TOKEN_ENCRYPTION_KEY is required when JIRA_ENABLED is true"
+            )
 
     @property
     def allowed_origins(self) -> list[str]:

@@ -277,3 +277,10 @@ class PlatformJobStatus(StrEnum):
     FAILED = "failed"
     DEAD_LETTERED = "dead_lettered"
     CANCELLED = "cancelled"
+
+
+class JiraIntegrationStatus(StrEnum):
+    PENDING = "pending"
+    CONNECTED = "connected"
+    FAILED = "failed"
+    DISCONNECTED = "disconnected"
