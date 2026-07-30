@@ -1,4 +1,4 @@
-# CloudFix Delivery Phases
+# CloudOps Delivery Phases
 
 This evidence-based map reconciles stages 0–17. Labels are limited to the approved vocabulary.
 Configuration or workflow existence never counts as a live deployment. See
@@ -26,7 +26,7 @@ required** unless backed by retained CI artifacts.
 | 14 DevOps and IaC | CI, release, Terraform, containers, observability definitions | Bootstrap/staging/production Terraform and CI/release workflows exist | Terraform validation; Checkov 471/0; container scans reported | No live plan/apply/OIDC/ECR/alarm evidence; action SHA pinning gap | Implemented, external validation pending |
 | 15 Testing | Unit/integration/security/performance/UAT evidence | Extensive automated bounded groups A–I reported passing; UAT/load artifacts exist | A 198+1 skip, B 105, C 27, D 226, E 6, frontend 112 reported | Counts overlap; full retained CI run, UAT, load baseline remain | Partially implemented |
 | 16 Deployment | Staging then production promotion, migration, smoke, rollback | Workflow and Terraform definitions only | Local container/readiness smoke reported | No staging/production deployment, canary, rollback, or restore proof | Not started |
-| 17 Documentation and demo | Current handoff, runbooks, demo and UAT package | Documentation corpus and local demo runbook exist; truth audit in progress | Link/path/document checks from this audit | Complete review/commit and live demo/UAT evidence pending | Partially implemented |
+| 17 Documentation and demo | Current handoff, runbooks, demo and UAT package | Documentation corpus, [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md), [SECURITY_MODEL.md](SECURITY_MODEL.md), and a same-origin/synthetic-discovery/Quick-Tunnel demo stack exist; none of it has been executed in this environment (see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) VAL-01) | Code review and cross-document consistency review only; no test/build/container run performed | Full validation sequence (pytest/Ruff/Mypy/npm/Docker Compose/PowerShell) must be run in an environment with working tooling before any readiness claim | Partially implemented |
 
 ## Current release boundary
 

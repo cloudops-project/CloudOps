@@ -130,7 +130,21 @@ function RemediationRow({
       <td className="px-3 py-3">{item.title}</td>
       <td className="px-3 py-3">{item.rule_key}</td>
       <td className="px-3 py-3">
-        <StatusBadge status={item.status} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={item.status} />
+          {/* Makes the safe execution state visible rather than implied. */}
+          {item.dry_run && (
+            <span
+              className="rounded border border-emerald-700 px-2 py-0.5 text-xs text-emerald-300"
+              title="Simulated only. No AWS resource is modified."
+            >
+              Dry run
+            </span>
+          )}
+          {item.execution_mode === "mock_automation" && (
+            <span className="text-xs text-slate-400">mock automation</span>
+          )}
+        </div>
       </td>
       <td className="px-3 py-3">{item.attempt_count}</td>
       <td className="px-3 py-3">

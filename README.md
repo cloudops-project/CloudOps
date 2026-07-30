@@ -49,6 +49,11 @@ live AWS mutation executor exists.
 5. [rules.md](rules.md) — coding, security, Git, AWS, and release rules.
 6. [phases.md](phases.md) — stages 0–17 status.
 7. [memory.md](memory.md) — current worktree, evidence, risks, and next task.
+8. [KNOWN_ISSUES.md](KNOWN_ISSUES.md) — open, unresolved, verified issues only.
+9. [DECISIONS.md](DECISIONS.md) — ADR index, including demo-hardening `ADR-Dxx` records.
+10. [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md) — two-day demo commands, credentials, and limitations.
+11. [SECURITY_MODEL.md](SECURITY_MODEL.md) — authN/authZ, tenancy, secrets, and demo exceptions.
+12. [CHANGELOG.md](CHANGELOG.md) — unreleased changes; no tagged release exists.
 
 ## Documentation index
 
@@ -111,10 +116,14 @@ tests/          Cross-cutting verification documentation
 Use synthetic/local configuration only. Never paste or commit credentials.
 
 ```powershell
-Set-Location D:\learn\cdac\cloudfix-integration
+Set-Location D:\learn\cdac\cloudfix-main-release
 docker compose -f compose.yml config --quiet
 docker compose -f compose.demo.yml up --build
 ```
+
+For the two-day demo specifically (synthetic data, same-origin proxy, optional temporary public
+tunnel), use `.\scripts\demo_bootstrap.ps1 -Reset` instead — see
+[DEMO_RUNBOOK.md](DEMO_RUNBOOK.md).
 
 Backend checks run from `apps/api`; frontend checks run from `apps/web`. Automated AWS tests must
 remain mocked or Stubber-based.

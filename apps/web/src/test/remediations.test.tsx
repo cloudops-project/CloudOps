@@ -74,6 +74,7 @@ function pendingRequest(
     status: "pending_approval",
     execution_mode: "mock_automation",
     automation_eligible: true,
+    dry_run: true,
     title: "Remediate EC2_SG_SSH_OPEN_TO_WORLD",
     summary: "Restrict inbound SSH access.",
     remediation_steps_json: ["Restrict security group ingress"],

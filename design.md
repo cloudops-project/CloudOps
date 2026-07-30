@@ -1,6 +1,7 @@
-# CloudFix Current UI Design
+# CloudOps Current UI Design
 
-> The implemented UI is branded **CloudOps**. This document describes only `apps/web`.
+> Per [ADR-010](docs/architecture/decisions/ADR-010-cloudops-product-name.md), the implemented UI is
+> branded **CloudOps**. This document describes only `apps/web`.
 
 See [PRD.md](PRD.md), [architecture.md](architecture.md), [rules.md](rules.md), and
 [memory.md](memory.md).

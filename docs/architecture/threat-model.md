@@ -1,5 +1,9 @@
 # CloudOps Threat Model
 
+> See [THREAT_MODEL.md](../../../THREAT_MODEL.md) at the repository root for the demo-specific
+> addition (the forwarded-host same-origin trust boundary). This document remains authoritative
+> for the general product threat register below.
+
 ## Purpose and audience
 
 Security, architecture, engineering, and operations teams use this initial threat model to prioritize controls and security tests. It is a living model, not a claim that controls are implemented.

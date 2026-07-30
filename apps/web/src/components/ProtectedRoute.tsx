@@ -13,6 +13,10 @@ export function ProtectedRoute() {
   return me ? (
     <Outlet />
   ) : (
-    <Navigate to="/login" replace state={{ from: location.pathname }} />
+    <Navigate
+      to="/login"
+      replace
+      state={{ from: `${location.pathname}${location.search}${location.hash}` }}
+    />
   );
 }

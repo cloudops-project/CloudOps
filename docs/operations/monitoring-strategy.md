@@ -1,5 +1,8 @@
 ﻿# Monitoring Strategy
 
+> See [OPERATIONS.md](../../OPERATIONS.md) at the repository root for the operations document index,
+> including why none of this monitoring/alerting is wired to the local demo stack.
+
 ## Current implementation (authoritative)
 
 Implemented controls include JSON application logs with request IDs and a fixed safe-field allowlist; API duration/result events; job correlation, attempt, duration, retry, terminal, and heartbeat events; aggregate queue snapshots without tenant/resource dimensions; encrypted CloudWatch log groups; SNS routing; dashboard widgets; and alarms for ALB 5xx, unhealthy API targets, p95 latency, queue depth, dead letters, RDS CPU, storage, and connections.

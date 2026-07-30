@@ -1,11 +1,14 @@
-# CloudFix Current Architecture
+# CloudOps Current Architecture
 
-> CloudFix is the repository/project name; current runtime identifiers and UI use **CloudOps**.
-> This document describes implemented code and locally validated configuration, not a deployed
-> environment.
+> Per [ADR-010](docs/architecture/decisions/ADR-010-cloudops-product-name.md), **CloudOps** is the
+> active product name; CloudFix remains only the repository/directory name. This document describes
+> implemented code and locally validated configuration, not a deployed environment.
 
 Related sources: [PRD.md](PRD.md), [design.md](design.md), [rules.md](rules.md),
-[phases.md](phases.md), and [memory.md](memory.md).
+[phases.md](phases.md), and [memory.md](memory.md). The local two-day demo's additional same-origin
+proxy, synthetic-discovery, and Quick Tunnel architecture is documented separately in
+[DEMO_RUNBOOK.md](DEMO_RUNBOOK.md) and decisions `ADR-D01`–`ADR-D08` in [DECISIONS.md](DECISIONS.md)
+— it layers on top of, and does not replace, the architecture below.
 
 ## System context
 
@@ -174,7 +177,7 @@ Execution is disabled by default. Only the mock executor exists and it never mut
 
 ```mermaid
 flowchart LR
-  TaskRole["CloudFix ECS task role"] --> STS["STS AssumeRole"]
+  TaskRole["CloudOps ECS task role"] --> STS["STS AssumeRole"]
   STS --> RoleA["Customer A discovery role"]
   STS --> RoleB["Customer B discovery role"]
   RoleA --> CredA["Short-lived memory-only credentials"]

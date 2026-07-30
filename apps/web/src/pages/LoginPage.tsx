@@ -33,6 +33,7 @@ export function LoginPage() {
             navigate(
               (location.state as { from?: string } | null)?.from ||
                 "/dashboard",
+              { replace: true },
             );
           } catch (error) {
             setError("root", {

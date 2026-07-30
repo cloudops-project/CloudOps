@@ -36,7 +36,9 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
     application.add_middleware(
-        CookieOriginMiddleware, allowed_origins=set(settings.allowed_origins)
+        CookieOriginMiddleware,
+        allowed_origins=set(settings.allowed_origins),
+        trust_forwarded_host=settings.trust_forwarded_host_same_origin,
     )
     application.add_middleware(
         AuthenticationRateLimitMiddleware,

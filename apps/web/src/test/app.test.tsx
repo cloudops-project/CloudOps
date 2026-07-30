@@ -273,6 +273,41 @@ describe("Stage 1 application", () => {
     ).toBeEnabled();
   });
 
+  it("restores the complete invitation URL after login", async () => {
+    const token = "development-token-value-that-is-long-enough";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const body = url.includes("/auth/login")
+          ? { access_token: "invited-user-access-token" }
+          : url.includes("/auth/me")
+            ? owner
+            : [];
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    renderApp(`/invitations/accept?token=${token}#accept`, null);
+
+    expect(
+      await screen.findByRole("heading", { name: /welcome back/i }),
+    ).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/email/i), "owner@example.com");
+    await userEvent.type(
+      screen.getByLabelText(/password/i),
+      "Strong-Password-123!",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: /accept invitation/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/invitation token/i)).toHaveValue(token);
+  });
+
   it("logs out and makes protected content inaccessible", async () => {
     vi.stubGlobal(
       "fetch",
@@ -296,7 +331,8 @@ describe("Stage 1 application", () => {
     expect(client.getQueryCache().getAll()).toHaveLength(0);
   });
 
-  it("submits an invitation and exposes the development token", async () => {
+  it("submits an invitation and exposes a URL-encoded development token", async () => {
+    const developmentToken = "one-time+development/token?value";
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -307,7 +343,7 @@ describe("Stage 1 application", () => {
               email: "new@example.com",
               role: "viewer",
               status: "pending",
-              development_token: "one-time-development-token-value",
+              development_token: developmentToken,
             }),
             { status: 201, headers: { "Content-Type": "application/json" } },
           ),
@@ -319,7 +355,12 @@ describe("Stage 1 application", () => {
       screen.getByRole("button", { name: /send invitation/i }),
     );
     expect(
-      await screen.findByText("one-time-development-token-value"),
+      await screen.findByText(developmentToken),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `${window.location.origin}/invitations/accept?token=${encodeURIComponent(developmentToken)}`,
+      ),
     ).toBeInTheDocument();
   });
 });

@@ -1,7 +1,10 @@
-# CloudFix Development Rules
+# CloudOps Development Rules
 
 These rules govern AI-assisted and human changes. See [PRD.md](PRD.md),
-[architecture.md](architecture.md), [phases.md](phases.md), and [memory.md](memory.md).
+[architecture.md](architecture.md), [phases.md](phases.md), and [memory.md](memory.md). The local
+demo additionally follows the constraints in [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md) and
+[SECURITY_MODEL.md](SECURITY_MODEL.md); demo-only settings are refused outside development by
+`Settings.model_post_init` (see `apps/api/app/core/config.py`).
 
 ## Approved stack
 
