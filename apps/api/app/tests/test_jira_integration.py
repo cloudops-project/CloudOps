@@ -116,7 +116,7 @@ def test_connection_test_succeeds_with_mocked_response(db: Session) -> None:
     user, organization, _account = _tenant(db)
     db.commit()
     client = MockJiraClient()
-    service, integration = _create_integration(db, organization.id, user, client=client)
+    service, _integration = _create_integration(db, organization.id, user, client=client)
 
     result = service.test_connection(organization.id, user)
     assert result.status.value == "connected"
@@ -129,7 +129,7 @@ def test_issue_creation_succeeds_with_mocked_response_and_stores_link(db: Sessio
     finding, _asset = _finding(db, organization, account, user)
     db.commit()
     client = MockJiraClient()
-    service, integration = _create_integration(db, organization.id, user, client=client)
+    service, _integration = _create_integration(db, organization.id, user, client=client)
     service.test_connection(organization.id, user)
 
     link = service.create_issue_for_finding(
@@ -154,7 +154,9 @@ def test_real_client_uses_injected_transport_for_connection_and_issue_creation()
 
     client = RealJiraClient(transport=cast(JiraTransport, transport))
     client.test_connection(
-        base_url="https://cloudops-test.atlassian.net", email="bot@example.com", api_token="token-value"
+        base_url="https://cloudops-test.atlassian.net",
+        email="bot@example.com",
+        api_token="token-value",
     )
     result = client.create_issue(
         base_url="https://cloudops-test.atlassian.net",
@@ -198,7 +200,7 @@ def test_service_records_failed_status_on_authentication_failure(db: Session) ->
     user, organization, _account = _tenant(db)
     db.commit()
     client = MockJiraClient(fault_mode="auth_failure")
-    service, integration = _create_integration(db, organization.id, user, client=client)
+    service, _integration = _create_integration(db, organization.id, user, client=client)
 
     result = service.test_connection(organization.id, user)
     assert result.status.value == "failed"
@@ -255,7 +257,7 @@ def test_duplicate_issue_creation_calls_are_idempotent(db: Session) -> None:
     finding, _asset = _finding(db, organization, account, user)
     db.commit()
     client = MockJiraClient()
-    service, integration = _create_integration(db, organization.id, user, client=client)
+    service, _integration = _create_integration(db, organization.id, user, client=client)
     service.test_connection(organization.id, user)
 
     first = service.create_issue_for_finding(
@@ -281,7 +283,7 @@ def test_tenant_isolation_across_organizations(db: Session) -> None:
     user_a, org_a, account_a = _tenant(db)
     user_b, org_b, _account_b = _tenant(db)
     db.commit()
-    service_a, integration_a = _create_integration(db, org_a.id, user_a)
+    _service_a, _integration_a = _create_integration(db, org_a.id, user_a)
 
     service_b = JiraIntegrationService(db, _jira_settings(), client=MockJiraClient())
     with pytest.raises(NotFoundError):
@@ -293,9 +295,9 @@ def test_tenant_isolation_across_organizations(db: Session) -> None:
     db.commit()
     with pytest.raises(NotFoundError):
         # user_b is not a member of org_a, so require_capability -> NotFoundError
-        JiraIntegrationService(db, _jira_settings(), client=MockJiraClient()).create_issue_for_finding(
-            org_a.id, finding_a.id, user_b, idempotency_key="cross-tenant"
-        )
+        JiraIntegrationService(
+            db, _jira_settings(), client=MockJiraClient()
+        ).create_issue_for_finding(org_a.id, finding_a.id, user_b, idempotency_key="cross-tenant")
 
 
 def test_tenant_isolation_of_issue_links(db: Session) -> None:
@@ -310,9 +312,9 @@ def test_tenant_isolation_of_issue_links(db: Session) -> None:
     )
 
     with pytest.raises(NotFoundError):
-        JiraIntegrationService(db, _jira_settings(), client=MockJiraClient()).issue_links_for_finding(
-            org_b.id, finding_a.id, user_b
-        )
+        JiraIntegrationService(
+            db, _jira_settings(), client=MockJiraClient()
+        ).issue_links_for_finding(org_b.id, finding_a.id, user_b)
 
 
 # ---------------------------------------------------------------------------
@@ -345,7 +347,7 @@ def test_per_organization_disabled_integration_rejects_without_calling_client(db
     finding, _asset = _finding(db, organization, account, user)
     db.commit()
     client = MockJiraClient()
-    service, integration = _create_integration(db, organization.id, user, client=client)
+    service, _integration = _create_integration(db, organization.id, user, client=client)
     service.test_connection(organization.id, user)
     service.update(organization.id, user, enabled=False)
     client.invocations = 0
@@ -404,7 +406,7 @@ def test_admin_role_can_create_and_manage_jira_connection(db: Session) -> None:
 def test_non_admin_role_cannot_revoke_jira_connection(db: Session) -> None:
     owner, organization, _account = _tenant(db, role=OrganizationRole.OWNER)
     db.commit()
-    service, integration = _create_integration(db, organization.id, owner)
+    service, _integration = _create_integration(db, organization.id, owner)
 
     # Add a viewer membership for a second user in the same organization.
     viewer = _tenant(db, role=OrganizationRole.VIEWER)[0]
@@ -446,9 +448,7 @@ class _ConnectsThenFailsToCreateClient(MockJiraClient):
     ) -> JiraIssueResult:
         del base_url, email, api_token, project_key, issue_type, summary, description, labels
         self.invocations += 1
-        raise JiraClientError(
-            JiraErrorCode.TRANSIENT_FAILURE, "Mock Jira outage.", retryable=True
-        )
+        raise JiraClientError(JiraErrorCode.TRANSIENT_FAILURE, "Mock Jira outage.", retryable=True)
 
 
 def test_jira_failure_does_not_block_calling_pipeline(db: Session) -> None:
@@ -459,7 +459,7 @@ def test_jira_failure_does_not_block_calling_pipeline(db: Session) -> None:
     finding, _asset = _finding(db, organization, account, user)
     db.commit()
     client = _ConnectsThenFailsToCreateClient()
-    service, integration = _create_integration(db, organization.id, user, client=client)
+    service, _integration = _create_integration(db, organization.id, user, client=client)
     service.test_connection(organization.id, user)
 
     pipeline_completed = False
@@ -549,7 +549,7 @@ def test_issue_content_reuses_completed_jira_description_ai_draft(db: Session) -
     db.commit()
 
     client = MockJiraClient()
-    service, integration = _create_integration(db, organization.id, user, client=client)
+    service, _integration = _create_integration(db, organization.id, user, client=client)
     service.test_connection(organization.id, user)
     service.create_issue_for_finding(
         organization.id, finding.id, user, idempotency_key="draft-reuse-1"
