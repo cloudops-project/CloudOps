@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import uuid
-from typing import cast
 
 import pytest
 from pydantic import SecretStr
@@ -35,7 +34,6 @@ from app.services.jira_client import (
     JiraClientError,
     JiraErrorCode,
     JiraIssueResult,
-    JiraTransport,
     MockJiraClient,
     RealJiraClient,
 )
@@ -152,7 +150,7 @@ def test_real_client_uses_injected_transport_for_connection_and_issue_creation()
             return 200, b'{"accountId":"abc"}'
         return 201, b'{"key":"OPS-42"}'
 
-    client = RealJiraClient(transport=cast(JiraTransport, transport))
+    client = RealJiraClient(transport=transport)
     client.test_connection(
         base_url="https://cloudops-test.atlassian.net",
         email="bot@example.com",
@@ -184,7 +182,7 @@ def test_authentication_failure_is_classified_and_does_not_leak_token() -> None:
         del method, url, headers, body, timeout_seconds
         return 401, b'{"errorMessages":["Unauthorized"]}'
 
-    client = RealJiraClient(transport=cast(JiraTransport, transport))
+    client = RealJiraClient(transport=transport)
     with pytest.raises(JiraClientError) as exc_info:
         client.test_connection(
             base_url="https://cloudops-test.atlassian.net",
@@ -222,7 +220,7 @@ def test_rate_limit_triggers_bounded_retry_not_infinite_loop() -> None:
         calls.append(url)
         return 429, b"{}"
 
-    client = RealJiraClient(max_retry_attempts=3, transport=cast(JiraTransport, always_429))
+    client = RealJiraClient(max_retry_attempts=3, transport=always_429)
     with pytest.raises(JiraClientError) as exc_info:
         client.test_connection(
             base_url="https://cloudops-test.atlassian.net", email="bot@example.com", api_token="t"
@@ -241,7 +239,7 @@ def test_transient_5xx_then_success_recovers_within_bounded_retries() -> None:
         del method, url, headers, body, timeout_seconds
         return next(responses)
 
-    client = RealJiraClient(max_retry_attempts=3, transport=cast(JiraTransport, flaky))
+    client = RealJiraClient(max_retry_attempts=3, transport=flaky)
     client.test_connection(
         base_url="https://cloudops-test.atlassian.net", email="bot@example.com", api_token="t"
     )
@@ -555,4 +553,6 @@ def test_issue_content_reuses_completed_jira_description_ai_draft(db: Session) -
         organization.id, finding.id, user, idempotency_key="draft-reuse-1"
     )
     assert client.created_issues[0]["summary"] == "Open security group"
-    assert "Restrict source CIDR" in client.created_issues[0]["description"]
+    description = client.created_issues[0]["description"]
+    assert isinstance(description, str)
+    assert "Restrict source CIDR" in description
