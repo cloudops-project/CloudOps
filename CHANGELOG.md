@@ -10,6 +10,31 @@ deployment**.
 Format is loosely [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dates are
 `YYYY-MM-DD` in Asia/Calcutta.
 
+## [Unreleased] - 2026-07-31 (Jira integration and cryptography security repair)
+
+### Added
+
+- **Jira Cloud integration** (PR #19, follow-up fixes PR #20): organization-scoped Jira
+  configuration, a global fail-closed kill switch (`JIRA_ENABLED`), tenant-aware RBAC
+  (`Capability.JIRA_MANAGE`/`JIRA_READ`), connection testing, AES-256-GCM encrypted API-token
+  storage (`app/security/secret_box.py`), idempotent Jira issue creation, finding-to-issue links,
+  optional remediation-request association, and migration `0018_jira_integration`. Focused
+  automated test coverage reported passing in CI. **Implemented and locally/CI verified; live Jira
+  Cloud validation pending.**
+
+### Security
+
+- **Cryptography dependency upgrade** (PR #21): `cryptography` upgraded from `>=43,<46` to
+  `>=48.0.1,<49`. Evidenced validation: `cryptography 48.0.1` installed locally, `pip check`
+  passed, `pip-audit --skip-editable` reported no known vulnerabilities, Ruff passed, Mypy passed,
+  backend tests passed, and all five GitHub PR checks passed.
+
+### Known limitations for this entry
+
+Live Jira Cloud validation is pending. AWS bootstrap/staging infrastructure state reported in prior
+sessions is user-reported historical information only, not independently verified in this
+environment. No live AWS, Bedrock, SES, staging or production action was performed.
+
 ## [Unreleased] - 2026-07-30 (validated demo hardening)
 
 - Validated the same-origin Nginx proxy, temporary Quick Tunnel, synthetic discovery, default

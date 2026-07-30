@@ -5,48 +5,43 @@
 
 ## Session state
 
-- Date: 2026-07-30 (Asia/Calcutta)
+- Date: 2026-07-31 (Asia/Kolkata)
 - Worktree: `D:\learn\cdac\cloudfix-main-release`
-- Starting branch: `fix/temporary-http-staging`
-- Starting HEAD: `2306589c4eb4a136a6f2d75cfc909529d06e820e`
-- Current task: validate and publish the demo-hardening changes on a focused feature branch
-- Merge, deployment, live AWS, live Bedrock and live SES authorization: none
+- Baseline branch: `main`
+- Baseline HEAD: `09cf6d456f615b1d1892e5e18aecd7c42bc1fe54`
+- Current documentation branch: `docs/current-project-state`
+- Current Alembic head: `0018_jira_integration`
+- PRs #18, #19, #20 and #21 merged into `main`
+- Working tree state before this session's edits: clean
+- Merge, deployment, live AWS, live Bedrock, live SES and live Jira authorization: none
 - Product name: CloudOps; CloudFix remains the repository/legacy identifier
 
-## Implemented demo hardening
+## Implemented and merged into main
 
-- One browser origin serves the SPA and relative `/api/` requests through Nginx.
-- The API has no host-published port in the normal demo Compose file.
-- A demo-only forwarded-origin mode is disabled by default and refused in staging/production.
-- Nginx overwrites the trusted forwarded host, scheme and marker headers.
-- Unauthenticated invitation links preserve pathname, query string and hash across login.
-- Invitation links use `window.location.origin` and URL-encode the token.
-- Synthetic discovery exercises the real persistence/evaluation pipeline without AWS.
-- PostgreSQL-backed scheduler and job workers run by default with health checks.
-- Remediation remains governed mock/dry-run only.
-- Mailpit is local-only; the Quick Tunnel exposes only the web service.
+- Demo hardening (PR #18): same-origin Nginx SPA/API flow, API not host-published in the standard
+  demo, synthetic discovery using the real persistence/evaluation path, scheduler and job workers
+  enabled by default, multi-user and tenant-isolation flow, Quick Tunnel exposing only the web
+  service, Mailpit remaining local, governed mock/dry-run remediation.
+- Jira integration (PR #19, follow-up fixes PR #20): organization-scoped Jira configuration, a
+  global fail-closed kill switch, tenant-aware RBAC, connection testing, AES-256-GCM encrypted
+  API-token storage, idempotent Jira issue creation, finding-to-issue links, optional
+  remediation-request association, migration `0018_jira_integration`, and focused automated test
+  coverage. Classification: **implemented and locally/CI verified; live Jira Cloud validation
+  pending.**
+- Cryptography security repair (PR #21): `cryptography` upgraded from `>=43,<46` to `>=48.0.1,<49`.
+  Evidenced validation for that PR: `cryptography 48.0.1` installed locally, `pip check` passed,
+  `pip-audit --skip-editable` reported no known vulnerabilities, Ruff passed, Mypy passed, backend
+  tests passed, and all five GitHub PR checks passed.
 
-## Verification completed
+## Bootstrap and staging infrastructure — evidence status
 
-- Focused backend: 95 passed.
-- Full backend: 621 collected tests reached 100% with no failures or stderr against disposable
-  PostgreSQL. A focused PostgreSQL migration file also passed 9/9.
-- Ruff: clean.
-- Strict Mypy: clean across 160 source files.
-- Frontend: clean install, lint, typecheck, 69 focused tests, 115 full tests and production build
-  passed. The built bundle contains no temporary tunnel hostname.
-- Compose base and tunnel-profile rendering: passed.
-- Nginx built-image syntax check: passed.
-- PowerShell parser: all three changed scripts passed; PSScriptAnalyzer was unavailable.
-- Local demo: migrations, reset/seed, 23 rules, zero evaluation errors, five synthetic assets,
-  seven critical, seven high and six medium findings.
-- Local E2E through the web endpoint: health/readiness, SPA routes, three isolated user sessions,
-  refresh/logout, role restrictions, forged-token rejection, core dashboards, Run now, notifications,
-  audit, invitations and dry-run remediation passed.
-- Quick Tunnel: real HTTPS URL worked; a tunnel-only restart produced a new registered URL without
-  rebuilding or restarting the API/web. Windows DNS negative caching required validation through a
-  resolver that had the new record.
-- Dependency checks: `pip check`, `pip-audit` and `npm audit` passed with no known vulnerabilities.
+A prior session reported that `infra/bootstrap` (Terraform state S3 bucket, DynamoDB lock table,
+KMS key, GitHub OIDC provider, GitHub publish role, staging deployment role) had already been
+applied to AWS. **This is user-reported historical information, not independently verified in this
+environment.** It has not been confirmed with AWS CLI access, live account/region identity, or
+Terraform remote-state inspection. Treat as unproven until revalidated. Staging application
+infrastructure (VPC/ALB/ECS/ECR/RDS) is not deployed, and the expected `cloudops-staging-api` /
+`cloudops-staging-web` ECR repositories are not confirmed to exist.
 
 ## Known limitations
 
@@ -54,16 +49,44 @@
 - The emailed invitation uses configured `FRONTEND_URL`; for a remote Quick Tunnel guest, copy the
   UI-generated current-origin link.
 - Demo inventory, users and provider behavior are synthetic.
-- No live AWS account, customer account, Bedrock, SES, production email, Jira, staging deployment,
-  production deployment, backup/restore drill, canary, rollback rehearsal or formal UAT was run.
+- No live AWS account, customer account, Bedrock, SES, Jira Cloud, staging deployment, production
+  deployment, backup/restore drill, canary, rollback rehearsal or formal UAT has been run.
 - Node 23 emits an engine warning locally; the container/CI toolchain uses Node 22.
+- This sandbox environment has no working `gh`/`aws`/`terraform`/`docker` CLI and no outbound
+  network access to GitHub or PyPI (proxy returns 403 for both) — see the handoff section below.
 
-## Next exact task
+## Next operational milestone
 
-1. Finish the redacted candidate-file secret scan.
-2. Review `git diff`, create `fix/demo-hardening-validation`, and stage explicit reviewed paths.
-3. Commit with `fix(demo): validate same-origin tunnel and multi-user flow`.
-4. Push normally and open a non-draft pull request; do not merge automatically.
+Run the full baseline and live infrastructure phases from an environment with working GitHub,
+Python package, Docker, Terraform and AWS connectivity.
+
+### Next-environment handoff prerequisites
+
+- GitHub CLI (`gh`) authenticated.
+- AWS CLI authenticated through an approved role or SSO (no long-lived local access keys).
+- Terraform installed.
+- Docker Desktop running.
+- Python 3.12 available.
+- Node 22 available.
+- Network access to PyPI, the npm registry, GitHub, and AWS APIs.
+- Approved AWS sandbox account ID.
+- Approved staging account ID.
+- Approved region.
+- Jira test-site credentials stored outside Git.
+- Approved SES recipients.
+- Approved Bedrock model and region.
+
+Verification commands (do not include secret values in output):
+
+```powershell
+gh auth status
+aws sts get-caller-identity
+aws configure get region
+terraform -version
+docker version
+python --version
+node --version
+```
 
 ## Safe commands
 
