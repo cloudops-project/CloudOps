@@ -11,8 +11,12 @@ dry-run remediation.
 - **Implemented and locally verified:** core V1 features, tenant/RBAC controls, deterministic
   analysis, durable jobs, scheduler, audit, provider adapters, dry-run remediation, Terraform
   validation, CI/release definitions, and local container/security gates.
-- **Implemented; live validation pending:** AWS onboarding/discovery, Bedrock, SES, GitHub OIDC,
-  ECR publishing, Terraform apply, ECS/RDS/ALB/WAF/CloudWatch operation, and release workflow.
+- **Implemented; live validation pending:** AWS onboarding/discovery, Bedrock, SES, Jira, GitHub
+  OIDC, ECR publishing, Terraform apply, ECS/RDS/ALB/WAF/CloudWatch operation, and release workflow.
+- **User-reported, not independently verified in this environment:** the `infra/bootstrap` Terraform
+  root may have already been applied to AWS (state bucket, lock table, KMS key, OIDC provider,
+  publish/staging-deploy roles). This has not been confirmed with AWS CLI access, live account/region
+  identity, or Terraform state inspection — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 - **Deferred or not proven:** live AWS mutation, weighted canary, cross-region backup, live
   restore/rollback, UAT, load baseline, staging deployment, and production deployment.
 
@@ -130,7 +134,7 @@ remain mocked or Stubber-based.
 
 ## Current migration and infrastructure facts
 
-- Alembic head: `0017_remediation_json_trigger`.
+- Alembic head: `0018_jira_integration`.
 - Terraform roots: `infra/bootstrap`, `infra/environments/staging`,
   `infra/environments/production`.
 - Workflows: `.github/workflows/ci.yml` and `.github/workflows/release.yml`.

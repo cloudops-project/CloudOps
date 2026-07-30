@@ -13,8 +13,8 @@ mock/dry-run only.
 
 The stack is React/TypeScript/Vite, FastAPI/Pydantic/SQLAlchemy, PostgreSQL, and PostgreSQL-backed
 durable jobs. Scheduler and job workers implement leases, heartbeats, retries, idempotency and
-dead-letter behavior. Bedrock and SES adapters exist with mocked tests; live provider validation
-remains pending.
+dead-letter behavior. Bedrock, SES and Jira adapters exist with mocked/CI-verified tests; live
+provider validation remains pending for all three.
 
 ## Demo-hardening state
 
@@ -48,13 +48,11 @@ See [memory.md](memory.md) for exact session evidence and limitations.
 
 ## Current next task
 
-Review the demo-hardening pull request and its remote checks. Do not merge automatically. After
-review, the next operational action is a clean-machine rehearsal:
-
-```powershell
-.\scripts\demo_bootstrap.ps1 -Reset
-.\scripts\demo_tunnel.ps1 -NoFollow
-```
+Demo-hardening (PR #18), the Jira integration (PR #19, follow-up fixes PR #20), and the
+cryptography security upgrade (PR #21) are merged into `main`. The next operational action is
+running the full baseline and live-infrastructure phases from an environment with working GitHub,
+Python package, Docker, Terraform and AWS connectivity — see [memory.md](memory.md) for the exact
+handoff prerequisites.
 
 ## Safety
 
@@ -66,6 +64,7 @@ authorization.
 Read the attached project files and treat them as the source of truth.
 
 First, summarize your understanding of:
+
 - the project goal
 - the architecture
 - the current implementation state

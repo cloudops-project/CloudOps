@@ -1,6 +1,6 @@
 # CloudOps Known Issues
 
-Last reviewed: 2026-07-30 after executable demo-hardening validation.
+Last reviewed: 2026-07-31 after documentation synchronization for PRs #18-#21.
 
 ## Active demo limitations
 
@@ -20,8 +20,8 @@ CORS edit, or source change is required. Use a named tunnel or AWS staging hostn
 ### DEMO-03 — Synthetic scope only
 
 Discovery inventory, identities, provider responses and remediation are synthetic. Remediation is
-mock/dry-run only. The demo does not validate customer AWS, live Bedrock, live SES, Jira, backup
-restore, canary, rollback, staging, production, or formal UAT.
+mock/dry-run only. The demo does not validate customer AWS, live Bedrock, live SES, live Jira
+Cloud, backup restore, canary, rollback, staging, production, or formal UAT.
 
 ### TOOL-01 — Local Node version warning
 
@@ -30,8 +30,20 @@ build passed. Containers and CI use the supported Node 22 toolchain.
 
 ### PROVIDER-01 — Live provider validation pending
 
-Bedrock and SES adapters have automated mock/Stubber coverage only. Do not infer service access,
-sender verification, quotas, production delivery, or model availability from local tests.
+Bedrock, SES and Jira Cloud adapters have automated mock/Stubber/CI test coverage only. Do not
+infer service access, sender verification, quotas, production delivery, connection validity, or
+model availability from local or CI tests.
+
+### INFRA-01 — AWS bootstrap and staging state not independently verified
+
+A prior session reported that `infra/bootstrap` had already been applied to AWS (state bucket,
+lock table, KMS key, GitHub OIDC provider, publish role, staging deployment role). This is
+user-reported historical information only, not independently verified in this environment with AWS
+CLI access, live account/region identity, or Terraform remote-state inspection. Staging application
+infrastructure (VPC/ALB/ECS/ECR/RDS) has not been deployed, and the expected
+`cloudops-staging-api`/`cloudops-staging-web` ECR repositories are not confirmed to exist. Do not
+treat any AWS infrastructure state as current until revalidated from an environment with working
+AWS CLI access.
 
 ## Resolved in this change
 
@@ -42,3 +54,14 @@ sender verification, quotas, production delivery, or model availability from loc
 - Missing job worker, worker health checks, and stale Run-now UI status.
 - Synthetic metadata drift that caused deterministic rule errors.
 - Stale documentation claiming the demo was unvalidated.
+- Documentation drift after PRs #19-#21 (Jira integration and cryptography security repair) merged
+  without a corresponding documentation update — resolved by this documentation-synchronization
+  branch.
+
+## Resolved dependency issues
+
+- The `cryptography` package was upgraded from `>=43,<46` to `>=48.0.1,<49` (PR #21). Evidenced
+  validation: `cryptography 48.0.1` installed locally, `pip check` passed, `pip-audit
+--skip-editable` reported no known vulnerabilities, Ruff passed, Mypy passed, backend tests
+  passed, and all five GitHub PR checks passed. No vulnerability identifiers are reproduced here
+  because none are present in retained evidence available to this session.
