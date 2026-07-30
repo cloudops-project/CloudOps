@@ -20,7 +20,17 @@ from app.models.enums import (
 )
 from app.services.risk import RiskService
 from app.tests.test_stage5_postgres import _assessment, _framework
-from app.tests.test_zzz_stage5_migration import _config, _database, _seed_stage4
+from app.tests.test_zzz_stage5_migration import (
+    POSTGRES_URL,
+    _config,
+    _database,
+    _seed_stage4,
+)
+
+requires_postgres = pytest.mark.skipif(
+    not POSTGRES_URL,
+    reason="POSTGRES_TEST_DATABASE_URL is required for Stage 7 migration tests",
+)
 
 
 def _snapshot_stage1_through_stage6(engine: Any) -> dict[str, list[str]]:
@@ -80,6 +90,7 @@ def _seed_stage5_and_stage6(db: Session) -> None:
     )
 
 
+@requires_postgres
 def test_stage7_populated_migration_preserves_stage1_through_stage6() -> None:
     with _database("stage7_populated") as url:
         config = _config(url)
@@ -120,6 +131,7 @@ def test_stage7_populated_migration_preserves_stage1_through_stage6() -> None:
         engine.dispose()
 
 
+@requires_postgres
 def test_stage7_migration_failure_is_transactional_and_retryable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

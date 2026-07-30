@@ -15,6 +15,7 @@ from app.models.discovery_job import DiscoveryJob
 from app.models.evaluation_job import EvaluationJob
 from app.models.finding import Finding
 from app.models.invitation import OrganizationInvitation
+from app.models.jira_integration import JiraIntegration, JiraIssueLink
 from app.models.membership import OrganizationMembership
 from app.models.notification import NotificationDeliveryAttempt, NotificationEvent
 from app.models.organization import Organization
@@ -55,6 +56,8 @@ __all__ = [
     "EvaluationRuleResult",
     "Finding",
     "FindingRiskSnapshot",
+    "JiraIntegration",
+    "JiraIssueLink",
     "NotificationDeliveryAttempt",
     "NotificationEvent",
     "Organization",

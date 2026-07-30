@@ -9,13 +9,20 @@ from app.models import (
     AuditEvent,
     AWSAccount,
     AWSExternalIDReservation,
+    JiraIntegration,
+    JiraIssueLink,
     Organization,
     OrganizationInvitation,
     OrganizationMembership,
     RefreshTokenSession,
     User,
 )
-from app.models.enums import InvitationStatus, MembershipStatus, OrganizationRole
+from app.models.enums import (
+    InvitationStatus,
+    JiraIntegrationStatus,
+    MembershipStatus,
+    OrganizationRole,
+)
 
 
 class Repository:
@@ -265,4 +272,53 @@ class Repository:
             select(AWSExternalIDReservation)
             .where(AWSExternalIDReservation.aws_account_id == account_id)
             .with_for_update()
+        )
+
+    def jira_integration_for_organization(
+        self, organization_id: uuid.UUID
+    ) -> JiraIntegration | None:
+        return self.db.scalar(
+            select(JiraIntegration)
+            .where(
+                JiraIntegration.organization_id == organization_id,
+                JiraIntegration.status != JiraIntegrationStatus.DISCONNECTED,
+            )
+            .order_by(JiraIntegration.created_at.desc())
+        )
+
+    def jira_integration_for_organization_for_update(
+        self, organization_id: uuid.UUID
+    ) -> JiraIntegration | None:
+        return self.db.scalar(
+            select(JiraIntegration)
+            .where(
+                JiraIntegration.organization_id == organization_id,
+                JiraIntegration.status != JiraIntegrationStatus.DISCONNECTED,
+            )
+            .order_by(JiraIntegration.created_at.desc())
+            .with_for_update()
+        )
+
+    def jira_issue_link_by_idempotency_key(
+        self, organization_id: uuid.UUID, idempotency_key: str
+    ) -> JiraIssueLink | None:
+        return self.db.scalar(
+            select(JiraIssueLink).where(
+                JiraIssueLink.organization_id == organization_id,
+                JiraIssueLink.idempotency_key == idempotency_key,
+            )
+        )
+
+    def jira_issue_links_for_finding(
+        self, organization_id: uuid.UUID, finding_id: uuid.UUID
+    ) -> list[JiraIssueLink]:
+        return list(
+            self.db.scalars(
+                select(JiraIssueLink)
+                .where(
+                    JiraIssueLink.organization_id == organization_id,
+                    JiraIssueLink.finding_id == finding_id,
+                )
+                .order_by(JiraIssueLink.created_at.desc())
+            ).all()
         )

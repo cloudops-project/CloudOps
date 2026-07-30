@@ -9,6 +9,7 @@ from app.api.v1 import (
     dashboard,
     discovery,
     invitations,
+    jira,
     notifications,
     organizations,
     platform_jobs,
@@ -30,6 +31,7 @@ router.include_router(compliance.router, tags=["compliance"])
 router.include_router(risk.router, tags=["risk"])
 router.include_router(notifications.router, tags=["notifications"])
 router.include_router(remediation.router, tags=["remediation"])
+router.include_router(jira.router, tags=["jira-integration"])
 router.include_router(scheduler.router, tags=["scheduler"])
 router.include_router(platform_jobs.router, tags=["platform-jobs"])
 router.include_router(audit.router, tags=["audit"])
