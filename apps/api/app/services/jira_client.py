@@ -26,9 +26,7 @@ class JiraErrorCode(StrEnum):
 class JiraClientError(Exception):
     """Raised by JiraClient. Never carries the API token in its message."""
 
-    def __init__(
-        self, code: JiraErrorCode, message: str, *, retryable: bool = False
-    ) -> None:
+    def __init__(self, code: JiraErrorCode, message: str, *, retryable: bool = False) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
@@ -54,9 +52,7 @@ class JiraTransport(Protocol):
 
 
 class JiraClient(Protocol):
-    def test_connection(
-        self, *, base_url: str, email: str, api_token: str
-    ) -> None: ...
+    def test_connection(self, *, base_url: str, email: str, api_token: str) -> None: ...
 
     def create_issue(
         self,
@@ -277,7 +273,7 @@ def _urllib_transport(
 ) -> tuple[int, bytes]:
     request = Request(url, data=body, headers=headers, method=method)
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
+        with urlopen(request, timeout=timeout_seconds) as response:
             return int(response.status), response.read(65_536)
     except HTTPError as exc:
         return int(exc.code), exc.read(65_536)
