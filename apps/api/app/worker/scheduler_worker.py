@@ -14,6 +14,7 @@ import threading
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.services.scheduler import SchedulerService
+from app.worker.heartbeat import touch as touch_heartbeat
 
 logger = logging.getLogger("cloudops.scheduler")
 
@@ -43,6 +44,7 @@ def tick() -> int:
 def run_forever(stop_event: threading.Event) -> None:
     settings = get_settings()
     while not stop_event.is_set():
+        touch_heartbeat()
         started = tick()
         logger.info(
             "scheduler.tick.completed",
@@ -52,6 +54,7 @@ def run_forever(stop_event: threading.Event) -> None:
             },
         )
         stop_event.wait(settings.scheduler_poll_interval_seconds)
+    touch_heartbeat()
 
 
 def main() -> None:

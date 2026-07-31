@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.selfhost.example
 *.pem
 *.key
 *.p12
@@ -47,3 +48,5 @@ crash.*.log
 *.log
 tmp/
 .tmp/
+.cloudops/runtime/
+.cloudops/backups/

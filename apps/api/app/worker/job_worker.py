@@ -31,6 +31,7 @@ from app.services.notifications import NotificationService
 from app.services.organizations import OrganizationService
 from app.services.platform_jobs import PlatformJobService
 from app.services.remediation import RemediationService
+from app.worker.heartbeat import touch as touch_heartbeat
 
 logger = logging.getLogger("cloudops.worker")
 
@@ -154,12 +155,14 @@ class JobWorker:
     def run_forever(self) -> None:
         next_metrics_at = 0.0
         while not self.stop_event.is_set():
+            touch_heartbeat()
             now = time.monotonic()
             if now >= next_metrics_at:
                 self._emit_queue_metrics()
                 next_metrics_at = now + 60
             if not self.process_one():
                 self.stop_event.wait(self.settings.job_poll_interval_seconds)
+        touch_heartbeat()
 
     def stop(self) -> None:
         self.stop_event.set()

@@ -11,9 +11,11 @@ COPY apps/api/alembic.ini ./
 COPY apps/api/alembic ./alembic
 COPY apps/api/app ./app
 COPY scripts/demo_seed.py /app/scripts/demo_seed.py
+COPY scripts/selfhost/container_env.sh /app/scripts/selfhost-container-env.sh
 
 RUN python -m pip install --upgrade pip \
     && python -m pip install -e . \
+    && chmod 0555 /app/scripts/selfhost-container-env.sh \
     && addgroup -S cloudops \
     && adduser -S -G cloudops -h /app -H cloudops \
     && chown -R cloudops:cloudops /app
