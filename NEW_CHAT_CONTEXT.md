@@ -16,6 +16,12 @@ durable jobs. Scheduler and job workers implement leases, heartbeats, retries, i
 dead-letter behavior. Bedrock, SES and Jira adapters exist with mocked/CI-verified tests; live
 provider validation remains pending for all three.
 
+An organization-managed single-host path is being implemented on
+`feat/one-command-cloudflare-selfhost`: a named Cloudflare Tunnel reaches only Nginx, while
+FastAPI/PostgreSQL stay un-published; startup is migration-gated; generated secrets persist in
+ignored Docker secret files; and shared PowerShell/Bash commands manage health, update,
+backup/restore, and explicit destruction. Live named-tunnel and clean-machine proof remain pending.
+
 ## Demo-hardening state
 
 Implemented and locally verified on 2026-07-30:

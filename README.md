@@ -24,6 +24,28 @@ Terraform/workflow existence does not mean deployed. Current test/scan summaries
 verification evidence; external log retention required** unless retained CI artifacts are
 provided.
 
+## Organization-managed self-hosting
+
+The self-host path requires a pre-created named Cloudflare Tunnel whose public hostname routes to
+`http://web:8081`. Copy `.env.selfhost.example` to `.env.selfhost`, provide
+`CLOUDOPS_DOMAIN` and `CLOUDFLARE_TUNNEL_TOKEN`, then run:
+
+```powershell
+.\cloudops.ps1 up
+```
+
+or:
+
+```bash
+./cloudops.sh up
+```
+
+The controller generates internal secrets, starts persistent PostgreSQL, applies and verifies
+migrations, starts API/web/workers, verifies health, and connects the named tunnel. API and
+PostgreSQL publish no host ports. See
+[Named-Cloudflare self-hosting](docs/operations/self-hosted-cloudflare-deployment.md) for
+prerequisites, lifecycle, backup/restore, security boundaries, and validation status.
+
 ## Architecture at a glance
 
 ```mermaid
@@ -76,6 +98,7 @@ live AWS mutation executor exists.
 
 - [Terraform](infra/README.md)
 - [Deployment strategy](docs/operations/deployment-strategy.md)
+- [Named-Cloudflare self-hosting](docs/operations/self-hosted-cloudflare-deployment.md)
 - [Bedrock and SES setup](docs/operations/aws-provider-setup.md)
 - [Secrets strategy](docs/operations/secrets-management.md)
 - [Monitoring](docs/operations/monitoring-strategy.md)

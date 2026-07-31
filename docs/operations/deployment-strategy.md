@@ -14,6 +14,11 @@ Required evidence is the release manifest, SBOMs, scan output, reviewed Terrafor
 
 The workflow and Terraform are implemented but have not been run against AWS staging or production. Cloud-side state, OIDC, ECR, secret content, ACM/DNS, SES, Bedrock, alerting, and protected-environment prerequisites remain external gates.
 
+An additional organization-managed single-host option is implemented in `compose.selfhost.yml`.
+It uses a named Cloudflare Tunnel and a migration-gated private Docker topology. It is not the
+Terraform AWS staging/production topology and does not prove AWS deployment, managed backups,
+canary, or rollback. See [Self-hosted Cloudflare deployment](self-hosted-cloudflare-deployment.md).
+
 Staging includes a temporary, explicit, default-off HTTP-only escape hatch for use solely while DNS
 and ACM validation are pending. In that mode traffic is unencrypted, so credentials, customer data,
 sensitive security validation, live Bedrock, and live SES must remain out of scope. WAF and private

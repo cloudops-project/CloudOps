@@ -31,6 +31,11 @@ required** unless backed by retained CI artifacts.
 
 ## Current release boundary
 
+The organization-managed named-Cloudflare self-host path is implemented on
+`feat/one-command-cloudflare-selfhost` with focused tests and CI gates. It is part of Stage 14/16
+deployment enablement, not proof of live deployment. A real named tunnel, separate clean host,
+off-host backup custody, and restore rehearsal remain external validation gates.
+
 Implemented locally does not mean operationally proven. The release remains blocked on an approved
 AWS account/region, deployed OIDC and task roles, managed secrets, reviewed Terraform plan/apply,
 live Bedrock/SES tests, staging UAT/load/observability, restore/rollback rehearsal, and explicit

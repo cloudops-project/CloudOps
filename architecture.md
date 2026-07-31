@@ -12,6 +12,16 @@ proxy, synthetic-discovery, and Quick Tunnel architecture is documented separate
 
 ## System context
 
+### Organization-managed self-hosting
+
+`compose.selfhost.yml` implements a production-mode single-host path. Thin PowerShell/Bash
+wrappers share a Python control plane for configuration, migration-gated startup, health checks,
+lifecycle commands, and local backup/restore. A named Cloudflare Tunnel reaches only Nginx;
+FastAPI and PostgreSQL publish no host ports. Durable jobs remain PostgreSQL-backed and
+worker/scheduler health uses bounded heartbeat freshness. This does not replace or prove the
+Terraform-managed AWS path. See the
+[self-hosting guide](docs/operations/self-hosted-cloudflare-deployment.md).
+
 ```mermaid
 flowchart LR
   User["Organization user"] --> Web["React/Vite web"]

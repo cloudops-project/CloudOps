@@ -7,14 +7,49 @@
 
 - Date: 2026-07-31 (Asia/Kolkata)
 - Worktree: `D:\learn\cdac\cloudfix-main-release`
-- Baseline branch: `main`
-- Baseline HEAD: `09cf6d456f615b1d1892e5e18aecd7c42bc1fe54`
-- Current documentation branch: `docs/current-project-state`
+- Baseline branch and HEAD: `main` at `1207e6acd59171266f945c7db88ec1c2c2cc07bd`
+- Current branch: `feat/one-command-cloudflare-selfhost`
 - Current Alembic head: `0018_jira_integration`
 - PRs #18, #19, #20 and #21 merged into `main`
-- Working tree state before this session's edits: clean
+- Working tree state before this feature: clean; feature changes are organized in focused local
+  commits and final cleanliness is confirmed during handoff
 - Merge, deployment, live AWS, live Bedrock, live SES and live Jira authorization: none
 - Product name: CloudOps; CloudFix remains the repository/legacy identifier
+
+## Current self-host feature session
+
+Implemented a production-mode one-command path using `compose.selfhost.yml`, a named Cloudflare
+Tunnel, Docker file secrets, migration-gated startup, private API/PostgreSQL networking,
+worker/scheduler heartbeat health, PowerShell/Bash wrappers, shared Python lifecycle control,
+local backup/restore, focused tests, CI gates, and an operator guide.
+
+Verification completed in this worktree:
+
+- 38 focused self-host tests passed; self-host scripts passed strict Mypy and Ruff.
+- Application Ruff passed; strict Mypy passed across 168 source files.
+- Full backend traversal succeeded with 644 tests collected. The 112 PostgreSQL-dependent tests
+  were then run against a disposable migrated PostgreSQL 16 container and all passed.
+- Frontend `npm ci`, ESLint, typecheck, 115 tests, production build, and npm audit passed. Prettier
+  initially identified three baseline files and passed after mechanical formatting.
+- `pip check` and `pip-audit --skip-editable` passed in this worktree's isolated environment.
+- PowerShell parsing, Bash syntax, destructive-refusal wrappers, organization/demo Compose
+  rendering, workflow YAML parsing, and Alembic heads/upgrade/current/check/preflight passed.
+- Disposable container acceptance passed migration gating, internal readiness, worker/scheduler
+  heartbeats, Nginx-proxied registration/login, down/restart persistence, backup, restore
+  integrity, post-restore migration, and restored login.
+- Docker Scout found no vulnerable packages in the final API or web runtime stages. Redacted
+  Gitleaks scanning of candidate files found no leaks.
+- Disposable containers, networks, PostgreSQL volumes, runtime secrets, and backup artifacts
+  created by this session were removed.
+
+External validation remains pending for a real named Cloudflare Tunnel, a separately provisioned
+clean host, off-host backup custody, and live optional providers. The synthetic tunnel token was
+intentionally rejected and is not live Cloudflare evidence.
+
+Focused commits created in this session:
+
+- `a470136` — one-command self-host implementation.
+- `39bbcce` — fault-isolating tests, CI gates, and required mechanical frontend formatting.
 
 ## Implemented and merged into main
 
@@ -52,13 +87,13 @@ infrastructure (VPC/ALB/ECS/ECR/RDS) is not deployed, and the expected `cloudops
 - No live AWS account, customer account, Bedrock, SES, Jira Cloud, staging deployment, production
   deployment, backup/restore drill, canary, rollback rehearsal or formal UAT has been run.
 - Node 23 emits an engine warning locally; the container/CI toolchain uses Node 22.
-- This sandbox environment has no working `gh`/`aws`/`terraform`/`docker` CLI and no outbound
-  network access to GitHub or PyPI (proxy returns 403 for both) — see the handoff section below.
+- GitHub pull-request CI has not run for this unpushed feature branch.
 
 ## Next operational milestone
 
-Run the full baseline and live infrastructure phases from an environment with working GitHub,
-Python package, Docker, Terraform and AWS connectivity.
+Review the self-host diff, create focused commits, push
+`feat/one-command-cloudflare-selfhost`, open a non-draft pull request, and require all remote
+checks. After merge, perform separate opt-in named-tunnel and clean-host acceptance tests.
 
 ### Next-environment handoff prerequisites
 

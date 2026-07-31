@@ -28,6 +28,14 @@ Cloud, backup restore, canary, rollback, staging, production, or formal UAT.
 The host used Node 23 and emitted an engine warning. Frontend install, lint, typecheck, 115 tests and
 build passed. Containers and CI use the supported Node 22 toolchain.
 
+### SELFHOST-01 — External named-tunnel validation pending
+
+The production-mode one-command self-host path is implemented on its feature branch, but a real
+named Cloudflare Tunnel and a separate clean supported host must be exercised before those claims
+are externally verified. Local Compose/container results and pull-request CI are recorded
+separately. Operators must copy local PostgreSQL backups off-host; the initial backup command is
+not a managed disaster-recovery service.
+
 ### PROVIDER-01 — Live provider validation pending
 
 Bedrock, SES and Jira Cloud adapters have automated mock/Stubber/CI test coverage only. Do not

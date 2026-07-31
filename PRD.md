@@ -117,6 +117,11 @@ CloudTrail; live compatibility remains pending AWS staging validation. The exact
 
 ## Deployment and observability requirements
 
+- Provide an organization-managed single-host option where a named Cloudflare Tunnel reaches only
+  Nginx, internal API/database ports are not published, migrations gate readiness, generated
+  secrets persist securely, and normal stop/restart/update operations preserve data.
+- Treat live named-tunnel, clean-machine, and restore evidence separately from implementation.
+
 - Separate staging and production Terraform roots.
 - ECS API, web, scheduler, job worker, and one-shot migration task.
 - RDS PostgreSQL, ALB/WAF, KMS, Secrets Manager, CloudWatch, alarms, ECR, VPC flow logs, and access

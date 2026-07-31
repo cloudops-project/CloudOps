@@ -9,3 +9,8 @@ Terraform initially creates ECS services at zero tasks. The release workflow run
 Repository and environment variables contain non-secret identifiers such as role ARNs, regions, repository URLs, backend names, and public endpoints. No AWS access-key GitHub secret is supported. Cloud-side roles and GitHub Environment approvals must exist before release execution.
 
 Each deployment environment supplies JSON lists for availability zones, allowed origins, trusted hosts, and exact customer role ARNs, plus the public base URL, certificate ARN, approved Bedrock model ARN/ID, and SES identity ARN. The environment-specific runtime secret contains `DATABASE_URL`, `JWT_SECRET_KEY`, and `AWS_SES_FROM_EMAIL` only when SES is enabled.
+
+The CI workflow also contains `selfhost-fast` and `selfhost-containers` gates. They exercise the
+named-Cloudflare Compose path with synthetic configuration and no real tunnel credential. Live
+named-tunnel qualification remains an explicit external gate and never runs for untrusted pull
+requests.
