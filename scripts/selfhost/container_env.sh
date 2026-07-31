@@ -18,4 +18,8 @@ export JWT_SECRET_KEY="$(read_secret jwt_secret_key)"
 export JIRA_TOKEN_ENCRYPTION_KEY="$(read_secret jira_token_encryption_key)"
 unset postgres_password
 
+if [ "$(id -u)" -eq 0 ]; then
+  exec su-exec cloudops "$@"
+fi
+
 exec "$@"

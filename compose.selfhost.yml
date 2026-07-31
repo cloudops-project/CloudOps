@@ -25,6 +25,9 @@ x-api-base: &api-base
     context: .
     dockerfile: apps/api/Dockerfile
   environment: *api-environment
+  # Root exists only long enough to read host-owned 0600 Docker file secrets.
+  # selfhost-container-env.sh immediately execs the workload as UID 10001.
+  user: "0:0"
   secrets:
     - postgres_password
     - jwt_secret_key
@@ -217,6 +220,8 @@ services:
         condition: service_healthy
     secrets:
       - cloudflare_tunnel_token
+    # The entrypoint reads the 0600 file secret and immediately drops to UID 10001.
+    user: "0:0"
     networks:
       - tunnel
     restart: unless-stopped
@@ -225,6 +230,8 @@ services:
     read_only: true
     cap_drop:
       - ALL
+    cap_add:
+      - DAC_OVERRIDE
 
 volumes:
   cloudops_postgres:

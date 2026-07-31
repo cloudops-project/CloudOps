@@ -61,5 +61,16 @@ def test_cloudflare_token_uses_file_secret() -> None:
         encoding="utf-8"
     )
     assert "cloudflare/cloudflared:2024.12.2" in dockerfile
+    assert "adduser -S -u 10001" in dockerfile
     assert 'TUNNEL_TOKEN="$(cat "${token_path}")"' in entrypoint
+    assert "exec su-exec cloudops cloudflared" in entrypoint
     assert "tunnel run" in entrypoint
+
+
+def test_secret_bootstrap_drops_to_fixed_non_root_uid() -> None:
+    api_dockerfile = (ROOT / "apps/api/Dockerfile").read_text(encoding="utf-8")
+    api_entrypoint = (ROOT / "scripts/selfhost/container_env.sh").read_text(encoding="utf-8")
+    assert "adduser -S -u 10001" in api_dockerfile
+    assert 'exec su-exec cloudops "$@"' in api_entrypoint
+    assert 'user: "0:0"' in COMPOSE
+    assert "DAC_OVERRIDE" in service_block("cloudflared", None)

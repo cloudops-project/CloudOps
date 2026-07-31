@@ -78,6 +78,12 @@ After first initialization, `CLOUDOPS_INITIALIZED=true` is recorded in the ignor
 configuration. A missing internal secret then fails closed instead of silently
 rotating database or signing material.
 
+On Linux, Compose file secrets retain restrictive host ownership. API and
+cloudflared entrypoints therefore start only long enough to read their `0600`
+secret files, then immediately `exec` the workload through `su-exec` as fixed
+UID 10001. The long-running application/tunnel processes remain non-root; host
+secret permissions are not weakened.
+
 `up` validates configuration, builds images, starts PostgreSQL, gates startup
 on `alembic upgrade head`, verifies `0018_jira_integration`, starts the API and
 workers, checks heartbeats/readiness, starts the tunnel, and checks the public

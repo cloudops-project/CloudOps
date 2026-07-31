@@ -11,4 +11,4 @@ fi
 TUNNEL_TOKEN="$(cat "${token_path}")"
 export TUNNEL_TOKEN
 
-exec cloudflared --no-autoupdate tunnel run
+exec su-exec cloudops cloudflared --no-autoupdate tunnel run

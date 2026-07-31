@@ -25,7 +25,7 @@ local backup/restore, focused tests, CI gates, and an operator guide.
 
 Verification completed in this worktree:
 
-- 38 focused self-host tests passed; self-host scripts passed strict Mypy and Ruff.
+- 39 focused self-host tests passed; self-host scripts passed strict Mypy and Ruff.
 - Application Ruff passed; strict Mypy passed across 168 source files.
 - Full backend traversal succeeded with 644 tests collected. The 112 PostgreSQL-dependent tests
   were then run against a disposable migrated PostgreSQL 16 container and all passed.
