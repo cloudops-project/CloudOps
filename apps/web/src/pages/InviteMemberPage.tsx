@@ -75,14 +75,16 @@ export function InviteMemberPage() {
         <div className="mt-5 rounded-button border border-warning bg-amber-500/10 p-4">
           <p className="font-semibold">Development invitation link</p>
           <p className="mt-1 text-sm text-slate-400">
-            Built from the origin you are currently using ({window.location.origin}),
-            so it works whether this is localhost or the temporary tunnel URL.
-            Send this exact link to the invited guest.
+            Built from the origin you are currently using (
+            {window.location.origin}), so it works whether this is localhost or
+            the temporary tunnel URL. Send this exact link to the invited guest.
           </p>
           <code className="mt-2 block break-all text-sm">
             {`${window.location.origin}/invitations/accept?token=${encodeURIComponent(token)}`}
           </code>
-          <p className="mt-2 text-sm text-slate-400">Raw token (if needed separately):</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Raw token (if needed separately):
+          </p>
           <code className="mt-1 block break-all text-sm">{token}</code>
         </div>
       )}

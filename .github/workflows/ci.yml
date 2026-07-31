@@ -13,6 +13,125 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  selfhost-fast:
+    name: Self-host static and unit gate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install focused test tools
+        run: python -m pip install "pytest>=9.0.3,<10" "ruff>=0.9,<1"
+
+      - name: Shell and PowerShell syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD/cloudops.ps1",
+            [ref]$null,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) { throw ($errors | Out-String) }
+          bash -n cloudops.sh
+          bash -n scripts/selfhost/container_env.sh
+
+      - name: Self-host Python lint and tests
+        run: |
+          python -m ruff check scripts/selfhost tests/features/one_command_selfhost
+          python -m pytest tests/features/one_command_selfhost -ra
+
+      - name: Render organization Compose without real credentials
+        env:
+          CLOUDOPS_DOMAIN: cloudops.example.test
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ format('{0}-{1}-selfhost-validation-only', github.run_id, github.run_attempt) }}
+        run: |
+          mkdir -p .cloudops/runtime
+          for name in postgres_password jwt_secret_key jira_token_encryption_key cloudflare_tunnel_token; do
+            printf '%s\n' 'synthetic-ci-value-not-a-real-secret' > ".cloudops/runtime/$name"
+          done
+          docker compose --env-file .env.selfhost.example -f compose.selfhost.yml config --quiet
+          rendered="$(docker compose --env-file .env.selfhost.example -f compose.selfhost.yml config)"
+          ! grep -F 'synthetic-ci-value-not-a-real-secret' <<< "$rendered"
+          ! grep -E 'published: (5432|8000)' <<< "$rendered"
+          rm -rf .cloudops/runtime
+
+  selfhost-containers:
+    name: Self-host container gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    env:
+      CLOUDOPS_DOMAIN: cloudops.example.test
+      CLOUDFLARE_TUNNEL_TOKEN: ${{ format('{0}-{1}-selfhost-validation-only', github.run_id, github.run_attempt) }}
+      CLOUDOPS_COMPOSE_PROJECT: cloudops-selfhost-ci
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Initialize synthetic test-only configuration
+        run: python -c "from pathlib import Path; from scripts.selfhost.configure import configure; configure(Path.cwd(), interactive=False)"
+
+      - name: Build self-host images
+        run: >-
+          docker compose --env-file .env.selfhost -p cloudops-selfhost-ci
+          -f compose.selfhost.yml build api web cloudflared
+
+      - name: Migration-gated startup and internal health
+        run: |
+          set -euo pipefail
+          compose=(docker compose --env-file .env.selfhost -p cloudops-selfhost-ci -f compose.selfhost.yml)
+          trap '"${compose[@]}" down --volumes --remove-orphans' EXIT
+          "${compose[@]}" up -d postgres
+          "${compose[@]}" up --abort-on-container-exit --exit-code-from migration migration
+          "${compose[@]}" up -d api worker scheduler web
+          for attempt in $(seq 1 60); do
+            states="$("${compose[@]}" ps --format json)"
+            if grep -q '"Health":"unhealthy"' <<< "$states"; then
+              "${compose[@]}" ps
+              "${compose[@]}" logs --no-color --tail=100
+              exit 1
+            fi
+            healthy_count="$(grep -o '"Health":"healthy"' <<< "$states" | wc -l)"
+            if [ "$healthy_count" -ge 5 ]; then break; fi
+            sleep 5
+          done
+          if [ "$healthy_count" -lt 5 ]; then
+            "${compose[@]}" ps
+            "${compose[@]}" logs --no-color --tail=100
+            exit 1
+          fi
+          "${compose[@]}" exec -T web wget -q -O - http://127.0.0.1:8080/api/health
+          "${compose[@]}" exec -T web wget -q -O - http://127.0.0.1:8080/api/ready
+          "${compose[@]}" exec -T postgres \
+            psql -U cloudops -d cloudops -v ON_ERROR_STOP=1 \
+            -c 'CREATE TABLE selfhost_acceptance_marker (id integer PRIMARY KEY); INSERT INTO selfhost_acceptance_marker VALUES (1);'
+          python scripts/selfhost/cloudops.py backup
+          dump="$(find .cloudops/backups -name '*.dump' -print -quit)"
+          test -n "$dump"
+          "${compose[@]}" exec -T postgres \
+            psql -U cloudops -d cloudops -v ON_ERROR_STOP=1 \
+            -c 'DELETE FROM selfhost_acceptance_marker;'
+          python scripts/selfhost/cloudops.py restore "$dump" --confirm RESTORE-CLOUDOPS-DATA
+          test "$("${compose[@]}" exec -T postgres \
+            psql -U cloudops -d cloudops -Atc 'SELECT count(*) FROM selfhost_acceptance_marker;')" = "1"
+          "${compose[@]}" down
+          "${compose[@]}" up -d postgres
+          "${compose[@]}" up --abort-on-container-exit --exit-code-from migration migration
+          "${compose[@]}" up -d api worker scheduler web
+          "${compose[@]}" exec -T postgres pg_isready -U cloudops -d cloudops
+
   backend:
     name: Backend
     runs-on: ubuntu-24.04

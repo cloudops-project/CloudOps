@@ -354,9 +354,7 @@ describe("Stage 1 application", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /send invitation/i }),
     );
-    expect(
-      await screen.findByText(developmentToken),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(developmentToken)).toBeInTheDocument();
     expect(
       screen.getByText(
         `${window.location.origin}/invitations/accept?token=${encodeURIComponent(developmentToken)}`,
@@ -1510,7 +1508,9 @@ describe("Stage 3 asset discovery", () => {
     );
     expect(
       fetchMock.mock.calls.filter(([input]) =>
-        new URL(String(input), "http://testserver").pathname.endsWith("/discover"),
+        new URL(String(input), "http://testserver").pathname.endsWith(
+          "/discover",
+        ),
       ),
     ).toHaveLength(1);
   });
@@ -1539,7 +1539,9 @@ describe("Stage 3 asset discovery", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(
       fetchMock.mock.calls.filter(([input]) =>
-        new URL(String(input), "http://testserver").pathname.endsWith("/discover"),
+        new URL(String(input), "http://testserver").pathname.endsWith(
+          "/discover",
+        ),
       ),
     ).toHaveLength(0);
   });
