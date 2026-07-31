@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — one-command Cloudflare self-hosting
+
+- Added a production-mode private Compose topology with migration gating, durable worker/scheduler
+  heartbeats, Nginx-only named-tunnel access, Docker file secrets, and persistent PostgreSQL.
+- Added equivalent PowerShell/Bash commands backed by a shared Python control plane for install,
+  verify, lifecycle management, update, backup/restore, and explicitly confirmed destruction.
+- Added fail-closed configuration, fault-specific feature tests, CI static/container gates, and
+  an operations guide.
+- Live named-Cloudflare and clean-machine validation remain pending. No AWS deployment or live
+  provider invocation is part of this work.
+
 Notable user-visible and operational changes to CloudOps.
 
 This file starts at the demo-hardening work of 2026-07-30. Earlier stage history is recorded in

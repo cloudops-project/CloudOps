@@ -1,5 +1,10 @@
 # CloudOps Demo Runbook
 
+This runbook covers the synthetic Quick Tunnel demo only. Stable organization-managed hosting
+uses a named tunnel and the separate
+[self-hosting guide](docs/operations/self-hosted-cloudflare-deployment.md); it does not enable
+synthetic discovery or expose Mailpit.
+
 > Operational runbook for the two-day CloudOps demo. This is the **canonical** demo document.
 > `demo_v1.md` remains the longer-form Version 1 narrative runbook; where the two disagree, this file
 > wins.

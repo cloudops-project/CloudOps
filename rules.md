@@ -174,6 +174,14 @@ demo additionally follows the constraints in [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md) 
 
 ## Production authorization gate
 
+## Self-hosting safety
+
+- Organization self-hosting exposes only Nginx through the named Cloudflare Tunnel; API and
+  PostgreSQL never publish host ports.
+- Generated self-host secrets and backups remain under ignored `.cloudops/` paths, are never
+  printed, and remain stable across restart and update.
+- Self-host `down` preserves data. Destruction requires the exact documented confirmation phrase.
+
 - Never deploy production without explicit authorization.
 - Required evidence includes passing CI, reviewed Terraform plan, protected environment approval,
   staging UAT, exact digests, migration proof, observability, restore/rollback rehearsal, and

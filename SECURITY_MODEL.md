@@ -146,6 +146,14 @@ paths. TLS termination, WAF and CDN headers remain deployment responsibilities.
 
 ## Demo exceptions (HTTP and ephemeral hostnames)
 
+## Named-tunnel self-hosting
+
+Organization-managed self-hosting uses a named Cloudflare Tunnel as its only public ingress.
+`cloudflared` shares a dedicated network only with Nginx; FastAPI and PostgreSQL publish no host
+ports. Exact HTTPS origins and trusted hosts remain enabled. Tunnel/application/database secrets
+live in Git-ignored host files and are mounted as Docker file secrets. Host hardening, tunnel
+policy, off-host backup custody, and edge controls remain operator responsibilities.
+
 The demo deliberately relaxes transport, and **only** transport:
 
 - Plain HTTP locally; `COOKIE_SECURE=false`; HSTS off.

@@ -1,5 +1,9 @@
 # CloudOps V1 handover
 
+Organization-managed single-host deployment is documented separately in
+[Self-hosted Cloudflare deployment](../operations/self-hosted-cloudflare-deployment.md). Its named
+tunnel and local PostgreSQL lifecycle do not constitute AWS staging/production validation.
+
 ## Implemented and locally verified
 
 - Multi-tenant authentication/RBAC, AWS onboarding, discovery, deterministic rules, compliance, risk, AI advisory, dashboard, notifications, Jira integration, simulated remediation, scheduler, audit, security hardening, workload identity, durable jobs, provider adapters, and tenant isolation.

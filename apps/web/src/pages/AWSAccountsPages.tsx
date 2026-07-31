@@ -249,8 +249,8 @@ export function AWSAccountDetailsPage() {
         </div>
       ) : (
         <div className="card text-slate-400">
-          Onboarding trust material is available only to organization owners
-          and administrators.
+          Onboarding trust material is available only to organization owners and
+          administrators.
         </div>
       )}
       {onboarding && (
