@@ -562,6 +562,21 @@ class Stage4EC2Client:
                     ]
                 }
             ],
+            "describe_security_group_rules": [
+                {
+                    "SecurityGroupRules": [
+                        {
+                            "GroupId": "sg-1",
+                            "SecurityGroupRuleId": "sgr-1",
+                            "IsEgress": False,
+                            "IpProtocol": "tcp",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "CidrIpv4": "0.0.0.0/0",
+                        }
+                    ]
+                }
+            ],
             "describe_volumes": [
                 {
                     "Volumes": [
