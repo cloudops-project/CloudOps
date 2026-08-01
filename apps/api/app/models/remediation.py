@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from typing import Any
@@ -18,17 +19,33 @@ from sqlalchemy import (
     Uuid,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from app.db.base import Base, TimestampMixin, TZAwareDateTime, utc_now
 from app.models.enums import RemediationExecutionMode, RemediationStatus, enum_values
+
+SENSITIVE_EVIDENCE_KEY = re.compile(
+    r"(access.?key|secret|session.?token|credential|authorization|password)", re.I
+)
+
+
+def _contains_sensitive_evidence_key(value: object) -> bool:
+    if isinstance(value, dict):
+        return any(
+            SENSITIVE_EVIDENCE_KEY.search(str(key))
+            or _contains_sensitive_evidence_key(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(_contains_sensitive_evidence_key(item) for item in value)
+    return False
 
 
 class RemediationRequest(TimestampMixin, Base):
     """A proposal to remediate a specific finding. Version 1 only ever executes
     in MOCK_AUTOMATION mode; no real AWS mutation is performed by this model
-    or its service. MANUAL and JIRA_DRAFT are informational execution modes
-    that are never auto-executed."""
+    or its service. MANUAL and JIRA_DRAFT are informational execution modes;
+    LIVE_AWS is reserved storage groundwork. None is auto-executed."""
 
     __tablename__ = "remediation_requests"
     __table_args__ = (
@@ -121,6 +138,9 @@ class RemediationRequest(TimestampMixin, Base):
         server_default=RemediationExecutionMode.MOCK_AUTOMATION.value,
         nullable=False,
     )
+    executor_key: Mapped[str | None] = mapped_column(String(64))
+    target_region: Mapped[str | None] = mapped_column(String(64))
+    target_resource_arn: Mapped[str | None] = mapped_column(String(2048))
     automation_eligible: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("true"), nullable=False
     )
@@ -150,6 +170,11 @@ class RemediationRequest(TimestampMixin, Base):
     before_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     after_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     execution_result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    precondition_evidence_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, server_default=text("'{}'"), nullable=False
+    )
+    verification_result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    aws_request_ids_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     attempt_count: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )
@@ -163,3 +188,15 @@ class RemediationRequest(TimestampMixin, Base):
     cancelled_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
     executed_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
     failed_at: Mapped[datetime | None] = mapped_column(TZAwareDateTime())
+
+    @validates(
+        "precondition_evidence_json",
+        "verification_result_json",
+        "aws_request_ids_json",
+    )
+    def reject_sensitive_execution_evidence(
+        self, field: str, value: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        if value is not None and _contains_sensitive_evidence_key(value):
+            raise ValueError(f"{field} cannot contain credential-shaped fields")
+        return value
