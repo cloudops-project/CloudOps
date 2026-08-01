@@ -55,9 +55,20 @@ def upgrade() -> None:
         constraint["name"]
         for constraint in sa.inspect(bind).get_check_constraints("remediation_requests")
     }
-    if "remediation_execution_mode_allowed" in existing_checks:
+    execution_mode_check = next(
+        (
+            name
+            for name in (
+                "remediation_execution_mode_allowed",
+                "ck_remediation_requests_remediation_execution_mode_allowed",
+            )
+            if name in existing_checks
+        ),
+        None,
+    )
+    if execution_mode_check is not None:
         op.drop_constraint(
-            "remediation_execution_mode_allowed",
+            op.f(execution_mode_check),
             "remediation_requests",
             type_="check",
         )
