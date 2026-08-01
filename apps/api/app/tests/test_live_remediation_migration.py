@@ -236,10 +236,11 @@ def test_upgrade_from_0018_preserves_rows_and_enforces_foundation() -> None:
                     "INSERT INTO remediation_requests "
                     "(id, organization_id, aws_account_id, finding_id, rule_key, "
                     "rule_version, action_key, action_version, idempotency_key, title, "
-                    "summary, requested_at, execution_mode) "
+                    "summary, requested_at, execution_mode, status, cancelled_at) "
                     "SELECT :live_remediation_id, organization_id, aws_account_id, "
                     "finding_id, rule_key, rule_version, action_key, action_version, "
-                    ":idempotency_key, title, summary, requested_at, 'live_aws' "
+                    ":idempotency_key, title, summary, requested_at, 'live_aws', "
+                    "'cancelled', now() "
                     "FROM remediation_requests WHERE id = :remediation_id"
                 ),
                 {

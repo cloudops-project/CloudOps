@@ -11,14 +11,22 @@ from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session
 
 from alembic import command
-from app.models import Asset, AssetRiskContext, AWSAccount, Organization, User
+from app.models import (
+    Asset,
+    AssetRiskContext,
+    AWSAccount,
+    Organization,
+    RiskAssessment,
+    RiskScoringPolicy,
+    User,
+)
 from app.models.enums import (
     BusinessImpact,
     DataSensitivity,
+    RiskAssessmentStatus,
     RiskCriticality,
     RiskEnvironment,
 )
-from app.services.risk import RiskService
 from app.tests.test_stage5_postgres import _assessment, _framework
 from app.tests.test_zzz_stage5_migration import (
     POSTGRES_URL,
@@ -83,13 +91,39 @@ def _seed_stage5_and_stage6(db: Session) -> None:
             updated_by_user_id=user.id,
         )
     )
-    db.commit()
-    RiskService(db).assess(
-        organization.id,
-        user,
-        aws_account_id=account_id,
-        evaluation_time=datetime(2026, 7, 24, tzinfo=UTC),
+    policy = RiskScoringPolicy(
+        key="stage7-migration-policy",
+        version=1,
+        name="Stage 7 migration policy",
+        description="Synthetic historical Stage 6 migration fixture.",
+        weights_json={},
+        bands_json={},
+        active=True,
     )
+    db.add(policy)
+    db.flush()
+    assessed_at = datetime(2026, 7, 24, tzinfo=UTC)
+    db.add(
+        RiskAssessment(
+            organization_id=organization.id,
+            aws_account_id=account_id,
+            policy_id=policy.id,
+            evaluation_time=assessed_at,
+            source_cutoff_at=assessed_at,
+            status=RiskAssessmentStatus.COMPLETED,
+            started_by_user_id=user.id,
+            started_at=assessed_at,
+            finished_at=assessed_at,
+            findings_total=0,
+            critical_count=0,
+            high_count=0,
+            medium_count=0,
+            low_count=0,
+            informational_count=0,
+            accounts_scored=1,
+        )
+    )
+    db.commit()
 
 
 @requires_postgres
