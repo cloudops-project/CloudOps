@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from scripts.selfhost.errors import SelfHostError
 
-EXPECTED_MIGRATION_HEAD = "0018_jira_integration"
+EXPECTED_MIGRATION_HEAD = "0019_live_remediation_data_model"
 
 
 @dataclass(frozen=True, slots=True)

@@ -157,7 +157,7 @@ remain mocked or Stubber-based.
 
 ## Current migration and infrastructure facts
 
-- Alembic head: `0018_jira_integration`.
+- Alembic head: `0019_live_remediation_data_model`.
 - Terraform roots: `infra/bootstrap`, `infra/environments/staging`,
   `infra/environments/production`.
 - Workflows: `.github/workflows/ci.yml` and `.github/workflows/release.yml`.

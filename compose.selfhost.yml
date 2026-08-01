@@ -77,7 +77,7 @@ services:
       - -ec
       - >-
         python -m alembic upgrade head &&
-        python -m alembic current | grep -q 0018_jira_integration
+        python -m alembic current | grep -q 0019_live_remediation_data_model
     restart: "no"
 
   api:

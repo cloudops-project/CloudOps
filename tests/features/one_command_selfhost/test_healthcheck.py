@@ -51,6 +51,14 @@ def test_wrong_migration_head_is_rejected() -> None:
     assert caught.value.code == "HEALTH_MIGRATION_HEAD_MISMATCH"
 
 
+def test_current_migration_head_is_accepted() -> None:
+    result = verify_migration("0019_live_remediation_data_model (head)")
+
+    assert result == HealthResult(
+        "migration", "healthy", "0019_live_remediation_data_model"
+    )
+
+
 def test_public_url_reports_unreachable_without_leaking_domain() -> None:
     def unavailable(_url: str, **_kwargs: object) -> object:
         raise OSError("synthetic unavailable")
