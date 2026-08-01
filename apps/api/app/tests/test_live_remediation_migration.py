@@ -233,10 +233,20 @@ def test_upgrade_from_0018_preserves_rows_and_enforces_foundation() -> None:
             )
             connection.execute(
                 text(
-                    "UPDATE remediation_requests SET execution_mode = 'live_aws' "
-                    "WHERE id = :remediation_id"
+                    "INSERT INTO remediation_requests "
+                    "(id, organization_id, aws_account_id, finding_id, rule_key, "
+                    "rule_version, action_key, action_version, idempotency_key, title, "
+                    "summary, requested_at, execution_mode) "
+                    "SELECT :live_remediation_id, organization_id, aws_account_id, "
+                    "finding_id, rule_key, rule_version, action_key, action_version, "
+                    ":idempotency_key, title, summary, requested_at, 'live_aws' "
+                    "FROM remediation_requests WHERE id = :remediation_id"
                 ),
-                {"remediation_id": remediation_id},
+                {
+                    "live_remediation_id": (live_remediation_id := uuid.uuid4()),
+                    "idempotency_key": f"migration-live:{live_remediation_id}",
+                    "remediation_id": remediation_id,
+                },
             )
         with pytest.raises(sa.exc.IntegrityError), engine.begin() as connection:
             connection.execute(
@@ -252,10 +262,9 @@ def test_upgrade_from_0018_preserves_rows_and_enforces_foundation() -> None:
         with engine.begin() as connection:
             connection.execute(
                 text(
-                    "UPDATE remediation_requests SET execution_mode = 'mock_automation' "
-                    "WHERE id = :remediation_id"
+                    "DELETE FROM remediation_requests WHERE id = :remediation_id"
                 ),
-                {"remediation_id": remediation_id},
+                {"remediation_id": live_remediation_id},
             )
         command.downgrade(config, "0018_jira_integration")
         assert "remediation_role_arn" not in {

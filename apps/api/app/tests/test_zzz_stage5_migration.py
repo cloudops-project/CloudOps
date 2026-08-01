@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import sqlalchemy as sa
 from alembic.config import Config
 from alembic.operations import Operations
 from alembic.script import ScriptDirectory
@@ -21,7 +22,6 @@ from app.core.config import get_settings
 from app.models import (
     Asset,
     AuditEvent,
-    AWSAccount,
     AWSExternalIDReservation,
     DiscoveryJob,
     EvaluationJob,
@@ -150,27 +150,35 @@ def _seed_stage4(db: Session) -> dict[str, Any]:
     )
     db.add_all([invitation, refresh])
     db.flush()
-    account = AWSAccount(
-        organization_id=organization.id,
-        name="Migration account",
-        account_id="123456789012",
-        external_id=f"cloudops-migration-{uuid.uuid4()}",
-        status=AWSAccountStatus.CONNECTED,
-        connection_status=AWSAccountStatus.CONNECTED,
-        created_by_user_id=owner.id,
+    historical_metadata = sa.MetaData()
+    aws_accounts = sa.Table(
+        "aws_accounts", historical_metadata, autoload_with=db.get_bind()
     )
-    db.add(account)
-    db.flush()
+    account_id = uuid.uuid4()
+    external_id = f"cloudops-migration-{uuid.uuid4()}"
+    db.execute(
+        aws_accounts.insert(),
+        {
+            "id": account_id,
+            "organization_id": organization.id,
+            "name": "Migration account",
+            "account_id": "123456789012",
+            "external_id": external_id,
+            "status": AWSAccountStatus.CONNECTED.value,
+            "connection_status": AWSAccountStatus.CONNECTED.value,
+            "created_by_user_id": owner.id,
+        },
+    )
     db.add(
         AWSExternalIDReservation(
-            external_id=account.external_id,
-            aws_account_id=account.id,
+            external_id=external_id,
+            aws_account_id=account_id,
             organization_id=organization.id,
         )
     )
     discovery = DiscoveryJob(
         organization_id=organization.id,
-        aws_account_id=account.id,
+        aws_account_id=account_id,
         status=DiscoveryJobStatus.COMPLETED,
         started_by_user_id=owner.id,
         started_at=now,
@@ -181,7 +189,7 @@ def _seed_stage4(db: Session) -> dict[str, Any]:
     assets = [
         Asset(
             organization_id=organization.id,
-            aws_account_id=account.id,
+            aws_account_id=account_id,
             asset_type=asset_type,
             resource_id=f"{asset_type.value}-{index}",
             name=f"Migration {asset_type.value}",
@@ -197,7 +205,7 @@ def _seed_stage4(db: Session) -> dict[str, Any]:
     db.flush()
     evaluation = EvaluationJob(
         organization_id=organization.id,
-        aws_account_id=account.id,
+        aws_account_id=account_id,
         discovery_job_id=discovery.id,
         sequence=1,
         status=EvaluationJobStatus.COMPLETED,
@@ -215,7 +223,7 @@ def _seed_stage4(db: Session) -> dict[str, Any]:
     findings = [
         Finding(
             organization_id=organization.id,
-            aws_account_id=account.id,
+            aws_account_id=account_id,
             asset_id=assets[0].id,
             rule_key="EC2_SG_SSH_OPEN_TO_WORLD",
             rule_version=1,
@@ -228,7 +236,7 @@ def _seed_stage4(db: Session) -> dict[str, Any]:
         ),
         Finding(
             organization_id=organization.id,
-            aws_account_id=account.id,
+            aws_account_id=account_id,
             asset_id=assets[1].id,
             rule_key="S3_BUCKET_LOGGING_DISABLED",
             rule_version=1,
@@ -242,7 +250,7 @@ def _seed_stage4(db: Session) -> dict[str, Any]:
         ),
         Finding(
             organization_id=organization.id,
-            aws_account_id=account.id,
+            aws_account_id=account_id,
             rule_key="CLOUDTRAIL_NO_ACTIVE_TRAIL",
             rule_version=1,
             severity=FindingSeverity.CRITICAL,
@@ -270,7 +278,7 @@ def _seed_stage4(db: Session) -> dict[str, Any]:
     db.flush()
     return {
         "organization_id": organization.id,
-        "account_id": account.id,
+        "account_id": account_id,
         "evaluation_id": evaluation.id,
         "evaluation_counts": (
             evaluation.rules_evaluated,

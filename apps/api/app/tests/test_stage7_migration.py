@@ -59,19 +59,21 @@ def _snapshot_stage1_through_stage6(engine: Any) -> dict[str, list[str]]:
 
 def _seed_stage5_and_stage6(db: Session) -> None:
     organization = db.scalar(select(Organization).order_by(Organization.created_at))
-    account = db.scalar(select(AWSAccount).order_by(AWSAccount.created_at))
+    account_id = db.scalar(text("SELECT id FROM aws_accounts ORDER BY created_at LIMIT 1"))
     user = db.scalar(select(User).order_by(User.created_at))
     asset = db.scalar(select(Asset).order_by(Asset.created_at))
     assert organization is not None
-    assert account is not None
+    assert account_id is not None
     assert user is not None
     assert asset is not None
+    account = AWSAccount()
+    account.id = account_id
     framework = _framework(db, "stage7-migration")
     _assessment(db, organization, account, framework)
     db.add(
         AssetRiskContext(
             organization_id=organization.id,
-            aws_account_id=account.id,
+            aws_account_id=account_id,
             asset_id=asset.id,
             criticality=RiskCriticality.HIGH,
             environment=RiskEnvironment.PRODUCTION,
@@ -85,7 +87,7 @@ def _seed_stage5_and_stage6(db: Session) -> None:
     RiskService(db).assess(
         organization.id,
         user,
-        aws_account_id=account.id,
+        aws_account_id=account_id,
         evaluation_time=datetime(2026, 7, 24, tzinfo=UTC),
     )
 
