@@ -244,6 +244,7 @@ class RemediationExecutionMode(StrEnum):
     MOCK_AUTOMATION = "mock_automation"
     MANUAL = "manual"
     JIRA_DRAFT = "jira_draft"
+    LIVE_AWS = "live_aws"
 
 
 class ScanRunStatus(StrEnum):

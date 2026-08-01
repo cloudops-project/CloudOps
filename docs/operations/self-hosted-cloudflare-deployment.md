@@ -85,7 +85,7 @@ UID 10001. The long-running application/tunnel processes remain non-root; host
 secret permissions are not weakened.
 
 `up` validates configuration, builds images, starts PostgreSQL, gates startup
-on `alembic upgrade head`, verifies `0018_jira_integration`, starts the API and
+on `alembic upgrade head`, verifies `0019_live_remediation_data_model`, starts the API and
 workers, checks heartbeats/readiness, starts the tunnel, and checks the public
 HTTPS health endpoint. Critical failures return a stable code and non-zero
 status.

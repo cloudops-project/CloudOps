@@ -32,7 +32,7 @@ def test_web_is_only_bridge_between_tunnel_and_backend() -> None:
 
 def test_migration_gates_application_services() -> None:
     assert "condition: service_completed_successfully" in service_block("api", "worker")
-    assert "0018_jira_integration" in service_block("migration", "api")
+    assert "0019_live_remediation_data_model" in service_block("migration", "api")
 
 
 def test_required_restart_health_volume_and_security_controls_exist() -> None:

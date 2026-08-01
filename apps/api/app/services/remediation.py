@@ -330,8 +330,8 @@ class RemediationService:
         once per call. A retryable failure leaves the request APPROVED with
         an incremented attempt_count; the third failed attempt transitions
         the request to FAILED. Only MOCK_AUTOMATION requests are
-        executable; MANUAL and JIRA_DRAFT requests are informational only
-        and are rejected here."""
+        executable; every other execution mode, including the reserved
+        LIVE_AWS storage value, is rejected here."""
         request = self.get_scoped(organization_id, request_id)
         if request.status != RemediationStatus.APPROVED:
             raise ConflictError(
