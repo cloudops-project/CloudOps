@@ -28,6 +28,25 @@ from app.services.common import now_utc, record_audit
 from app.services.organizations import OrganizationService
 
 ClientFactory = Callable[[str, str | None], Any]
+S3_PUBLIC_ACCESS_BLOCK_KEYS = (
+    "BlockPublicAcls",
+    "IgnorePublicAcls",
+    "BlockPublicPolicy",
+    "RestrictPublicBuckets",
+)
+SECURITY_GROUP_RULE_FIELDS = (
+    "GroupId",
+    "SecurityGroupRuleId",
+    "IsEgress",
+    "IpProtocol",
+    "FromPort",
+    "ToPort",
+    "CidrIpv4",
+    "CidrIpv6",
+    "PrefixListId",
+    "ReferencedGroupInfo",
+    "Description",
+)
 SENSITIVE_KEYS = re.compile(
     r"(access.?key|secret|session.?token|credential|password|authorization)", re.I
 )
@@ -111,6 +130,36 @@ def paginated_items(
     return items
 
 
+def security_group_rule_evidence(client: Any, group_id: str) -> list[dict[str, Any]]:
+    pages = client.get_paginator("describe_security_group_rules").paginate(
+        Filters=[{"Name": "group-id", "Values": [group_id]}]
+    )
+    normalized: list[dict[str, Any]] = []
+    for page in pages:
+        for rule in page.get("SecurityGroupRules", []):
+            if not isinstance(rule, dict) or rule.get("GroupId") != group_id:
+                continue
+            normalized.append(
+                {
+                    field: (
+                        rule[field] is True
+                        if field == "IsEgress"
+                        else json_safe(rule[field])
+                    )
+                    for field in SECURITY_GROUP_RULE_FIELDS
+                    if field in rule
+                }
+            )
+    return sorted(
+        normalized,
+        key=lambda rule: (
+            str(rule.get("GroupId", "")),
+            str(rule.get("SecurityGroupRuleId", "")),
+            json.dumps(rule, sort_keys=True, separators=(",", ":")),
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class NormalizedAsset:
     asset_type: AssetType
@@ -181,6 +230,7 @@ class EC2DiscoveryService:
                 for group in page.get("SecurityGroups", []):
                     group_id = group["GroupId"]
                     tags = tags_dict(group.get("Tags"))
+                    rule_evidence = security_group_rule_evidence(client, group_id)
                     assets.append(
                         NormalizedAsset(
                             AssetType.EC2_SECURITY_GROUP,
@@ -196,6 +246,7 @@ class EC2DiscoveryService:
                                     "vpc_id": group.get("VpcId"),
                                     "ip_permissions": group.get("IpPermissions", []),
                                     "ip_permissions_egress": group.get("IpPermissionsEgress", []),
+                                    "security_group_rules": rule_evidence,
                                 }
                             ),
                         )
@@ -272,22 +323,32 @@ class S3DiscoveryService:
                         values[operation] = method(Bucket=name).get(key)
                     except ClientError as exc:
                         code = exc.response.get("Error", {}).get("Code")
-                        if code not in {
-                            "NoSuchPublicAccessBlockConfiguration",
+                        if (
+                            operation == "get_public_access_block"
+                            and code == "NoSuchPublicAccessBlockConfiguration"
+                        ):
+                            values[operation] = None
+                        elif code not in {
                             "ServerSideEncryptionConfigurationNotFoundError",
                             "NoSuchBucketPolicy",
                         }:
                             raise
-                block = values.get("get_public_access_block")
-                if isinstance(block, dict):
-                    metadata["public_access_block_complete"] = all(
-                        block.get(key) is True
-                        for key in (
-                            "BlockPublicAcls",
-                            "IgnorePublicAcls",
-                            "BlockPublicPolicy",
-                            "RestrictPublicBuckets",
-                        )
+                if "get_public_access_block" in values:
+                    block = values["get_public_access_block"]
+                    normalized_block = (
+                        {
+                            key: block[key] is True
+                            for key in S3_PUBLIC_ACCESS_BLOCK_KEYS
+                            if key in block
+                        }
+                        if isinstance(block, dict)
+                        else None
+                    )
+                    metadata["public_access_block"] = normalized_block
+                    metadata["public_access_block_complete"] = bool(
+                        isinstance(normalized_block, dict)
+                        and len(normalized_block) == len(S3_PUBLIC_ACCESS_BLOCK_KEYS)
+                        and all(normalized_block[key] for key in S3_PUBLIC_ACCESS_BLOCK_KEYS)
                     )
                 grants = values.get("get_bucket_acl")
                 if isinstance(grants, list):
