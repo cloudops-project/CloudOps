@@ -12,7 +12,7 @@
 | AWS S3 | State, backups, and synthetic finding | Encryption/versioning/access/log/restore evidence | Terraform source only | State/backup/lab unavailable |
 | Bedrock | Advisory AI | Model access, privacy, timeout/rate/cost evidence | Stubber only | AI degrades; core detection remains |
 | SES | Approved email | Identity, test recipient, failure/bounce evidence | Stubber only | Email delivery unavailable |
-| Jira Cloud | Approved issue workflow | Test project, token store, idempotency/failure evidence | Mocked only | Jira workflow unavailable |
+| Jira Cloud | Approved issue workflow | Test project, protected authentication storage, idempotency, and failure-path evidence | Mocked only | Jira workflow unavailable |
 | Cloudflare named tunnel | Optional self-host exposure | Separate authorization, token handling, DNS/TLS evidence | Not authorized for AWS phase | External self-host access unavailable |
 | DNS/ACM | Managed HTTPS | Ownership, certificate, renewal/expiry alerts | External prerequisite | Secure public ingress blocked |
 | Alert destination/on-call | Incident delivery | Controlled alert/acknowledgement and escalation | Not configured/verified | Failures may go unnoticed |
