@@ -4,7 +4,8 @@ CloudFix is the repository/project name. The implemented application, package na
 resources, and current UI use **CloudOps**. It is a multi-tenant AWS security-posture application
 with cross-account onboarding, read-only discovery, deterministic findings, compliance/risk,
 advisory AI, approved notifications, durable PostgreSQL jobs, scheduling, audit, and governed
-dry-run remediation.
+remediation. Mock/dry-run remains the default; a two-action live executor is default-disabled and
+awaiting external sandbox validation.
 
 ## Truthful status
 
@@ -17,7 +18,9 @@ dry-run remediation.
   root may have already been applied to AWS (state bucket, lock table, KMS key, OIDC provider,
   publish/staging-deploy roles). This has not been confirmed with AWS CLI access, live account/region
   identity, or Terraform state inspection — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
-- **Deferred or not proven:** live AWS mutation, weighted canary, cross-region backup, live
+- **Implemented; live validation pending:** the static S3 Public Access Block and exact EC2 ingress
+  rule remediation executor, separate remediation workload identity, and controlled sandbox IaC.
+- **Deferred or not proven:** actual live AWS mutation, weighted canary, cross-region backup, live
   restore/rollback, UAT, load baseline, staging deployment, and production deployment.
 
 Terraform/workflow existence does not mean deployed. Current test/scan summaries are **reported
@@ -60,11 +63,12 @@ flowchart LR
   Rules["Deterministic rules"] --> Findings["Findings/compliance/risk"]
   Findings --> AI["Advisory AI"]
   Findings --> Notification["Approval-gated delivery"]
-  Findings --> Remediation["Governed dry-run remediation"]
+  Findings --> Remediation["Governed remediation (mock default; live gated)"]
 ```
 
-No Celery/Redis broker is implemented. AI does not detect findings or authorize remediation. No
-live AWS mutation executor exists.
+No Celery/Redis broker is implemented. AI does not detect findings or authorize remediation. The
+live executor cannot run without independent feature, emergency-stop, approval, trust, tenant,
+snapshot, lease, tag, caller-account, precondition, and target gates.
 
 ## Source-of-truth context package
 
@@ -115,6 +119,8 @@ live AWS mutation executor exists.
 - [Tenant design](docs/architecture/multi-tenant-design.md)
 - [Notification controls](docs/security/notification-delivery-controls.md)
 - [Remediation governance](docs/operations/remediation-governance.md)
+- [AWS remediation sandbox](docs/operations/aws-remediation-sandbox.md)
+- [Live AWS remediation runbook](docs/operations/live-aws-remediation-runbook.md)
 - [Audit strategy](docs/operations/audit-log-strategy.md)
 
 ### Release, testing, and handover

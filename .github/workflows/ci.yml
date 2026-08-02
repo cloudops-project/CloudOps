@@ -351,6 +351,7 @@ jobs:
           terraform -chdir=infra/sandbox validate
           terraform -chdir=infra/sandbox test
           python -m pytest infra/sandbox/tests/test_sandbox_static.py -q
+          python -m pytest tests/security/test_live_remediation_harness.py -q
 
       - name: Checkov
         run: >-

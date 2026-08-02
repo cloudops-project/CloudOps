@@ -2,7 +2,7 @@
 
 ## Implementation status
 
-CloudOps implements preview, approval, immutable snapshots, idempotency, durable job leases/heartbeats, deterministic allowlisting, bounded retries, precondition revalidation, verification/rollback plans, audit events, and emergency switches. Every executable action is a simulated dry run. No real AWS mutation executor exists.
+CloudOps implements preview, approval, immutable snapshots, idempotency, durable job leases/heartbeats, deterministic allowlisting, bounded retries, precondition revalidation, verification/rollback evidence, audit events, and emergency switches. The mock executor remains the default. A two-action AWS executor exists but is disabled by default and has not been validated against live AWS.
 
 ## Approval
 
@@ -15,19 +15,20 @@ AI text is advisory and cannot choose, alter, or approve the action.
 
 ## Execution
 
-Execution is disabled by default. In a synthetic environment only, set `REMEDIATION_EXECUTION_ENABLED=true`; keep `REMEDIATION_LIVE_AWS_ENABLED=false`.
+Execution is disabled by default. For synthetic operation, set `REMEDIATION_EXECUTION_ENABLED=true`; keep `REMEDIATION_LIVE_AWS_ENABLED=false` and `REMEDIATION_EMERGENCY_STOP=true` unless a separately approved sandbox exercise is underway.
 
-The API returns a durable job. The worker reauthorizes the actor, validates tenant ownership, checks the allowlist/version/snapshot/finding evidence, binds the job lease, and invokes the deterministic mock executor.
+The API returns a durable job. The worker reauthorizes the actor, validates tenant ownership, checks the allowlist/version/snapshot/finding evidence, and binds the job lease. Mock requests invoke the deterministic mock executor. A `live_aws` request additionally requires both feature flags, inactive emergency stop, complete sandbox approval, separate remediation trust, exact target/snapshot, required tags, verified caller account, and unchanged AWS preconditions.
 
 ## Emergency disablement
 
-1. Set `REMEDIATION_EXECUTION_ENABLED=false`.
-2. Scale the remediation-capable worker down only if the global job worker cannot safely continue.
-3. Cancel available remediation jobs through the tenant-scoped job API.
-4. Investigate audit events, snapshot hashes, attempts, and job correlations.
-5. Do not alter immutable snapshots or manually mark outcomes successful.
+1. Set `REMEDIATION_EMERGENCY_STOP=true`.
+2. Set `REMEDIATION_LIVE_AWS_ENABLED=false`, then `REMEDIATION_EXECUTION_ENABLED=false`.
+3. Scale the remediation-capable worker down only if the global job worker cannot safely continue.
+4. Cancel available remediation jobs through the tenant-scoped job API.
+5. Investigate audit events, snapshot hashes, attempts, request IDs, and job correlations.
+6. Do not alter immutable snapshots or manually mark outcomes successful.
 
-Setting `REMEDIATION_LIVE_AWS_ENABLED=true` still fails closed because live execution is unavailable.
+Setting `REMEDIATION_LIVE_AWS_ENABLED=true` alone cannot enable execution; the independent emergency stop and every request/account/resource gate must also pass.
 
 ## Failure, stuck jobs, and rollback
 
@@ -36,4 +37,4 @@ Setting `REMEDIATION_LIVE_AWS_ENABLED=true` still fails closed because live exec
 - Retryable failures use bounded attempts and backoff; exhausted jobs dead-letter.
 - Stale completions/failures are rejected.
 - Simulated execution changes no AWS state, so rollback verifies that no mutation occurred.
-- Any future live action requires a separate security review, least-privilege customer mutation role, exact pre/post state capture, sandbox evidence, and a tested action-specific rollback.
+- Live execution captures exact rollback state but does not automatically execute rollback. Follow the [live AWS remediation runbook](live-aws-remediation-runbook.md) for the separately authorized sandbox process.

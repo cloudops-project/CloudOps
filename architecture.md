@@ -163,13 +163,18 @@ flowchart TD
   Snapshot --> Approval["Capability-protected human approval"]
   Approval --> Job["Durable remediation_simulation job"]
   Job --> Revalidate["Reload tenant + finding + approval + snapshot"]
-  Revalidate --> Mock["Deterministic mock executor"]
+  Revalidate --> Select{"Server-owned execution mode"}
+  Select --> Mock["Deterministic mock executor"]
+  Select --> Gates["Live flags + emergency + sandbox + trust + target + tags + drift"]
+  Gates --> AWS["Static S3 PAB / exact EC2 rule executor"]
   Mock --> Evidence["Dry-run outcome + audit evidence"]
+  AWS --> Evidence["Exact before/after + request IDs + rollback state"]
   AI["AI draft"] -. advisory only .-> Preview
 ```
 
-Execution is disabled by default. Only the mock executor exists and it never mutates AWS.
-`REMEDIATION_LIVE_AWS_ENABLED` is an emergency/future gate, not an implemented live path.
+Execution is disabled by default; mock/dry-run remains the normal path. The live executor supports
+only two static sandbox actions and remains blocked by default feature flags plus an active
+emergency stop. It has no live AWS validation evidence and automatic rollback is not implemented.
 
 ## Tenant isolation and RBAC
 

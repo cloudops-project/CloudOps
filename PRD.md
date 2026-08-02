@@ -97,9 +97,13 @@ CloudTrail; live compatibility remains pending AWS staging validation. The exact
 - Preview, immutable snapshot, approval/rejection, idempotent enqueue, execution gating, and audit
   evidence are required.
 - Only allowlisted action keys and versions may execute.
-- The current executor is deterministic, synthetic, and dry-run only.
+- The deterministic mock executor remains the default and is dry-run only.
+- A static live executor is implemented only for S3 Public Access Block and exact EC2 public
+  ingress-rule revocation; live AWS validation is pending.
 - `REMEDIATION_EXECUTION_ENABLED` defaults off.
-- `REMEDIATION_LIVE_AWS_ENABLED` cannot create a live executor.
+- `REMEDIATION_LIVE_AWS_ENABLED` alone cannot select live execution; emergency stop, server-owned
+  request mode, sandbox approval, separate trust, tenant/target/snapshot/lease, tag, caller-account,
+  drift, and verification gates must also pass.
 - Dry-run remediation is not production remediation.
 
 ## Non-functional and security requirements
