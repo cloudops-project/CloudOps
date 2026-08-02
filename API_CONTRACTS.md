@@ -1,41 +1,53 @@
-# CloudOps API Contracts (Index)
+# CloudOps API contracts
 
-> Root-canonical pointer. The full API surface — every implemented route group, its authorization
-> requirement, the RBAC matrix, pagination/idempotency conventions, and the error-envelope shape —
-> lives at [docs/architecture/api-design.md](docs/architecture/api-design.md). This file is a short
-> index plus the one thing that document does not cover: how the demo exposes that same API.
+FastAPI route definitions and Pydantic schemas are authoritative. All application routes are under
+`/api/v1`; health/readiness are also exposed through the web proxy in local/self-host topologies.
+Requests use JWT authentication except registration/login/refresh and explicitly public probes.
+Tenant-owned routes require membership plus capability RBAC and return existence-hiding not-found
+responses for cross-tenant identifiers.
 
-## Authoritative route groups
+## Route groups
 
-All routes are under `/api/v1`. `docs/architecture/api-design.md` documents, per implemented stage:
-authentication (`/auth/register|login|refresh|logout|me|change-password`), organizations and
-members, invitations (including `/invitations/accept`), audit events, AWS account onboarding
-(`/aws/accounts` and subpaths), discovery (`/aws/accounts/{id}/discover`, `/discovery/jobs`,
-`/assets`), compliance (`/compliance/...`), and the probes `/health` and `/ready`. Later stages
-(findings, risk, notifications, remediation, schedules) follow the same resource, pagination,
-RBAC, and error-envelope conventions documented there; this index does not re-list every path to
-avoid a second place for route lists to go stale.
+| Group | Principal purpose |
+|---|---|
+| `/auth` | register, login, refresh, logout, current user, password change |
+| `/organizations` | organizations, members, invitations, organization audit |
+| `/aws/accounts` | onboarding, validation, lifecycle, remediation administration |
+| `/discovery`, `/assets` | durable discovery jobs and normalized inventory |
+| `/rules`, `/evaluations`, `/findings` | deterministic rule evaluation and finding lifecycle |
+| `/compliance` | frameworks, assessments, controls, summaries |
+| `/risk` | policies, assessments, finding/account/org views, context and controls |
+| `/ai` and finding/assessment AI subroutes | one-source advisory generation and history |
+| `/notifications` | approval, delivery enqueue, delivery evidence |
+| `/jira` | organization connection and finding-to-issue workflow |
+| `/remediations` | proposal, approve/reject/cancel, execution enqueue, live preparation |
+| `/schedules`, `/scan-runs`, `/jobs` | scheduler and durable-job monitoring/control |
+| `/audit-events` | bounded query and safe CSV export |
 
-The six-role RBAC matrix (owner/admin/security_analyst/cloud_engineer/auditor/viewer) and the
-error-envelope shape (`error.code` / `message` / `correlation_id` / `details`) are defined once in
-`docs/architecture/api-design.md` and referenced, not duplicated, by
-[SECURITY_MODEL.md](SECURITY_MODEL.md).
+## Remediation administration
 
-## How the demo exposes this API (the one addition)
+These owner-only routes are implemented:
 
-In the general architecture, the API is a separately addressable service. In the local demo, it is
-**not** separately addressed by the browser: Nginx proxies `/api/` to `api:8000` with no trailing
-slash on `proxy_pass` (preserving the `/api` prefix), so the browser only ever calls relative
-`/api/v1/...` paths against whatever origin loaded the page — `http://localhost:5173` or the current
-Cloudflare Quick Tunnel origin. The API's own route definitions, authorization, and response shapes
-are unchanged; only the network path to reach them differs. See `ADR-D01` and the Nginx
-configuration comments in `apps/web/nginx.conf` for why the trailing slash matters.
+- `GET /api/v1/aws/accounts/{account_id}/remediation-administration`
+- `PUT /api/v1/aws/accounts/{account_id}/remediation-trust`
+- `POST /api/v1/aws/accounts/{account_id}/remediation-trust/rotate`
+- `DELETE /api/v1/aws/accounts/{account_id}/remediation-trust`
+- `POST /api/v1/aws/accounts/{account_id}/sandbox-approval`
+- `DELETE /api/v1/aws/accounts/{account_id}/sandbox-approval`
+- `POST /api/v1/remediations/{request_id}/prepare-live`
 
-The normal demo Compose file does not publish port 8000 to the host. Health and readiness are
-available through `/api/health` and `/api/ready` on the web origin; the API remains reachable only
-inside the Compose network.
+Role ARN validation requires an IAM role in the connected account and rejects IAM users. External
+IDs are not returned broadly; generation/rotation can disclose the remediation value once. Trust
+changes atomically revoke approval. Grant/revoke/rotate/clear operations require bounded reasons,
+row locking, and audit evidence. Live preparation derives target/evidence/action server-side,
+returns the request to pending approval, and neither enqueues nor executes.
 
-## What this file does not do
+## State, idempotency, and errors
 
-It does not restate individual endpoint paths, request/response schemas, or the RBAC matrix — those
-belong in [docs/architecture/api-design.md](docs/architecture/api-design.md) alone.
+Lifecycle transitions are server validated. Durable enqueues use database idempotency; stale lease
+tokens/generations fail. Provider delivery and remediation recheck current approval. Stable error
+envelopes include a safe code/message/correlation ID and never expose provider bodies, credentials,
+External IDs, or cross-tenant existence.
+
+See [API design](docs/architecture/api-design.md), OpenAPI generated by the running API, and
+[remediation governance](docs/security/remediation-governance.md).

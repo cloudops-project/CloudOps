@@ -1,6 +1,10 @@
 # CloudOps Web
 
-React/TypeScript administration UI for Stage 1 identity, Stage 2 AWS onboarding, and Stage 3 asset discovery. Access JWTs remain in memory; refresh uses the API's HttpOnly cookie with `credentials: include`. A failed refresh clears client authentication and protected routes redirect to login.
+React/TypeScript CloudOps UI for identity, AWS onboarding and assets, findings, compliance, risk,
+AI, notifications, Jira-linked workflows, remediation, schedules/jobs, audit, and privileged
+administration. Access JWTs remain in memory; refresh uses the API's HttpOnly cookie with
+`credentials: include`. A failed refresh clears client authentication and protected routes
+redirect to login while preserving the intended safe application URL.
 
 ```powershell
 npm install

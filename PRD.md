@@ -16,8 +16,9 @@ subset.
 CloudOps is a multi-tenant AWS security-posture application. Organizations onboard customer AWS
 accounts through cross-account IAM roles, inventory supported assets, apply deterministic security
 rules, review findings/compliance/risk, obtain bounded AI explanations, approve notifications, and
-govern simulated remediation. A locally verified V1 is implemented; no staging or production
-deployment has been proven.
+govern remediation. Mock/dry-run remains the default; a default-disabled two-action live executor
+exists for approved synthetic sandbox resources. No staging or production deployment or live AWS
+remediation has been proven.
 
 ## Problem and users
 
@@ -49,7 +50,8 @@ CloudTrail; live compatibility remains pending AWS staging validation. The exact
 - Production runtime identity is designed for an ECS/Fargate task role.
 - Static IAM-user credentials are unsuitable for production.
 - Automated AWS tests use synthetic clients, fakes, or Botocore Stubber.
-- No customer-account mutation executor exists.
+- A static, default-disabled executor exists only for S3 Public Access Block and exact EC2 public
+  ingress-rule revocation; no live compatibility has been operationally verified.
 
 ## Functional requirements
 
@@ -144,7 +146,9 @@ and SES require retained external evidence.
 - Jobs recover from worker loss without duplicate durable outcomes.
 - AI remains advisory.
 - Notifications require approval and retain sanitized evidence.
-- Remediation remains allowlisted, approved, and dry-run until separately implemented/reviewed.
+- Remediation remains allowlisted and approved; dry-run/mock is the default, while live execution
+  requires independent trust, sandbox approval, human approval, flags, emergency-stop, target,
+  snapshot, lease, tag, caller-account, drift, and postcondition gates.
 - CI and release evidence is reproducible.
 - Staging UAT, restore, rollback, provider, and observability exercises pass before production.
 
@@ -153,7 +157,7 @@ and SES require retained external evidence.
 - AI detection or authorization.
 - Arbitrary user-supplied AWS API calls, shell commands, or remediation code.
 - Storing customer AWS keys.
-- Live AWS mutation in V1.
+- Arbitrary AWS mutation, automatic rollback, or live mutation outside the two sandbox actions.
 - Universal AWS-service or compliance-framework coverage.
 - A Celery/Redis broker.
 - Inferring deployment from Terraform/workflow existence.

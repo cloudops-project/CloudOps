@@ -50,7 +50,7 @@ persisted Stage 4 findings only; it performs no discovery, live AWS calls, or AI
 
 ## Stage 7 AI explanation assistant
 
-Migration `0009_stage7_ai_assistant` introduced the AI request schema. The current repository head is `0017_remediation_json_trigger`. It adds
+Migration `0009_stage7_ai_assistant` introduced the AI request schema. The current repository head is `0019_live_remediation_data_model`. It adds
 versioned prompt templates, tenant-scoped idempotent requests, immutable source
 references and structured responses, and organization-hour usage windows. The
 default mock provider is deterministic and offline. AI consumes bounded
@@ -61,8 +61,8 @@ execute remediation, or deliver Jira/email drafts.
 
 Stage 8A adds `GET /api/v1/dashboard/summary` as a read-only, organization-scoped dashboard
 contract. It derives posture from existing AWS account, asset, finding, compliance, risk, and
-AI-era records without creating dashboard snapshot tables. Later stages advance the repository Alembic head to
-`0017_remediation_json_trigger`.
+AI-era records without creating dashboard snapshot tables. Later stages advance the repository
+Alembic head to `0019_live_remediation_data_model`.
 
 The response includes metadata, account posture, asset type/region distributions, finding
 status/severity/service/account summaries, recent critical/high findings without raw evidence,
@@ -72,7 +72,8 @@ explicit `missing_sections`; zero-denominator compliance percentages are `null`.
 
 All active tenant roles may read the summary through the normal organization membership gate.
 The endpoint does not invoke AWS, AI providers, notification transports, Jira integrations, or
-remediation code, and it does not recalculate findings, compliance, or risk.
+remediation code, and it does not recalculate findings, compliance, or risk. Later migrations
+advance the repository head to `0019_live_remediation_data_model`.
 
 ## Stage 2 AWS onboarding
 

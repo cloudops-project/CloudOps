@@ -1,44 +1,28 @@
-# CloudOps Data Model (Index)
+# CloudOps data model
 
-> Root-canonical pointer. The full conceptual and physical schema — every table, its purpose,
-> retention/sensitivity notes, indexes, and the ER diagram — lives at
-> [docs/architecture/database-design.md](docs/architecture/database-design.md). This file is
-> intentionally a short index, not a restatement, so schema facts have exactly one place to drift.
+The canonical schema overview is [database design](docs/architecture/database-design.md).
+PostgreSQL is authoritative; SQLite-only tests do not prove PostgreSQL constraints.
 
-## Authoritative schema state
+## Current migration state
 
-PostgreSQL is production; SQLite is used only for isolated unit tests. The Alembic migration chain
-is linear with one head: **`0017_remediation_json_trigger`**. `docs/architecture/database-design.md`
-documents the schema through that revision, organized by the stage that introduced each table group:
+- One linear Alembic head: `0019_live_remediation_data_model`.
+- Down revision: `0018_jira_integration`.
+- Historical revisions are immutable.
 
-| Stage | Introduces | Key entities |
-| --- | --- | --- |
-| 1 | Identity and tenancy | `users`, `organizations`, `organization_members`, `organization_invitations`, `refresh_token_sessions`, `audit_events` |
-| 2 | AWS onboarding | `aws_accounts`, `aws_external_id_reservations` |
-| 3 | Discovery | `assets`, `discovery_jobs` |
-| 4–5 | Rules, findings, compliance | `evaluation_jobs`, `findings`, `evaluation_rule_results`, `compliance_frameworks`, `compliance_controls`, `rule_control_mappings`, `compliance_assessments`, `compliance_assessment_controls` |
-| 6 | Risk scoring | `risk_scoring_policies`, `asset_risk_contexts`, `risk_assessments`, `finding_risk_snapshots`, `account_risk_snapshots`, `organization_risk_snapshots`, `compensating_controls` |
-| 7 | AI assistant | `ai_prompt_templates`, `ai_requests`, `ai_request_sources`, `ai_responses`, `ai_usage_windows` |
-| Later (per `phases.md`) | Notifications, remediation, scheduling | `notification_events`, `remediation_requests`, `platform_jobs`, scan schedules/runs |
+## Principal domains
 
-Tenant isolation is enforced at the database level, not just in application code: composite foreign
-keys tie tenant-owned rows to their owning organization **and** parent record, partial unique
-indexes enforce single-active invariants (one pending/running discovery job, evaluation, or scan run
-per account; one active remediation request per finding), and several snapshot tables are made
-immutable by PostgreSQL triggers rather than by convention. See
-[SECURITY_MODEL.md](SECURITY_MODEL.md) "Tenant isolation" for the security framing of the same
-facts.
+- Identity/tenancy: users, organizations, memberships, invitations, refresh sessions.
+- AWS inventory: accounts, External ID reservations, discovery jobs, normalized assets.
+- Analysis: evaluation jobs, findings, compliance catalog/assessments, deterministic risk policies
+  and immutable finding/account/organization snapshots.
+- AI: prompt templates, requests, exactly-one-source records, responses, and usage windows.
+- Operations: notification events/attempts, Jira integrations/links, scan schedules/runs,
+  PostgreSQL durable jobs, remediation requests, and audit events.
 
-## Demo-specific data
+Migration 0019 adds separate remediation role/External ID, fail-closed sandbox approval metadata,
+future live-execution mode storage, target/evidence/verification/rollback/request-ID fields, and
+organization-consistent approval constraints. It does not enable live execution; service gates do.
 
-The demo does not introduce new tables. It seeds ordinary rows through the ordinary models, using
-`apps/api/app/services/demo_inventory.py` as the single source of synthetic asset metadata (five
-assets: an EC2 instance, an EC2 security group, an S3 bucket, a CloudTrail trail, and an IAM user —
-see `ADR-D02` for why this module exists and what it fixed). No demo-only column, table, or migration
-exists; `DEMO_SYNTHETIC_DISCOVERY` only changes which service populates `assets`, not the schema.
-
-## What this file does not do
-
-It does not restate field lists, index names, or retention policy — those belong in
-[docs/architecture/database-design.md](docs/architecture/database-design.md) alone, so a future
-migration only needs one document updated.
+Tenant isolation is enforced by explicit application predicates plus organization-consistent
+foreign keys/checks/uniqueness. Immutable risk/remediation evidence is protected through reviewed
+state transitions and PostgreSQL triggers where defined.

@@ -4,7 +4,7 @@
 
 ## Current implementation (authoritative)
 
-CloudOps V1 implements a React/Vite web client, FastAPI API, PostgreSQL system of record, durable PostgreSQL job queue, replica-safe scheduler, job workers, cross-account STS discovery, deterministic security/compliance/risk analysis, advisory AI, governed notifications, simulated remediation, and audit history.
+CloudOps V1 implements a React/Vite web client, FastAPI API, PostgreSQL system of record, durable PostgreSQL job queue, replica-safe scheduler, job workers, cross-account STS discovery, deterministic security/compliance/risk analysis, advisory AI, governed notifications, remediation with mock/dry-run default and a default-disabled two-action executor, and audit history.
 
 Bedrock and SES adapters use the Boto3 default credential provider chain and have synthetic Stubber coverage. Terraform defines the AWS deployment, but no AWS environment has been applied or live-validated by this repository.
 
@@ -25,7 +25,7 @@ flowchart LR
   Customer --> ReadOnly["Read-only Boto3 collectors"]
 ```
 
-Queue payloads are references, never authorization; workers reload tenant-owned records and reauthorize. STS credentials remain memory-only. Deterministic rules are authoritative. Remediation uses a fixed action registry, immutable approved snapshot, lease, precondition checks, dry run, and kill switch; no live mutation executor exists.
+Queue payloads are references, never authorization; workers reload tenant-owned records and reauthorize. STS credentials remain memory-only. Deterministic rules are authoritative. Remediation uses a fixed action registry, immutable approved snapshot, lease, precondition checks, dry run, and kill switch. A default-disabled live executor is limited to exact S3 Public Access Block and EC2 ingress-rule operations and has not been operationally verified.
 
 Terraform places ALB/WAF in public subnets and all tasks/RDS in private subnets. Runtime identities are separate ECS task roles; CI uses GitHub OIDC. No production IAM-user key path is supported.
 
