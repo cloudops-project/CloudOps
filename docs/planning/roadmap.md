@@ -1,56 +1,19 @@
-# Product Roadmap
+# Product roadmap
 
-> **Current authority:** use [../../phases.md](../../phases.md) for stage status and
-> [../../PRD.md](../../PRD.md) for release acceptance. Detailed status narratives below are
-> historical planning snapshots unless repeated in those root files.
-
-## Purpose and audience
-
-Stakeholders use this outcome-oriented view alongside the detailed [phases](phases.md). It intentionally contains no fixed dates.
+The maintained evidence-labelled stage map is [phases.md](../../phases.md). The current capability
+matrix is [current status](../product/current-status.md). This roadmap records only remaining
+outcomes; it is not implementation evidence and contains no fixed dates.
 
 ```mermaid
 flowchart LR
-  P["Plan: Stage 0"] --> F["Foundation: 1–3"]
-  F --> D["Detect: 4–7"]
-  D --> E["Explain & experience: 8–10"]
-  E --> R["Respond reliably: 11–13"]
-  R --> O["Operate & validate: 14–16"]
+  Identity["Verify non-production identity"] --> Plan["Review saved plan and cost"]
+  Plan --> Deploy["Authorized sandbox apply and EC2 deployment"]
+  Deploy --> ReadOnly["Workload identity and read-only discovery"]
+  ReadOnly --> Controlled["Separately approved S3 and EC2 tests"]
+  Controlled --> Recovery["Rollback, restore, failure recovery"]
+  Recovery --> Staging["Managed staging UAT and canary"]
+  Staging --> Production["Explicitly authorized production release"]
 ```
 
-Planning produces approved boundaries and governance. Foundation establishes the app, identity/tenancy, and secure AWS connection. Detect produces normalized EC2/S3/IAM evidence and deterministic findings/compliance context. Explain and experience adds advisory AI, usable dashboards/reports, and external coordination. Respond reliably introduces controlled remediation, scheduling, audit, and hardening. Operate and validate creates infrastructure, UAT evidence, and durable guidance.
-
-## Release gates
-
-An internal foundation demonstration follows Stage 3; a read-only detection alpha follows Stage 7; a workflow beta follows Stage 10; a controlled sandbox remediation candidate follows Stage 13; MVP release candidacy follows Stage 15. Names are planning markers, not release commitments.
-
-## Current status by category (updated for the Stage 9-12 effort)
-
-**Implemented and verified, committed on `feature/v1-demo-completion` (not yet merged into
-`main`):** Stage 9 notifications, Stage 10 remediation, Stage 11 scheduler, and Stage 12 audit
-query/export — backend and frontend, with targeted verification complete (Ruff, Mypy, targeted
-Pytest, migration lifecycle where applicable, TypeScript, ESLint, Vitest, production build).
-
-**Immediate tomorrow-demo priority:** verify the implemented local Mailpit-backed SMTP
-notification and invitation delivery, guarded local demo stack, deterministic demo seed/reset,
-root `demo_v1.md` runbook, and black-box V1 acceptance flow.
-
-**Current local-demo caveat:** the read-side workflows for notifications, remediation,
-scheduling, and audit export are functionally complete. The deterministic mock provider remains
-the default/no-network provider; the Mailpit SMTP path is guarded local-demo-only and still
-requires final rehearsal evidence before the branch can be called demo-ready.
-
-**Remaining P0/P1 work, roughly in order:** finish demo-stack/Mailpit/seed/runbook rehearsal
-evidence (P0) -> Stage 13 security hardening (P0: JWT edge cases, tenant-boundary/IDOR checks,
-RBAC coverage for every Stage 9-12 endpoint, safe error/metadata handling) -> full regression
-and the black-box V1 acceptance flow (P0) -> deployment preparation and final documentation
-(P1) -> pull request merging `feature/v1-demo-completion` into `main` (P0).
-
-**Future production work, not Version 1:** real notification delivery (e.g. AWS SES), real
-remediation execution against customer AWS accounts, a distributed-queue/cron-daemon scheduler,
-raw CloudTrail/CloudWatch event ingestion, other cloud providers/services, Kubernetes,
-runtime/source/image security, and local AI. These require new scope, threat modeling, and ADRs
-before implementation.
-
-## Future, not Version 1
-
-Other cloud providers/services, Kubernetes, runtime/source/image security, expanded remediation, and local AI remain future discovery and require new scope, threat modeling, and ADRs.
+Other clouds, arbitrary remediation, automatic rollback, and broader service/compliance catalogs
+require new scope, threat modeling, and architecture decisions.

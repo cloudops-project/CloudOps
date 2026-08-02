@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased] - current implementation baseline
+
+### Added
+
+- Deterministic `CLOUDOPS_RISK_V1` finding/account/organization scoring with versioned immutable
+  snapshots and auditable component breakdowns.
+- Advisory AI explanations and drafts with source compatibility, context minimization, sanitization,
+  hashes/fingerprints, schema validation, staleness, rate limits, and audit evidence.
+- Deterministic compliance, approval-gated notifications, and organization-scoped Jira integration.
+- Governed remediation preview/approval, live-execution evidence model, default-disabled allowlisted
+  S3/EC2 executor, controlled non-production sandbox Terraform, and default-refusing live harness.
+- Owner-only remediation trust configuration/rotation/clear, sandbox approval/revocation, and
+  server-owned live-request preparation with no automatic execution.
+
+### Operational work not yet verified
+
+- AWS SSO/account preflight, saved Terraform plan and cost review, apply, EC2 deployment, workload
+  identity, read-only discovery, Cloudflare, live Bedrock/SES/Jira, controlled S3/EC2 remediation,
+  manual rollback, backup restore, failure recovery, UAT, canary, and production deployment.
+
+This section assigns no release date and does not claim deployment or production readiness.
+
 ## Unreleased — one-command Cloudflare self-hosting
 
 - Added a production-mode private Compose topology with migration gating, durable worker/scheduler

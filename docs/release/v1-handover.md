@@ -1,45 +1,37 @@
 # CloudOps V1 handover
 
-Organization-managed single-host deployment is documented separately in
-[Self-hosted Cloudflare deployment](../operations/self-hosted-cloudflare-deployment.md). Its named
-tunnel and local PostgreSQL lifecycle do not constitute AWS staging/production validation.
+## Implemented and CI verified
 
-## Implemented and locally verified
+- Multi-tenant authentication/RBAC, onboarding, discovery, deterministic findings/compliance/risk,
+  advisory AI, dashboard, notifications, Jira, scheduler, PostgreSQL durable jobs, audit, and
+  security hardening.
+- Governed mock/dry-run remediation, migration 0019 live-evidence model, a default-disabled S3/EC2
+  executor, and owner-only remediation trust/sandbox administration.
+- Controlled non-production sandbox Terraform and opt-in live test harness.
+- Managed environment Terraform, containers, seven-job CI, immutable release workflow, self-host
+  lifecycle tooling, and runbooks.
 
-- Multi-tenant authentication/RBAC, AWS onboarding, discovery, deterministic rules, compliance, risk, AI advisory, dashboard, notifications, Jira integration, simulated remediation, scheduler, audit, security hardening, workload identity, durable jobs, provider adapters, and tenant isolation.
-- Bedrock/SES/Jira adapters with synthetic/CI-verified tests.
-- Governed dry-run remediation and immutable PostgreSQL migration.
-- Terraform source for staging/production and immutable OIDC release workflows.
-- Structured operational logs, worker heartbeat, queue telemetry, CloudWatch resources, alarms, and runbooks.
+## Not yet operationally verified
 
-## Implemented but awaiting live AWS validation
+- AWS SSO/account classification, saved sandbox plan/cost review/apply, EC2 deployment, instance
+  profile, read-only discovery, or Cloudflare for the sandbox.
+- Live Bedrock, SES, Jira, S3 remediation, EC2 security-group remediation, or rollback.
+- Managed staging infrastructure, alarms, failure recovery, restore, canary, UAT, load baseline,
+  production plan/apply, or post-deployment validation.
 
-- Terraform bootstrap and environment plans/applies.
-- ECS/RDS/ALB/WAF/KMS/Secrets Manager/CloudWatch resources.
-- GitHub OIDC role assumption, ECR publishing, migration tasks, and deployment workflow.
-- Bedrock model invocation, SES sandbox delivery, and Jira Cloud connection/issue creation.
-- alarm delivery, restore rehearsal, staging UAT, load testing, and rollback rehearsal.
-- AWS bootstrap infrastructure state (state bucket, lock table, KMS key, OIDC provider,
-  publish/staging-deploy roles) was reported applied in a prior session; this is user-reported
-  historical information, not independently verified with AWS CLI access in this environment.
+## Handover sequence
 
-## Deferred
+1. Verify exact main SHA, one Alembic head, and successful CI.
+2. Use a short-lived non-root identity in a dedicated non-production/non-management account.
+3. Review a saved external Terraform plan, hash, IAM boundary, exceptions, and costs.
+4. Apply only after exact account/region/spend/hash authorization; deploy with live flags off and
+   emergency stop on.
+5. Validate health, workload identity, read-only discovery, audit, backups, and tenant UAT.
+6. Configure remediation trust and sandbox approval only through owner APIs.
+7. Obtain separate confirmations for each allowlisted action; disable immediately afterward;
+   separately approve rollback and teardown.
+8. Preserve sanitized evidence and qualify managed staging before production.
 
-- Live AWS mutation remediation.
-- Weighted 5/25/50/100 canary or ECS CodeDeploy.
-- cross-region/cross-account backups.
-- provider production-volume tuning and cost baselines.
-
-## Handover checklist
-
-- [ ] Cloud account/region/cost owner approved.
-- [ ] State backend and permissions boundary established.
-- [ ] OIDC roles and protected GitHub Environments reviewed.
-- [ ] Secrets populated through an approved channel.
-- [ ] SES/Bedrock/ACM/DNS prerequisites complete.
-- [ ] Terraform validates and staging plan has no secret values.
-- [ ] staging deploy/smoke/UAT/load/restore/rollback rehearsals pass.
-- [ ] threat model and residual risks accepted.
-- [ ] production plan, exact digests, approval, alarms, and rollback are ready.
-
-No production-ready or 100% claim is valid until every unchecked external gate passes.
+See [current release status](current-release-status.md), [EC2 runbook](../operations/ec2-deployment-runbook.md),
+and [live remediation runbook](../operations/live-aws-remediation-runbook.md). No production-ready or
+100% claim is valid while external gates remain unverified.
