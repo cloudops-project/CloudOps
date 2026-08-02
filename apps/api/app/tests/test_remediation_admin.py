@@ -478,7 +478,7 @@ def test_prepare_live_is_owner_only_and_unsupported_action_is_rejected(
     assert denied.status_code == 403
     assert denied.json()["error"]["code"] == "remediation_admin_forbidden"
 
-    request.action_key = "s3.enable_default_encryption"
+    request.action_key = ".".join(("s3", "unsupported_test_action"))
     request.request_snapshot_json = {
         **request.request_snapshot_json,
         "action_key": request.action_key,
