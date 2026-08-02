@@ -1,0 +1,11 @@
+expected_aws_account_id       = "<EXACT_12_DIGIT_SANDBOX_ACCOUNT_ID>"
+aws_region                    = "ap-south-1"
+administrator_cidr            = "<EXACT_ADMINISTRATOR_IPV4_CIDR>"
+hosting_instance_type         = "t3a.large"
+hosting_key_name              = null
+enable_termination_protection = true
+discovery_external_id         = "<GENERATED_DISCOVERY_EXTERNAL_ID>"
+remediation_external_id       = "<DISTINCT_GENERATED_REMEDIATION_EXTERNAL_ID>"
+lab_bucket_name               = "cloudops-lab-<GLOBALLY_UNIQUE_SUFFIX>"
+enable_optional_test_instance = false
+state_owner                   = "cloudops-platform"

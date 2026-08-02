@@ -41,6 +41,14 @@ jobs:
           if ($errors.Count -ne 0) { throw ($errors | Out-String) }
           bash -n cloudops.sh
           bash -n scripts/selfhost/container_env.sh
+          bash -n scripts/aws-sandbox.sh
+          $sandboxErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD/scripts/aws-sandbox.ps1",
+            [ref]$null,
+            [ref]$sandboxErrors
+          ) | Out-Null
+          if ($sandboxErrors.Count -ne 0) { throw ($sandboxErrors | Out-String) }
 
       - name: Self-host Python lint and tests
         run: |
@@ -309,6 +317,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install sandbox test tools
+        run: python -m pip install "pytest>=9.0.3,<10"
+
       - uses: hashicorp/setup-terraform@v3.1.2
         with:
           terraform_version: 1.10.5
@@ -329,6 +344,13 @@ jobs:
             terraform -chdir="infra/environments/${environment}" init -backend=false
             terraform -chdir="infra/environments/${environment}" validate
           done
+
+      - name: Terraform validate remediation sandbox
+        run: |
+          terraform -chdir=infra/sandbox init -backend=false
+          terraform -chdir=infra/sandbox validate
+          terraform -chdir=infra/sandbox test
+          python -m pytest infra/sandbox/tests/test_sandbox_static.py -q
 
       - name: Checkov
         run: >-
