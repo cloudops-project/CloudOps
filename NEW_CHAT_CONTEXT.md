@@ -8,8 +8,9 @@
 
 CloudOps is a multi-tenant AWS security-posture application. Customers connect read-only roles
 through STS and External IDs. Deterministic rules detect findings; AI may explain them but never
-detects findings or authorizes remediation. Remediation is allowlisted, approval-gated and currently
-mock/dry-run only.
+detects findings or authorizes remediation. Remediation is allowlisted and approval-gated. The mock
+executor remains the default; a default-disabled live executor supports only exact S3 Public Access
+Block and EC2 ingress-rule actions and has not been validated against live AWS.
 
 The stack is React/TypeScript/Vite, FastAPI/Pydantic/SQLAlchemy, PostgreSQL, and PostgreSQL-backed
 durable jobs. Scheduler and job workers implement leases, heartbeats, retries, idempotency and
@@ -49,16 +50,20 @@ See [memory.md](memory.md) for exact session evidence and limitations.
 - Quick Tunnel URLs are random, temporary, and subject to DNS propagation/cache behavior.
 - A Mailpit-generated email uses configured `FRONTEND_URL`; remote guests should use the
   current-origin link displayed by the invitation UI.
+- The controlled AWS sandbox Terraform and default-refusing live test harness are implemented but
+  have not been applied or run against AWS.
+- No privileged public workflow currently configures remediation trust or grants sandbox approval;
+  do not work around this with ad hoc database edits.
 - No live AWS/customer access, Bedrock invocation, SES delivery, staging/production deployment,
   backup restore, canary, rollback rehearsal, or formal UAT has been performed.
 
 ## Current next task
 
-Demo-hardening (PR #18), the Jira integration (PR #19, follow-up fixes PR #20), and the
-cryptography security upgrade (PR #21) are merged into `main`. The next operational action is
-running the full baseline and live-infrastructure phases from an environment with working GitHub,
-Python package, Docker, Terraform and AWS connectivity — see [memory.md](memory.md) for the exact
-handoff prerequisites.
+The live-remediation data model (PR #25), governed two-action executor (PR #26), and controlled AWS
+sandbox Terraform (PR #27) are merged into `main`. The current work adds the operator runbook and
+an impossible-to-trigger-accidentally harness; no live authorization exists. After this work is
+reviewed and merged, the next action is a human-reviewed sandbox plan and the missing privileged
+trust/approval administration workflow—not an automatic deployment.
 
 ## Safety
 

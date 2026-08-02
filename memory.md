@@ -5,14 +5,15 @@
 
 ## Session state
 
-- Date: 2026-07-31 (Asia/Kolkata)
-- Worktree: `D:\learn\cdac\cloudfix-main-release`
-- Baseline branch and HEAD: `main` at `1207e6acd59171266f945c7db88ec1c2c2cc07bd`
-- Current branch: `feat/one-command-cloudflare-selfhost`
-- Current Alembic head: `0018_jira_integration`
-- PRs #18, #19, #20 and #21 merged into `main`
-- Working tree state before this feature: clean; feature changes are organized in focused local
-  commits and final cleanliness is confirmed during handoff
+- Date: 2026-08-02 (Asia/Kolkata)
+- Worktree: `D:\learn\cdac\CloudOps-live-remediation-runbooks`
+- Baseline branch and HEAD: `origin/main` at `3bb09d69e8b402cd877c6d0faff68a66ca6702db`
+- Current branch: `feat/live-remediation-runbooks`
+- Current Alembic head: `0019_live_remediation_data_model`
+- PR #25 (data model), PR #26 (governed executor), and PR #27 (controlled sandbox Terraform) are
+  merged into `main`.
+- Current Phase D runbook, harness, tests, and documentation reconciliation are implemented locally
+  but are not yet committed, pushed, or reviewed by CI.
 - Merge, deployment, live AWS, live Bedrock, live SES and live Jira authorization: none
 - Product name: CloudOps; CloudFix remains the repository/legacy identifier
 
@@ -84,16 +85,23 @@ infrastructure (VPC/ALB/ECS/ECR/RDS) is not deployed, and the expected `cloudops
 - The emailed invitation uses configured `FRONTEND_URL`; for a remote Quick Tunnel guest, copy the
   UI-generated current-origin link.
 - Demo inventory, users and provider behavior are synthetic.
+- The live AWS executor and controlled sandbox Terraform have no live AWS validation evidence.
+- No public privileged workflow currently configures remediation trust or grants/revokes sandbox
+  approval. A separately reviewed administration workflow is required before a live exercise.
+- Automatic rollback execution is not implemented; the executor captures exact rollback state for
+  a separately approved manual procedure.
 - No live AWS account, customer account, Bedrock, SES, Jira Cloud, staging deployment, production
   deployment, backup/restore drill, canary, rollback rehearsal or formal UAT has been run.
 - Node 23 emits an engine warning locally; the container/CI toolchain uses Node 22.
-- GitHub pull-request CI has not run for this unpushed feature branch.
+- GitHub pull-request CI has not run for this unpushed Phase D feature branch.
 
 ## Next operational milestone
 
-Review the self-host diff, create focused commits, push
-`feat/one-command-cloudflare-selfhost`, open a non-draft pull request, and require all remote
-checks. After merge, perform separate opt-in named-tunnel and clean-host acceptance tests.
+Validate and review the Phase D runbook and default-refusing harness, create a focused commit, push
+`feat/live-remediation-runbooks`, open a draft pull request, and require every remote check. After
+merge, stop before any AWS action. The next separately reviewed implementation gap is privileged
+remediation-trust and sandbox-approval administration; the next operational action is a human-
+reviewed Terraform plan only after exact account, region, cost, and authorization are supplied.
 
 ### Next-environment handoff prerequisites
 
