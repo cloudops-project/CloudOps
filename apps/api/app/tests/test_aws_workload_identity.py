@@ -12,6 +12,7 @@ from app.core.config import Settings
 from app.models import AWSAccount
 from app.services.aws_credentials import (
     AWSConnectionFailure,
+    RemediationRoleCredentialProvider,
     TenantRoleCredentialProvider,
 )
 
@@ -133,6 +134,34 @@ def test_provider_rejects_wrong_account_without_returning_credentials() -> None:
     )
     with pytest.raises(AWSConnectionFailure, match="caller_account_mismatch"):
         provider.client("ec2", "us-east-1")
+
+
+def test_remediation_provider_uses_separate_role_and_external_id() -> None:
+    target = account()
+    target.remediation_role_arn = (
+        f"arn:aws:iam::{target.account_id}:role/CloudOpsRemediationRole"
+    )
+    target.remediation_external_id = "synthetic-remediation-external-id"
+    calls: list[dict[str, object]] = []
+    initial = FakeInitialSTS(datetime.now(UTC) + timedelta(minutes=15), calls)
+
+    def factory(service: str, **kwargs: object) -> object:
+        if "aws_access_key_id" not in kwargs:
+            return initial
+        return FakeAssumedSTS(target.account_id)
+
+    provider = RemediationRoleCredentialProvider(
+        target,
+        settings(),
+        sts_client_factory=factory,
+        client_factory=cast(Any, lambda *_args, **_kwargs: object()),
+    )
+    provider.client("s3", None)
+
+    assert calls[0]["RoleArn"] == target.remediation_role_arn
+    assert calls[0]["ExternalId"] == target.remediation_external_id
+    assert calls[0]["RoleArn"] != target.role_arn
+    assert calls[0]["ExternalId"] != target.external_id
 
 
 @pytest.mark.parametrize("code", ("AccessDenied", "ExpiredToken", "ThrottlingException"))

@@ -75,15 +75,19 @@ class TenantRoleCredentialProvider:
             return self._credentials
 
     def _assume_and_verify(self) -> _TemporaryCredentials:
-        if self.account.role_arn is None:
+        role_arn = self._role_arn()
+        external_id = self._external_id()
+        if role_arn is None:
             raise AWSConnectionFailure("role_arn_missing")
+        if external_id is None:
+            raise AWSConnectionFailure("external_id_missing")
         try:
             # No credential arguments: use the standard Boto3 provider chain.
             sts = self.sts_client_factory("sts", config=self.settings.aws_client_config)
             response = sts.assume_role(
-                RoleArn=self.account.role_arn,
-                RoleSessionName=self.settings.aws_role_session_name,
-                ExternalId=self.account.external_id,
+                RoleArn=role_arn,
+                RoleSessionName=self._session_name(),
+                ExternalId=external_id,
                 DurationSeconds=self.settings.aws_role_session_duration_seconds,
             )
             raw = response["Credentials"]
@@ -116,6 +120,29 @@ class TenantRoleCredentialProvider:
             raise AWSConnectionFailure(_safe_client_error(exc)) from None
         except (BotoCoreError, KeyError, TypeError):
             raise AWSConnectionFailure("sts_validation_failed") from None
+
+    def _role_arn(self) -> str | None:
+        return self.account.role_arn
+
+    def _external_id(self) -> str | None:
+        return self.account.external_id
+
+    def _session_name(self) -> str:
+        return self.settings.aws_role_session_name
+
+
+@dataclass(repr=False)
+class RemediationRoleCredentialProvider(TenantRoleCredentialProvider):
+    """Tenant-isolated provider for the separately trusted remediation role."""
+
+    def _role_arn(self) -> str | None:
+        return self.account.remediation_role_arn
+
+    def _external_id(self) -> str | None:
+        return self.account.remediation_external_id
+
+    def _session_name(self) -> str:
+        return f"{self.settings.aws_role_session_name[:48]}-Remediation"
 
 
 def _safe_client_error(exc: ClientError) -> str:
