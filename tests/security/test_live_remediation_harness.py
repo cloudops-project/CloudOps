@@ -8,7 +8,6 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
-import boto3  # type: ignore[import-untyped]
 
 ROOT = Path(__file__).resolve().parents[2]
 REQUIRED = {
@@ -142,7 +141,18 @@ def test_default_client_rejects_root_before_assume_role(
                 "Arn": f"arn:aws:iam::{config.account_id}:root",
             }
 
-    monkeypatch.setattr(boto3, "client", lambda *_args, **_kwargs: RootSTS())
+    class Config:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+    boto3_module = ModuleType("boto3")
+    botocore_module = ModuleType("botocore")
+    config_module = ModuleType("botocore.config")
+    setattr(boto3_module, "client", lambda *_args, **_kwargs: RootSTS())
+    setattr(config_module, "Config", Config)
+    monkeypatch.setitem(sys.modules, "boto3", boto3_module)
+    monkeypatch.setitem(sys.modules, "botocore", botocore_module)
+    monkeypatch.setitem(sys.modules, "botocore.config", config_module)
     with pytest.raises(module.SafetyRefusal, match="root_identity_forbidden"):
         module.default_clients(config)
 
