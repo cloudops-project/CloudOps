@@ -170,3 +170,10 @@ These tests use Terraform's mock provider and static source assertions; they do 
 ## Live prerequisites
 
 AWS account IDs, ECR repository URLs, OIDC role ARNs, ACM certificates, SES identity, Bedrock model access, Route 53 records, customer role ARNs, runtime secret values, alarm routing, and remote-state backend values are external prerequisites. No `terraform apply`, staging deployment, or production deployment has been performed by this implementation.
+
+## Governed remediation sandbox
+
+The separate [`sandbox/`](sandbox/) root defines a controlled, billable lab for future explicitly
+authorized live-remediation testing. It is not part of staging or production and has not been
+applied. See the [AWS remediation sandbox runbook](../docs/operations/aws-remediation-sandbox.md)
+for its exact resource, identity, cost, and operator-safety boundaries.
