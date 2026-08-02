@@ -1,54 +1,29 @@
-# Trust Boundaries
+# CloudOps trust boundaries
 
-## Stage 4 clarification
+| Boundary | Untrusted input | Enforced controls |
+|---|---|---|
+| Browser to web/API | Tokens, identifiers, request bodies, forwarded headers | TLS in secure deployments, JWT/refresh controls, CORS/host checks, schemas, rate limits |
+| API to tenant data | Organization and object IDs | Capability RBAC, organization-scoped queries, parent ownership checks, composite constraints, hidden cross-tenant results |
+| API/workers to PostgreSQL | Concurrent state transitions | Explicit transactions, row locks, immutable triggers, leases, idempotency, foreign keys, checks |
+| CloudOps runtime to AWS | Role ARN, account, resource evidence | Default workload identity, STS External ID, caller-account verification, bounded clients, separate roles |
+| Discovery role to customer AWS | Read-only inventory | Read-only role, tenant/account binding, no persisted credentials |
+| Remediation role to sandbox AWS | Two mutations | Separate trust, sandbox approval, exact allowlist, mandatory tags, immutable snapshot, drift and postcondition checks |
+| CloudOps to AI provider | Minimized persisted context | Compatibility checks, sanitizer, bounds, canonical JSON, hashes, schema validation, audit |
+| CloudOps to notification/Jira providers | Approved delivery content | Approval recheck, recipient/destination policy, safe errors, delivery idempotency, sanitized evidence |
 
-Boto3 and temporary credentials remain inside trusted discovery services. Persisted normalized
-metadata crosses into deterministic evaluation only after bounding and redaction. Rules cannot
-call AWS, the network, or the filesystem. Findings/evaluations remain tenant scoped. Browser
-evidence is escaped text. Structured logs and audit events exclude credentials, tokens, full
-policies, and raw provider exceptions.
+## Secret boundaries
 
-## Stage 5 compliance boundary
+External IDs, temporary STS credentials, application secrets, provider tokens, webhook URLs, and
+database credentials must not appear in broad responses, logs, jobs, audit metadata, frontend
+bundles, or source control. Temporary AWS credentials remain in memory. Managed deployment designs
+inject secrets through references; local/self-host workflows use ignored files with restrictive
+permissions.
 
-Compliance begins after Stage 4 persistence. It performs no AWS or network calls and cannot
-mutate customer resources. Tenant-scoped queries and composite foreign keys govern evaluations,
-summaries, findings, accounts, assessments, and snapshots. Only authenticated bounded API
-responses cross into the browser. Operational logs contain bounded identifiers and counters;
-durable audit events record accepted assessment lifecycle transitions without raw evidence.
+## Residual risks
 
-## Purpose and audience
-
-Security architects and implementers use this catalogue to place authentication, validation, minimization, and audit controls at each crossing.
-
-| Boundary                         | Primary risks                                            | Required controls                                                                                                   |
-| -------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Browser ↔ frontend               | XSS, stolen token, malicious extension                   | CSP, output encoding, dependency hygiene, short sessions, no secrets in client storage                              |
-| Frontend ↔ backend               | broken access, CSRF, abuse, IDOR                         | TLS, local JWT/session validation, organization RBAC, CSRF defenses where needed, rate/size limits, correlation IDs |
-| Backend ↔ database               | injection, cross-tenant query, credential theft          | parameterized SQLAlchemy, scoped repositories, constraints, least-privilege DB role, TLS/encryption                 |
-| API ↔ worker/queue               | forged/replayed/flooded jobs                             | private authenticated channel, minimal messages, idempotency, leases, reauthorization, quotas                       |
-| CloudOps AWS ↔ customer AWS      | confused deputy, role excess, credential leakage         | exact principal, external ID, STS, least privilege, CloudTrail, separate scan/remediation roles                     |
-| Application ↔ AI provider        | prompt injection, sensitive disclosure, untrusted output | minimization/redaction, provider policy, timeout/budget, schema validation, sanitization, audit metadata            |
-| Application ↔ Jira               | token theft, webhook forgery, data oversharing           | scoped OAuth/token secret, allowlisted fields, signature verification, replay protection                            |
-| Application ↔ email/Teams        | notification abuse, leakage, forged callback             | destination authorization, templates, throttling, secret store, safe links, audit                                   |
-| Remediation ↔ customer resources | unintended mutation, duplicate action, compromise        | approved playbook/version, separation of duties, action-specific IAM, idempotency, preconditions, verification      |
-
-## Administrative boundary
-
-Platform administration crosses all tenant boundaries and therefore requires separate identity, MFA readiness, just-in-time access where feasible, two-person review for sensitive operations, and durable audit evidence. Exact vendors and network topology are proposals for later stages.
-
-## Stage 6 scoring boundary
-
-The risk engine is inside the trusted application boundary but has no AWS, network, filesystem,
-plugin, or dynamic-code capability. Its inputs are persisted tenant-scoped findings and bounded
-operator context. PostgreSQL is authoritative for identity, tenant relationships, concurrency,
-bounded score state, historical immutability, and immutable snapshots. The browser receives
-sanitized numeric components and reason codes, never credentials or unbounded provider
-documents. Authorized context and compensating-control
-changes cross a user-input boundary and require capability checks, bounded schemas, tenant
-predicates, optimistic versions or row locks, reasons, and durable audit events. Stage 7 AI is
-outside the implemented boundary and must not be represented as active.
-## AI provider boundary
-
-Only sanitized bounded context crosses the provider boundary. The provider has
-no database session, AWS client, filesystem capability, authorization role, or
-mutation interface. The deterministic mock crosses no network boundary.
+- Live AWS, Bedrock, SES, Jira, Cloudflare, restore, rollback, and alarm behavior still require
+  operational evidence.
+- Advisory AI can be wrong; output must not become authorization or executable operations.
+- The current AI sanitizer accepts generic evidence objects after sanitization. Rule-specific
+  allowlisted evidence payloads are the preferred future minimization control.
+- Capturing rollback state does not prove rollback execution is safe or operationally rehearsed.

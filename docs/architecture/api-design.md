@@ -1,110 +1,55 @@
-﻿# API Design
+# API design
 
-> See [API_CONTRACTS.md](../../API_CONTRACTS.md) at the repository root for a short index into this
-> document plus the one demo-specific note (the same-origin Nginx proxy path). This document remains
-> the single authoritative source for route lists, the RBAC matrix, and the error envelope.
-
-## Stage 1 implemented contract
-
-Stage 1 uses application-managed access JWTs and opaque refresh cookies per ADR-008. Access tokens use `Authorization: Bearer`; refresh/logout use an HttpOnly cookie scoped to `/api/v1/auth`. Errors use an `error` object with code, safe message, correlation ID, and validation details.
-
-| Area           | Paths                                                                          | Authorization                                        |
-| -------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| Authentication | `/api/v1/auth/register`, `login`, `refresh`, `logout`, `me`, `change-password` | Public, refresh cookie, or access JWT as appropriate |
-| Organizations  | `/api/v1/organizations` and `/{organization_id}`                               | Authenticated active member; update owner/admin      |
-| Members        | `/{organization_id}/members` and role/status/delete subpaths                   | Capability policy; governance owner/admin            |
-| Invitations    | organization create/list/cancel and `/api/v1/invitations/accept`               | Owner/admin; accept by matching authenticated user   |
-| Audit          | `/{organization_id}/audit-events`                                              | Owner/admin/auditor                                  |
-| Probes         | `/health`, `/ready`                                                            | Public, no infrastructure details                    |
-
-## Stage 5 compliance contract
-
-| Area        | Paths                                                                            | Authorization                                                |
-| ----------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Frameworks  | `/api/v1/compliance/frameworks`, `/{framework_key}`, `/{framework_key}/controls` | Every active organization member                             |
-| Controls    | `/api/v1/compliance/controls/{id}`, `/rules`, `/findings`                        | Every active organization member; bounded finding pagination |
-| Assessments | `/api/v1/aws/accounts/{id}/compliance/assess`                                    | Owner, admin, security analyst, cloud engineer               |
-| History     | `/api/v1/compliance/assessments`, `/{id}`, `/{id}/controls/{snapshot_id}`        | Every active organization member                             |
-| Summary     | `/api/v1/compliance/summary`                                                     | Every active organization member                             |
-
-Assessment and traceability lists use validated filters, stable ordering, and bounded page sizes.
-Cross-tenant identifiers return non-disclosing not-found responses. Runtime responses expose
-CloudOps summaries and bounded identifiers, never raw policies, credentials, or provider errors.
-
-### Stage 1 RBAC matrix
-
-| Capability                      | Owner | Admin | Analyst | Engineer | Auditor | Viewer |
-| ------------------------------- | ----- | ----- | ------- | -------- | ------- | ------ |
-| Read organization               | Yes   | Yes   | Yes     | Yes      | Yes     | Yes    |
-| Read members                    | Yes   | Yes   | Yes     | Yes      | Yes     | No     |
-| Update organization             | Yes   | Yes   | No      | No       | No      | No     |
-| Invite/manage non-owner members | Yes   | Yes   | No      | No       | No      | No     |
-| Assign owner                    | Yes   | No    | No      | No       | No      | No     |
-| Read audit activity             | Yes   | Yes   | No      | No       | Yes     | No     |
-
-Admins may govern non-owner memberships only; an existing owner may be governed only by another owner. Independently, no action may demote, suspend, or remove the final active owner. Platform administration remains separate and never grants an implicit tenant bypass.
-
-Invitation creation includes a one-time `development_token` only when `APP_ENV` is `development` or `testing`; production omits the field. Refresh rotation and invitation acceptance use PostgreSQL row locks across their complete transactions.
-
-## Purpose and audience
-
-Backend, frontend, integration, and security engineers use these proposed contracts for a consistent `/api/v1` REST API.
-
-## Resource conventions
-
-Use plural resources. Stage 2 AWS account routes are namespaced under `/aws/accounts`; later resources include `/assets`, `/scans`, `/findings`, `/remediations`, and `/audit-events`. HTTP methods and status codes reflect semantics; creation returns `201`, accepted background work `202`, empty deletion `204`, invalid input `422`, unauthenticated `401`, forbidden `403`, missing `404`, conflict `409`, and throttling `429` as applicable. Do not reveal whether another tenant's resource exists.
+FastAPI route definitions and Pydantic schemas are executable truth. This document summarizes the
+current contract; [API_CONTRACTS.md](../../API_CONTRACTS.md) is the root index.
 
 ## Cross-cutting contract
 
-Pydantic validates request and response schemas with explicit field allowlists. List endpoints use bounded cursor pagination, documented filtering/sorting, and stable ordering. A correlation ID is accepted/generated and returned. Scan creation, remediation requests/executions, and webhook processing require scoped idempotency keys. Optimistic version fields protect concurrent lifecycle updates.
+- `/api/v1` JSON APIs use authenticated JWT access except public authentication/probe operations.
+- Refresh/logout use an HttpOnly cookie; access tokens remain browser-memory only.
+- Route dependencies require active organization membership and the specific capability.
+- Every tenant-owned lookup includes organization scope or a verified tenant-owned parent.
+- Cross-tenant identifiers use non-disclosing not-found behavior.
+- Pydantic schemas bound strings/collections and reject client-owned execution fields.
+- Lists use bounded pagination/filter allowlists and stable ordering.
+- Background work returns durable identifiers; database idempotency and state transitions prevent
+  duplicate outcomes.
+- Safe error envelopes provide code, message, correlation ID, and bounded details without provider
+  bodies, credentials, External IDs, or tenant-existence leaks.
 
-```json
-{
-  "error": {
-    "code": "finding_state_conflict",
-    "message": "The finding changed; refresh and retry.",
-    "correlation_id": "opaque-id",
-    "details": []
-  }
-}
-```
+## Capabilities by area
 
-## Security and lifecycle
+| Area | Typical read | Privileged change |
+|---|---|---|
+| Organization/members | Active roles as defined by RBAC | Owner/admin, with final-owner protections |
+| AWS accounts/discovery | Active tenant roles according to capability | Account management by owner/admin; discovery by approved operator roles |
+| Findings/compliance/risk/dashboard | Active authorized tenant roles | Context/control/suppression/assessment capabilities |
+| AI | Authorized readers/generators | AI never grants business authorization |
+| Notifications/Jira | Read capability | Separate approve/deliver/manage capabilities |
+| Remediation | Read capability | Propose/approve/execute capabilities remain separate |
+| Remediation administration | Owner only | Owner only; analysts/admins cannot grant sandbox approval |
+| Audit/export | Audit capability | Export is bounded and audited |
 
-Stage 1 uses ADR-008 local access JWTs and opaque refresh sessions; future OIDC integration must preserve the same subject and tenant boundaries. Every endpoint performs server-side permission and organization checks. Apply request-size limits, rate limits by subject/tenant/action, origin/CSRF protection when cookie authentication is used, output encoding, safe CORS, and redacted errors. High-risk operations require confirmation and fresh authorization. OpenAPI documents schemas but never example secrets.
+`apps/api/app/security/rbac.py` is authoritative when role names differ from this summary.
 
-## Proposed endpoints and open questions
+## Remediation administration contract
 
-## Stage 2 implemented AWS onboarding API
+The exact routes are listed in [remediation governance](../security/remediation-governance.md).
+They validate tenant ownership at write time, lock the account/request row, reject IAM user or
+wrong-account role ARNs, atomically revoke approval on trust change, require reasons, and record
+audit evidence. Responses expose configuration/approval status, not either full External ID.
+Preparation derives action, target, and immutable evidence from tenant-owned records; clients
+cannot set executor, AWS operation, target ARN, evidence, verification, rollback, or request IDs.
 
-All routes require authentication, active organization membership, and the centralized owner/admin AWS-account-management capability:
+## Important transitions
 
-- `POST /api/v1/aws/accounts`
-- `GET /api/v1/aws/accounts?organization_id={uuid}`
-- `GET /api/v1/aws/accounts/{id}`
-- `PATCH /api/v1/aws/accounts/{id}`
-- `POST /api/v1/aws/accounts/{id}/validate`
-- `POST /api/v1/aws/accounts/{id}/disconnect`
-- `DELETE /api/v1/aws/accounts/{id}`
+- Discovery/evaluation/schedule requests enqueue durable jobs; workers reload and reauthorize.
+- Notification delivery rechecks approval before provider work.
+- Remediation proposal, human approval, live preparation, second approval, enqueue, lease acquisition,
+  execution, verification, and terminal evidence are distinct transitions.
+- `prepare-live` does not execute or enqueue and returns the request to pending approval.
+- Stale snapshots, leases, idempotency conflicts, unsupported actions, disabled flags, or emergency
+  stop produce stable refusal errors.
 
-Creation returns a pending record, unique external ID, trust policy, permission guidance, and setup instructions. Validation calls AssumeRole and GetCallerIdentity. Responses never include AWS credentials; failures use stable sanitized reason codes.
-
-## Proposed endpoints and open questions
-
-Nested action endpoints may include `POST /scans`, `POST /findings/{id}/risk-acceptances`, `POST /remediation-requests/{id}/approvals`, and `POST /findings/{id}/verification-scans`. Exact state machines, bulk operations, export delivery, version negotiation, webhook authentication, and asynchronous polling versus events require later design review.
-
-## Stage 3 implemented discovery API
-
-- `POST /api/v1/aws/accounts/{account_id}/discover`
-- `GET /api/v1/discovery/jobs` and `GET /api/v1/discovery/jobs/{job_id}`
-- `GET /api/v1/assets`, `GET /api/v1/assets/summary`, and `GET /api/v1/assets/{asset_id}`
-
-List calls require `organization_id`, stable page/page-size parameters, and a maximum page size
-of 100. Assets filter by AWS account, type, region, status, active/stale, and text search. All
-reads require active membership; discovery start allows owner, admin, security analyst, and
-cloud engineer. Cross-tenant identifiers use not-found semantics.
-
-Discovery lists use stable `(created_at, id)` ordering, bounded page sizes, and allowlisted
-filters. Starting discovery for an account with a pending or running job returns `409`. Provider
-failures expose sanitized codes only; temporary AWS credentials and raw botocore exceptions
-never enter responses.
+The running API's OpenAPI document is the field-level reference. Do not include secret-bearing
+example payloads in static documentation.

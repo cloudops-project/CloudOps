@@ -1,186 +1,123 @@
-# CloudFix / CloudOps
+# CloudOps
 
-CloudFix is the repository/project name. The implemented application, package names, Terraform
-resources, and current UI use **CloudOps**. It is a multi-tenant AWS security-posture application
-with cross-account onboarding, read-only discovery, deterministic findings, compliance/risk,
-advisory AI, approved notifications, durable PostgreSQL jobs, scheduling, audit, and governed
-remediation. Mock/dry-run remains the default; a two-action live executor is default-disabled and
-awaiting external sandbox validation.
+CloudOps is a multi-tenant AWS security-posture application for teams that need deterministic
+inventory, findings, compliance, risk, audit, notifications, and governed remediation without
+storing long-lived AWS credentials or delegating security decisions to AI.
 
-## Truthful status
+## Current status
 
-- **Implemented and locally verified:** core V1 features, tenant/RBAC controls, deterministic
-  analysis, durable jobs, scheduler, audit, provider adapters, dry-run remediation, Terraform
-  validation, CI/release definitions, and local container/security gates.
-- **Implemented; live validation pending:** AWS onboarding/discovery, Bedrock, SES, Jira, GitHub
-  OIDC, ECR publishing, Terraform apply, ECS/RDS/ALB/WAF/CloudWatch operation, and release workflow.
-- **User-reported, not independently verified in this environment:** the `infra/bootstrap` Terraform
-  root may have already been applied to AWS (state bucket, lock table, KMS key, OIDC provider,
-  publish/staging-deploy roles). This has not been confirmed with AWS CLI access, live account/region
-  identity, or Terraform state inspection — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
-- **Implemented; live validation pending:** the static S3 Public Access Block and exact EC2 ingress
-  rule remediation executor, separate remediation workload identity, and controlled sandbox IaC.
-- **Deferred or not proven:** actual live AWS mutation, weighted canary, cross-region backup, live
-  restore/rollback, UAT, load baseline, staging deployment, and production deployment.
+The application scope through privileged remediation administration is **Implemented and CI
+verified** at commit `bec5753ad127d8ed8968d539ee625130c6a2e06f`. The controlled AWS sandbox,
+default-disabled S3/EC2 executor, and runbooks exist, but AWS identity preflight, Terraform plan and
+apply, EC2 deployment, Cloudflare exposure, live provider tests, live remediation, and rollback are
+**Not yet verified**. See the [status matrix](docs/product/current-status.md).
 
-Terraform/workflow existence does not mean deployed. Current test/scan summaries are **reported
-verification evidence; external log retention required** unless retained CI artifacts are
-provided.
+Terraform or workflow source does not prove deployment. CloudOps is not represented as production
+ready until external staging, security, provider, restore, rollback, UAT, and deployment evidence
+exists.
 
-## Organization-managed self-hosting
+## What it implements
 
-The self-host path requires a pre-created named Cloudflare Tunnel whose public hostname routes to
-`http://web:8081`. Copy `.env.selfhost.example` to `.env.selfhost`, provide
-`CLOUDOPS_DOMAIN` and `CLOUDFLARE_TUNNEL_TOKEN`, then run:
+- JWT/refresh authentication, organizations, invitations, capability RBAC, and tenant isolation.
+- STS cross-account onboarding with generated External IDs and in-memory temporary credentials.
+- Bounded EC2, S3, IAM, RDS, CloudWatch, and CloudTrail discovery collectors.
+- Versioned deterministic security rules, finding lifecycle, compliance mappings, and dashboards.
+- `CLOUDOPS_RISK_V1` deterministic 0-100 scoring with immutable snapshots and auditable components.
+- Advisory AI finding/impact explanations and remediation, executive, Jira, and email drafts.
+- Approval-gated notifications, Jira integration, audit events, scheduler, and PostgreSQL durable jobs.
+- Governed remediation preview/approval, mock dry-run, owner-only trust/sandbox administration, and
+  default-disabled live actions for S3 Public Access Block and exact EC2 ingress-rule revocation.
+- Terraform for managed environments and a separate non-production remediation sandbox.
 
-```powershell
-.\cloudops.ps1 up
-```
+Supported code does not equal verified compatibility with every live AWS account/service variant.
 
-or:
+## Security boundary
 
-```bash
-./cloudops.sh up
-```
+- AWS credentials are not stored by the application; the production design uses workload identity
+  and temporary STS credentials held in memory.
+- CloudOps does not send the full AWS environment to AI. Exactly one compatible persisted source is
+  bounded, minimized, sanitized, canonicalized, and hashed.
+- AI does not calculate authoritative risk, set finding/compliance status, approve remediation,
+  choose an operation, or execute AWS changes.
+- Live remediation requires separate same-account role trust and External ID, owner-managed sandbox
+  approval, human request approval, two runtime flags, emergency stop cleared, tenant/account/target
+  checks, mandatory tags, immutable snapshot and drift checks, lease, idempotency, and exact
+  postcondition verification.
+- Live actions are restricted to approved synthetic sandbox resources. Arbitrary AWS operations are
+  unsupported, and no live action has been operationally verified.
 
-The controller generates internal secrets, starts persistent PostgreSQL, applies and verifies
-migrations, starts API/web/workers, verifies health, and connects the named tunnel. API and
-PostgreSQL publish no host ports. See
-[Named-Cloudflare self-hosting](docs/operations/self-hosted-cloudflare-deployment.md) for
-prerequisites, lifecycle, backup/restore, security boundaries, and validation status.
+See [security controls](docs/security/security-controls.md),
+[tenant isolation](docs/security/tenant-isolation.md), and
+[remediation governance](docs/security/remediation-governance.md).
 
-## Architecture at a glance
+## Architecture
 
 ```mermaid
 flowchart LR
-  Browser["React/Vite"] --> API["FastAPI"]
-  API --> DB[("PostgreSQL")]
-  Scheduler["Scheduler worker"] --> Jobs["Durable platform_jobs"]
-  Worker["Job worker"] --> Jobs
-  Jobs --> DB
-  API --> STS["STS AssumeRole"]
-  Worker --> AWS["Read-only AWS APIs / optional providers"]
-  Rules["Deterministic rules"] --> Findings["Findings/compliance/risk"]
-  Findings --> AI["Advisory AI"]
-  Findings --> Notification["Approval-gated delivery"]
-  Findings --> Remediation["Governed remediation (mock default; live gated)"]
+  Browser --> Web["React/Vite"] --> API["FastAPI"] --> DB[("PostgreSQL")]
+  Scheduler["Scheduler worker"] --> DB
+  Worker["Job worker"] --> DB
+  Worker --> STS["STS AssumeRole"] --> AWS["Read-only AWS / gated sandbox actions"]
+  API --> AI["Advisory AI"]
 ```
 
-No Celery/Redis broker is implemented. AI does not detect findings or authorize remediation. The
-live executor cannot run without independent feature, emergency-stop, approval, trust, tenant,
-snapshot, lease, tag, caller-account, precondition, and target gates.
-
-## Source-of-truth context package
-
-1. [NEW_CHAT_CONTEXT.md](NEW_CHAT_CONTEXT.md) — compact handoff.
-2. [PRD.md](PRD.md) — product and release requirements.
-3. [architecture.md](architecture.md) — components, flows, trust boundaries, repository map.
-4. [design.md](design.md) — implemented frontend design.
-5. [rules.md](rules.md) — coding, security, Git, AWS, and release rules.
-6. [phases.md](phases.md) — stages 0–17 status.
-7. [memory.md](memory.md) — current worktree, evidence, risks, and next task.
-8. [KNOWN_ISSUES.md](KNOWN_ISSUES.md) — open, unresolved, verified issues only.
-9. [DECISIONS.md](DECISIONS.md) — ADR index, including demo-hardening `ADR-Dxx` records.
-10. [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md) — two-day demo commands, credentials, and limitations.
-11. [SECURITY_MODEL.md](SECURITY_MODEL.md) — authN/authZ, tenancy, secrets, and demo exceptions.
-12. [CHANGELOG.md](CHANGELOG.md) — unreleased changes; no tagged release exists.
-
-## Documentation index
-
-### Platform and APIs
-
-- [API README](apps/api/README.md)
-- [Web README](apps/web/README.md)
-- [Worker entry points](apps/worker/README.md)
-- [API design](docs/architecture/api-design.md)
-- [Database design](docs/architecture/database-design.md)
-- [AWS onboarding](docs/architecture/aws-account-onboarding.md)
-- [Distributed jobs](docs/architecture/distributed-jobs.md)
-- OpenAPI UI at `http://localhost:8000/docs` when the local API is running
-
-### Infrastructure and providers
-
-- [Terraform](infra/README.md)
-- [Deployment strategy](docs/operations/deployment-strategy.md)
-- [Named-Cloudflare self-hosting](docs/operations/self-hosted-cloudflare-deployment.md)
-- [Bedrock and SES setup](docs/operations/aws-provider-setup.md)
-- [Secrets strategy](docs/operations/secrets-management.md)
-- [Monitoring](docs/operations/monitoring-strategy.md)
-- [Backup and restore](docs/operations/backup-and-recovery.md)
-- [Canary and rollback](docs/operations/canary-and-rollback.md)
-- [Migration safety](docs/operations/migration-safety.md)
-
-### Security and governance
-
-- [Security policy](SECURITY.md)
-- [Phase 1 hardening evidence](docs/security/phase-1-production-hardening.md)
-- [Threat model](docs/architecture/threat-model.md)
-- [Trust boundaries](docs/architecture/trust-boundaries.md)
-- [Tenant design](docs/architecture/multi-tenant-design.md)
-- [Notification controls](docs/security/notification-delivery-controls.md)
-- [Remediation governance](docs/operations/remediation-governance.md)
-- [AWS remediation sandbox](docs/operations/aws-remediation-sandbox.md)
-- [Live AWS remediation runbook](docs/operations/live-aws-remediation-runbook.md)
-- [Audit strategy](docs/operations/audit-log-strategy.md)
-
-### Release, testing, and handover
-
-- [CI/release workflow guide](.github/workflows/README.md)
-- [V1 handover](docs/release/v1-handover.md)
-- [UAT checklist](docs/testing/uat-checklist.md)
-- [Local demo runbook](demo_v1.md)
-- [End-to-end verification](tests/end-to-end/README.md)
-- [Testing strategy](docs/engineering/testing-strategy.md)
-
-## Repository layout
-
-```text
-apps/api/       Backend, workers, tests, migrations
-apps/web/       Frontend and tests
-infra/          Authoritative Terraform
-docs/           Architecture, engineering, operations, product, security, release, UAT
-scripts/        Migration, smoke, seed, and load helpers
-tests/          Cross-cutting verification documentation
-.github/        CI/release workflows and templates
-```
+PostgreSQL is the durable job source of truth; Celery/Redis are not implemented. Deterministic rules
+detect findings. See [system architecture](docs/architecture/system-architecture.md),
+[data flow](docs/architecture/data-flow.md), and [AWS roles](docs/architecture/aws-role-architecture.md).
 
 ## Local development
 
-Use synthetic/local configuration only. Never paste or commit credentials.
+Use synthetic values only. Do not put credentials or real customer data in repository files.
 
 ```powershell
-Set-Location D:\learn\cdac\cloudfix-main-release
+Set-Location <repository-root>
 docker compose -f compose.yml config --quiet
 docker compose -f compose.demo.yml up --build
 ```
 
-For the two-day demo specifically (synthetic data, same-origin proxy, optional temporary public
-tunnel), use `.\scripts\demo_bootstrap.ps1 -Reset` instead — see
-[DEMO_RUNBOOK.md](DEMO_RUNBOOK.md).
+Backend checks run from `apps/api`; frontend checks run from `apps/web`. See
+[local development](docs/operations/local-development.md) and
+[test strategy](docs/testing/test-strategy.md). Current Alembic head is
+`0019_live_remediation_data_model`.
 
-Backend checks run from `apps/api`; frontend checks run from `apps/web`. Automated AWS tests must
-remain mocked or Stubber-based.
+## Deployment
 
-## Current migration and infrastructure facts
+- **Local/demo:** synthetic data and local/mock providers.
+- **Organization-managed self-host:** named Cloudflare Tunnel to internal web; API/database ports
+  are not published. Operational clean-host/restore evidence remains environment-specific.
+- **Managed AWS:** staging/production Terraform and immutable release workflow exist; no deployment
+  is proven here.
+- **Controlled sandbox:** intended for `ap-south-1`, one Ubuntu `t3a.large` host, encrypted 50 GiB
+  gp3, IMDSv2, explicit administrator `/32`, separate roles, and synthetic findings. Plan/apply and
+  deployment are pending. See the [EC2 runbook](docs/operations/ec2-deployment-runbook.md).
 
-- Alembic head: `0019_live_remediation_data_model`.
-- Terraform roots: `infra/bootstrap`, `infra/environments/staging`,
-  `infra/environments/production`.
-- Workflows: `.github/workflows/ci.yml` and `.github/workflows/release.yml`.
-- Target containers run non-root; API and web Dockerfiles use pinned Alpine variants.
-- Release design builds once, records digests/SBOMs, validates staging, and has a protected
-  explicit production gate.
+## Demonstration
 
-None of these statements prove a live apply or release.
+Use the [guide demonstration](docs/demo/guide-demonstration.md) with synthetic data. It includes
+five-, ten-, and fifteen-minute paths, an offline fallback, evidence checklist, and accurate answers
+about AI, credentials, deployment, and live remediation.
 
-## Contributing safely
+## Documentation
 
-Read [rules.md](rules.md) and [CONTRIBUTING.md](CONTRIBUTING.md). If staging is explicitly
-authorized, stage reviewed files by exact path:
+The canonical map is [docs/README.md](docs/README.md). Key entry points:
 
-```powershell
-git add -- docs/path-one.md docs/path-two.md
-```
+- [Product requirements](PRD.md) and [current status](docs/product/current-status.md)
+- [Architecture](docs/architecture/system-architecture.md) and [data model](DATA_MODEL.md)
+- [API contracts](API_CONTRACTS.md)
+- [Deterministic risk](docs/security/deterministic-risk.md) and
+  [AI minimization](docs/security/ai-data-minimization.md)
+- [Remediation governance](docs/security/remediation-governance.md)
+- [AWS sandbox](docs/operations/aws-remediation-sandbox.md) and
+  [live runbook](docs/operations/live-aws-remediation-runbook.md)
+- [CI pipeline](docs/testing/ci-pipeline.md) and [release status](docs/release/current-release-status.md)
+- [New-chat context](NEW_CHAT_CONTEXT.md), [memory](memory.md), [phases](phases.md), and
+  [changelog](CHANGELOG.md)
 
-Do not stage broadly, force-push shared branches, expose secrets, apply Terraform, or run live AWS
-tests without explicit authorization.
+## Limitations
+
+Live AWS identity, discovery, Bedrock, SES, Jira, remediation, rollback, backup/restore, canary,
+Cloudflare, UAT, and production deployment require retained external evidence. Compliance mappings
+are not certifications. Risk is CVSS-inspired but not CVSS. AI output is untrusted advisory text.
+
+Contributors must follow [rules.md](rules.md) and stage reviewed paths explicitly; never commit
+secrets or weaken tenant/remediation boundaries.

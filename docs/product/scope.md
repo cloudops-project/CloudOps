@@ -4,13 +4,21 @@
 
 This boundary helps product owners, engineers, and reviewers prevent scope creep and evaluate change requests.
 
-## Committed planning scope
+## Implemented V1 scope
 
-Version 1 plans organization and user management, authentication/RBAC, multi-account AWS onboarding through STS, EC2/S3/IAM inventory and rules, findings and compliance mappings, reports, audit history, notifications, Jira, risk acceptance, manual/scheduled scans, approval-based remediation, and verification. Tenant isolation applies throughout. See the [PRD](prd.md) for outcomes.
+Version 1 includes organization and user management, authentication/RBAC, multi-account AWS
+onboarding through STS, supported AWS inventory and deterministic rules, findings/compliance/risk,
+reports, audit, notifications, Jira, manual/scheduled work, durable jobs, and governed remediation.
+EC2, S3, and IAM are the core product scope; RDS, CloudWatch, and CloudTrail collectors also exist
+but require live compatibility validation. Tenant isolation applies throughout. See the
+[canonical PRD](../../PRD.md) and [current status](current-status.md).
 
 ## Not included
 
-Azure, Google Cloud, Kubernetes, containers, source code, malware, endpoints, penetration testing, application payload collection, arbitrary shell access, autonomous AI decisions/actions, universal remediation automation, and compliance certification are excluded. Adding an AWS service beyond EC2, S3, or IAM requires a post-MVP scope decision.
+Azure, Google Cloud, Kubernetes scanning, source-code/malware/endpoint scanning, penetration testing,
+application payload collection, arbitrary shell/AWS operations, autonomous AI decisions,
+universal remediation, automatic rollback, and compliance certification are excluded. Expanding
+the validated service or mutation allowlist requires explicit scope, threat modeling, and tests.
 
 ## Guardrails
 
@@ -18,4 +26,7 @@ Scanning roles are read-only. Remediation uses separate action-specific permissi
 
 ## Change control and open questions
 
-New work needs an issue describing value, risk, dependencies, tenant/security impact, and displaced scope. Product lead approval is required; architecture-impacting changes need an ADR. Open questions: whether email or Teams ships first, which compliance framework subset is licensed and validated, and which one low-risk sandbox remediation becomes the sample.
+New work needs an issue describing value, risk, dependencies, tenant/security impact, and displaced
+scope. Product approval is required; architecture-impacting changes need an ADR. Provider production
+selection, compliance content validation, and any expanded remediation action remain reviewed
+decisions rather than assumptions.

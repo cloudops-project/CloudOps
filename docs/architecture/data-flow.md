@@ -1,73 +1,68 @@
-# End-to-End Data Flow
+# CloudOps data flows
 
-## Purpose and audience
-
-Security reviewers and implementers use this document to understand intended data movement, provenance, and decision boundaries.
+## Discovery to finding
 
 ```mermaid
-flowchart TD
-  U[User] --> WEB[CloudOps web application]
-  WEB --> API[FastAPI backend]
-  API --> AUTH[Authentication and authorization]
-  AUTH --> JOB[Scan job creation]
-  JOB --> WORKER[Background worker]
-  WORKER --> STS[AWS STS AssumeRole]
-  STS --> TEMP[Temporary AWS credentials]
-  TEMP --> COL[Boto3 collectors]
-  COL --> INV[Normalized asset inventory]
-  INV --> RULES[Deterministic rule engine]
-  RULES --> FIND[Security findings]
-  FIND --> COMP[Stage 5 compliance interpretation]
-  FIND --> RISK[Stage 6 deterministic risk scoring]
-  COMP --> AIX[Advisory AI explanation]
-  RISK --> AIX
-  FIND --> OUT[Dashboard / report / approved notification]
-  AIX --> OUT
-  OUT --> APPROVE[Authorized remediation approval]
-  APPROVE --> DRY[Allowlisted dry-run executor]
-  DRY --> VERIFY[Verification plan]
-  VERIFY --> AUDIT[Audit record]
+flowchart LR
+  AWS["AWS read-only APIs"] --> Collector["Bounded collectors"]
+  Collector --> Asset["Normalized tenant-owned asset"]
+  Asset --> Rule["Versioned deterministic rule"]
+  Rule --> Finding["Finding"]
+  Finding --> Compliance["Compliance snapshot"]
+  Finding --> Risk["Deterministic risk snapshot"]
+  Finding --> Audit["Audit evidence"]
 ```
 
-## Current Stage 4 execution boundary
+Collectors use paginators where needed, bounded retry/timeout configuration, role-scoped temporary
+credentials, deterministic normalization, and sanitized provider errors. Exact S3 Public Access
+Block state and EC2 `SecurityGroupRuleId` evidence are retained for later drift-safe remediation.
+No AWS credentials are persisted.
 
-Discovery obtains temporary STS credentials and stores only normalized configuration metadata.
-Credentials never cross into rule inputs. Rules read persisted assets and make no provider
-calls. Failed rules create or refresh findings, passing rules resolve them, and errors preserve
-previous state. Evidence is bounded and redacted. Raw CloudWatch logs and CloudTrail events are
-not ingested.
+## Durable job lifecycle
 
-## Processing rules
+```mermaid
+stateDiagram-v2
+  [*] --> queued
+  queued --> running: acquire lease
+  running --> running: heartbeat
+  running --> succeeded: complete
+  running --> retry_wait: retryable failure
+  retry_wait --> queued: due
+  running --> dead_letter: attempts exhausted
+  queued --> cancelled: authorized cancel
+```
 
-Authentication establishes a user; authorization resolves an active organization membership and permission for each resource. Job creation uses an idempotency key and writes requester/organization/rule-set scope. The worker receives only identifiers, obtains STS credentials at execution time, and discards them after use. Collectors retrieve configuration metadata for EC2, S3, and IAM, redact disallowed fields, and normalize source provenance.
+Job payloads carry bounded identifiers and safe references, not credentials or provider bodies.
+Lease token and generation checks reject stale workers.
 
-The deterministic engine evaluates an explicitly pinned rule version. Findings retain evidence
-and input/run linkage. Implemented Stage 5 compliance maps persisted per-rule results and
-findings to versioned controls, producing immutable PASS, FAIL, NOT_ASSESSED, or ERROR snapshots.
-Missing evidence never becomes PASS, and suppression remains failure evidence. Stage 6 risk
-scoring consumes persisted findings separately; Stage 7 AI explains bounded persisted evidence. No compliance
-or risk calculation calls boto3 or customer AWS APIs.
+## AI request
 
-Remediation requires a separate request, current evidence, authorized approval, playbook/version, idempotency key, and separate permissions. Execution outcome never alone closes a finding: a verification scan evaluates it. Every state transition emits an audit event.
+```mermaid
+flowchart LR
+  Source["One persisted finding or assessment"] --> Compatibility["Task/source compatibility"]
+  Compatibility --> Minimize["Bound and sanitize context"]
+  Minimize --> Hash["Context hash and fingerprint"]
+  Hash --> Provider["AI provider"]
+  Provider --> Validate["Schema validation and output sanitization"]
+  Validate --> Persist["Response hash, staleness, usage, audit"]
+```
 
-## Data minimization and retention
+Authoritative finding severity, compliance status, risk, remediation eligibility, approval, and AWS
+execution stay local and deterministic.
 
-Do not collect customer application content, AWS credentials, session tokens, complete IAM policies for AI submission, or unnecessary tags. Exact retention and regional residency are open decisions; deletion must preserve required audit/security records under approved policy.
+## Remediation lifecycle
 
-## Stage 6 risk-scoring flow
+```mermaid
+flowchart LR
+  Finding --> Preview --> Proposal --> Approval["Human approval"]
+  Approval --> Prepare["Owner prepares live request"]
+  Prepare --> Snapshot["Immutable snapshot and drift checks"]
+  Snapshot --> Lease["Valid execution lease and idempotency"]
+  Lease --> Action["Exact allowlisted AWS API"]
+  Action --> Verify["Exact postcondition verification"]
+  Verify --> Evidence["Before/after/request IDs/rollback/audit"]
+```
 
-Stage 6 reads committed Stage 4 finding lifecycle state and bounded risk context in one
-tenant-scoped transaction. The versioned pure scoring function produces component points and
-reason codes, after which the service persists immutable finding snapshots and deterministic
-account/organization aggregates. Rules make no boto3 calls; scoring makes no network calls.
-Suppression remains evidence, while an authorized compensating-control record supplies the only
-bounded adjustment.
-
-Stage 7 explains already-persisted deterministic finding, compliance, and risk results through the mock provider by default or the implemented Bedrock adapter when explicitly configured. It must not become a detection, scoring, mutation, tool-execution, Jira-delivery, or
-email-delivery path.
-## Stage 7 data flow
-
-Persisted finding/risk/compliance record → tenant authorization → bounded
-context builder → redaction and prompt-injection neutralization → canonical
-context hash → versioned prompt → deterministic mock provider → strict schema
-validation → immutable response and audit event → escaped human-review UI.
+Preparation does not enqueue or execute automatically. Live execution also requires runtime flags,
+emergency stop cleared, sandbox approval, matching role/account/tenant/target, mandatory tags, and
+caller verification.

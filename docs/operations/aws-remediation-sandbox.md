@@ -1,8 +1,15 @@
 # AWS remediation sandbox infrastructure
 
+> **Current operational status:** source and automated validation are implemented. Operator-reported
+> AWS SSO setup is incomplete; identity preflight, saved plan, apply, EC2 creation, CloudOps
+> deployment, Cloudflare, live remediation, rollback, and teardown have not been verified. Do not
+> infer account or resource state from this document.
+
 This Terraform root defines—but has not created—a dedicated CloudOps lab in `ap-south-1`. It is
 separate from staging and production. Applying or destroying it requires a human-approved AWS
 account, a reviewed plan, short-lived non-root identity, and a separate operational authorization.
+The operator qualification uses Terraform `1.10.5`; `infra/sandbox/versions.tf` accepts Terraform
+`>=1.10,<2`, and the committed provider lock selects AWS provider `5.100.0` within `~>5.100`.
 
 ## Scope and cost
 
