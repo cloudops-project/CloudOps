@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from collections.abc import Callable
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.exceptions.errors import ConflictError, NotFoundError
-from app.models import Finding, RemediationRequest, User
+from app.models import Asset, AWSAccount, Finding, RemediationRequest, User
 from app.models.enums import (
     AuditResult,
     FindingStatus,
@@ -18,6 +19,7 @@ from app.models.enums import (
 )
 from app.security_rules import RuleRegistry, default_registry
 from app.services.ai_safety import canonical_json
+from app.services.aws_remediation_executor import AWSRemediationExecutor
 from app.services.common import now_utc, record_audit
 from app.services.remediation_actions import (
     RemediationActionRegistry,
@@ -25,6 +27,7 @@ from app.services.remediation_actions import (
 )
 from app.services.remediation_executor import (
     MockRemediationExecutor,
+    RemediationExecutionContext,
     RemediationExecutionOutcome,
     RemediationExecutor,
 )
@@ -33,14 +36,12 @@ MAX_EXECUTION_ATTEMPTS = 3
 
 
 class RemediationService:
-    """Read/write operations over Stage 10 remediation requests.
+    """Tenant-scoped remediation workflow and guarded executor routing.
 
-    Execution is synchronous and explicitly requested; no worker, queue, or
-    poller exists or is created by this service. Only the deterministic mock
-    executor is available in Version 1, and only for requests whose
-    execution_mode is MOCK_AUTOMATION. Rule evaluation remains the sole
-    authority for whether a finding exists; this service never creates,
-    resolves, or reclassifies a finding.
+    The deterministic mock remains the default. Live AWS routing is reserved
+    for explicitly approved worker executions and is protected by independent
+    configuration, account, target, snapshot, and lease gates. Rule evaluation
+    remains the sole authority for findings.
     """
 
     def __init__(
@@ -50,12 +51,14 @@ class RemediationService:
         registry: RuleRegistry = default_registry,
         action_registry: RemediationActionRegistry = default_remediation_actions,
         settings: Settings | None = None,
+        live_executor_factory: Callable[[Settings], RemediationExecutor] | None = None,
     ) -> None:
         self.db = db
         self.executor = executor or MockRemediationExecutor()
         self.registry = registry
         self.action_registry = action_registry
         self.settings = settings or get_settings()
+        self.live_executor_factory = live_executor_factory or AWSRemediationExecutor
 
     def _get_finding(self, organization_id: uuid.UUID, finding_id: uuid.UUID) -> Finding:
         finding = self.db.scalar(
@@ -326,32 +329,30 @@ class RemediationService:
         *,
         execution_lease_id: uuid.UUID,
     ) -> RemediationRequest:
-        """Attempt mock execution of an APPROVED remediation request exactly
-        once per call. A retryable failure leaves the request APPROVED with
-        an incremented attempt_count; the third failed attempt transitions
-        the request to FAILED. Only MOCK_AUTOMATION requests are
-        executable; every other execution mode, including the reserved
-        LIVE_AWS storage value, is rejected here."""
+        """Execute an approved request once under the supplied worker lease.
+
+        Retryable failures remain approved until the bounded attempt limit.
+        Live requests pass the complete fail-closed context validation before
+        the AWS executor can be selected.
+        """
         request = self.get_scoped(organization_id, request_id)
         if request.status != RemediationStatus.APPROVED:
             raise ConflictError(
                 "remediation_invalid_transition",
                 f"Cannot execute a remediation request in status '{request.status.value}'.",
             )
-        if request.execution_mode != RemediationExecutionMode.MOCK_AUTOMATION:
+        if request.execution_mode not in {
+            RemediationExecutionMode.MOCK_AUTOMATION,
+            RemediationExecutionMode.LIVE_AWS,
+        }:
             raise ConflictError(
                 "remediation_not_automatable",
-                "Only mock_automation requests can be executed in Version 1.",
+                "The remediation execution mode is not automatable.",
             )
         if not self.settings.remediation_execution_enabled:
             raise ConflictError(
                 "remediation_execution_disabled",
                 "Remediation execution is disabled by the operator kill switch.",
-            )
-        if self.settings.remediation_live_aws_enabled:
-            raise ConflictError(
-                "remediation_live_execution_unavailable",
-                "Live AWS remediation is not implemented or enabled for this release.",
             )
         calculated_hash = hashlib.sha256(
             canonical_json(request.request_snapshot_json).encode()
@@ -388,15 +389,39 @@ class RemediationService:
                 "remediation_precondition_changed",
                 "The finding changed after approval; create and approve a new preview.",
             )
+        execution_context: RemediationExecutionContext | None = None
+        executor = self.executor
+        if request.execution_mode == RemediationExecutionMode.LIVE_AWS:
+            if (
+                request.execution_lease_id is not None
+                and request.execution_lease_id != execution_lease_id
+            ):
+                raise ConflictError(
+                    "remediation_execution_lease_mismatch",
+                    "The remediation request is held by another execution lease.",
+                )
+            execution_context = self._live_execution_context(
+                organization_id, request, finding
+            )
+            executor = self.live_executor_factory(self.settings)
+            if request.executor_key != executor.key:
+                raise ConflictError(
+                    "remediation_executor_mismatch",
+                    "The approved remediation executor does not match the runtime executor.",
+                )
         request.execution_lease_id = execution_lease_id
-        result = self.executor.execute(
+        result = executor.execute(
             action_key=request.action_key,
             finding_id=request.finding_id,
             snapshot_hash=request.request_snapshot_hash,
             dry_run=request.dry_run,
+            context=execution_context,
         )
         request.attempt_count += 1
-        request.before_state_json = result.before_state
+        request.before_state_json = result.rollback_state or result.before_state
+        request.precondition_evidence_json = result.precondition_evidence or {}
+        request.verification_result_json = result.verification_result
+        request.aws_request_ids_json = result.aws_request_ids
         now = now_utc()
         if result.outcome == RemediationExecutionOutcome.SUCCESS:
             request.status = RemediationStatus.SUCCEEDED
@@ -443,3 +468,70 @@ class RemediationService:
             )
         self.db.flush()
         return request
+
+    def _live_execution_context(
+        self,
+        organization_id: uuid.UUID,
+        request: RemediationRequest,
+        finding: Finding,
+    ) -> RemediationExecutionContext:
+        if not self.settings.remediation_live_aws_enabled:
+            raise ConflictError(
+                "remediation_live_execution_disabled",
+                "Live AWS remediation is disabled.",
+            )
+        if self.settings.remediation_emergency_stop:
+            raise ConflictError(
+                "remediation_emergency_stop_active",
+                "The remediation emergency stop is active.",
+            )
+        if request.dry_run:
+            raise ConflictError(
+                "remediation_live_requires_execution_approval",
+                "Live remediation requires an explicitly approved non-dry-run request.",
+            )
+        account = self.db.scalar(
+            select(AWSAccount).where(
+                AWSAccount.id == request.aws_account_id,
+                AWSAccount.organization_id == organization_id,
+            )
+        )
+        if account is None:
+            raise NotFoundError("aws_account_not_found", "AWS account was not found.")
+        if (
+            not account.sandbox_approved
+            or account.sandbox_approved_at is None
+            or account.sandbox_approved_by_user_id is None
+        ):
+            raise ConflictError(
+                "remediation_sandbox_not_approved",
+                "The AWS account is not approved for sandbox remediation.",
+            )
+        if not account.remediation_role_arn or not account.remediation_external_id:
+            raise ConflictError(
+                "remediation_role_not_configured",
+                "The separate remediation role trust is not configured.",
+            )
+        if finding.asset_id is None:
+            raise ConflictError(
+                "remediation_target_missing", "The finding has no target asset."
+            )
+        asset = self.db.scalar(
+            select(Asset).where(
+                Asset.id == finding.asset_id,
+                Asset.aws_account_id == account.id,
+                Asset.organization_id == organization_id,
+            )
+        )
+        if asset is None:
+            raise NotFoundError("asset_not_found", "The target asset was not found.")
+        if (
+            request.target_resource_arn != asset.arn
+            or request.target_region != asset.region
+            or request.request_snapshot_json.get("asset_id") != str(asset.id)
+        ):
+            raise ConflictError(
+                "remediation_target_mismatch",
+                "The approved remediation target does not match current inventory.",
+            )
+        return RemediationExecutionContext(account, asset, finding, request)

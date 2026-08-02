@@ -3,7 +3,10 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from app.models import Asset, AWSAccount, Finding, RemediationRequest
 
 
 class RemediationExecutionOutcome(StrEnum):
@@ -17,6 +20,18 @@ class RemediationExecutionResult:
     before_state: dict[str, object]
     after_state: dict[str, object] | None = None
     sanitized_error: str | None = None
+    precondition_evidence: dict[str, object] | None = None
+    verification_result: dict[str, object] | None = None
+    rollback_state: dict[str, object] | None = None
+    aws_request_ids: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
+class RemediationExecutionContext:
+    account: AWSAccount
+    asset: Asset
+    finding: Finding
+    request: RemediationRequest
 
 
 class RemediationExecutor(Protocol):
@@ -29,6 +44,7 @@ class RemediationExecutor(Protocol):
         finding_id: uuid.UUID,
         snapshot_hash: str,
         dry_run: bool,
+        context: RemediationExecutionContext | None = None,
     ) -> RemediationExecutionResult: ...
 
 
@@ -52,7 +68,9 @@ class MockRemediationExecutor:
         finding_id: uuid.UUID,
         snapshot_hash: str,
         dry_run: bool,
+        context: RemediationExecutionContext | None = None,
     ) -> RemediationExecutionResult:
+        del context
         self.invocations += 1
         before_state = {
             "simulated": True,

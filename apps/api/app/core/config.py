@@ -137,6 +137,7 @@ class Settings(BaseSettings):
     aws_ses_max_retry_attempts: int = Field(default=3, ge=1, le=5)
     remediation_execution_enabled: bool = False
     remediation_live_aws_enabled: bool = False
+    remediation_emergency_stop: bool = True
     # Demo-only escape hatch: replay persisted synthetic inventory instead of
     # assuming a customer role and calling AWS. Refused in production-like
     # environments by model_post_init so it can never silently disable real

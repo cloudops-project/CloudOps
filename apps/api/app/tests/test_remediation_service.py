@@ -1,18 +1,25 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.db.base import utc_now
 from app.exceptions.errors import ConflictError, NotFoundError
-from app.models import Organization, RemediationRequest, User
+from app.models import Asset, AWSAccount, Organization, RemediationRequest, User
 from app.models.enums import FindingStatus, RemediationExecutionMode, RemediationStatus
+from app.services.ai_safety import canonical_json
 from app.services.remediation import RemediationService
-from app.services.remediation_executor import MockRemediationExecutor
+from app.services.remediation_executor import (
+    MockRemediationExecutor,
+    RemediationExecutionContext,
+    RemediationExecutionOutcome,
+    RemediationExecutionResult,
+)
 from app.tests.test_risk import _finding, _tenant
 
 
@@ -268,6 +275,96 @@ def _execute(
     )
 
 
+class _SuccessfulLiveExecutor:
+    key = "aws"
+
+    def __init__(self) -> None:
+        self.context: RemediationExecutionContext | None = None
+
+    def execute(
+        self,
+        *,
+        action_key: str,
+        finding_id: uuid.UUID,
+        snapshot_hash: str,
+        dry_run: bool,
+        context: RemediationExecutionContext | None = None,
+    ) -> RemediationExecutionResult:
+        del action_key, finding_id, snapshot_hash, dry_run
+        self.context = context
+        return RemediationExecutionResult(
+            outcome=RemediationExecutionOutcome.SUCCESS,
+            before_state={"legacy": "before"},
+            after_state={"verified": True},
+            precondition_evidence={"matched": True},
+            verification_result={"verified": True},
+            rollback_state={"exact": "original"},
+            aws_request_ids={"put_public_access_block": "synthetic-request-id"},
+        )
+
+
+def _live_request(
+    db: Session,
+) -> tuple[RemediationRequest, Organization, _SuccessfulLiveExecutor]:
+    request, organization, requester = _proposed_request(db)
+    finding = RemediationService(db)._get_finding(organization.id, request.finding_id)
+    account = db.scalar(
+        select(AWSAccount).where(
+            AWSAccount.id == request.aws_account_id,
+            AWSAccount.organization_id == organization.id,
+        )
+    )
+    asset = db.scalar(
+        select(Asset).where(
+            Asset.id == finding.asset_id,
+            Asset.organization_id == organization.id,
+        )
+    )
+    assert account is not None
+    assert asset is not None
+    asset.arn = (
+        f"arn:aws:ec2:{asset.region}:{account.account_id}:"
+        f"security-group/{asset.resource_id}"
+    )
+    account.remediation_role_arn = (
+        f"arn:aws:iam::{account.account_id}:role/CloudOpsRemediationRole"
+    )
+    account.remediation_external_id = "synthetic-remediation-external-id"
+    account.sandbox_approved = True
+    account.sandbox_approved_at = utc_now()
+    account.sandbox_approved_by_user_id = requester.id
+    request.execution_mode = RemediationExecutionMode.LIVE_AWS
+    request.executor_key = "aws"
+    request.dry_run = False
+    request.target_region = asset.region
+    request.target_resource_arn = asset.arn
+    request.request_snapshot_json = {
+        **request.request_snapshot_json,
+        "execution_mode": RemediationExecutionMode.LIVE_AWS.value,
+        "dry_run": False,
+    }
+    request.request_snapshot_hash = hashlib.sha256(
+        canonical_json(request.request_snapshot_json).encode()
+    ).hexdigest()
+    db.commit()
+    approver = _approver(db, f"live-approver-{uuid.uuid4().hex}")
+    db.commit()
+    RemediationService(db).approve(organization.id, request.id, approver)
+    db.commit()
+    return request, organization, _SuccessfulLiveExecutor()
+
+
+def _live_settings(**updates: object) -> Settings:
+    return get_settings().model_copy(
+        update={
+            "remediation_execution_enabled": True,
+            "remediation_live_aws_enabled": True,
+            "remediation_emergency_stop": False,
+            **updates,
+        }
+    )
+
+
 def test_execute_without_approval_is_rejected(db: Session) -> None:
     request, organization, _user = _proposed_request(db)
     db.commit()
@@ -377,7 +474,7 @@ def test_changed_finding_evidence_fails_execution_precondition(db: Session) -> N
         _execute(RemediationService(db), organization, request)
 
 
-def test_execution_kill_switch_and_live_mode_fail_closed(db: Session) -> None:
+def test_execution_kill_switch_and_live_flag_preserve_mock_execution(db: Session) -> None:
     request, organization = _approved_request(db)
     base = get_settings()
 
@@ -391,8 +488,88 @@ def test_execution_kill_switch_and_live_mode_fail_closed(db: Session) -> None:
             "remediation_live_aws_enabled": True,
         }
     )
-    with pytest.raises(ConflictError, match="not implemented"):
-        _execute(RemediationService(db, settings=live), organization, request)
+    result = _execute(RemediationService(db, settings=live), organization, request)
+    assert result.status == RemediationStatus.SUCCEEDED
+
+
+def test_live_execution_is_fail_closed_by_default(db: Session) -> None:
+    request, organization, executor = _live_request(db)
+
+    with pytest.raises(ConflictError, match="emergency stop"):
+        _execute(
+            RemediationService(
+                db,
+                settings=_live_settings(remediation_emergency_stop=True),
+                live_executor_factory=lambda _settings: executor,
+            ),
+            organization,
+            request,
+        )
+    assert executor.context is None
+
+
+def test_live_execution_requires_separate_role_trust(db: Session) -> None:
+    request, organization, executor = _live_request(db)
+    account = db.scalar(
+        select(AWSAccount).where(AWSAccount.id == request.aws_account_id)
+    )
+    assert account is not None
+    account.remediation_external_id = None
+    db.commit()
+
+    with pytest.raises(ConflictError, match="separate remediation role"):
+        _execute(
+            RemediationService(
+                db,
+                settings=_live_settings(),
+                live_executor_factory=lambda _settings: executor,
+            ),
+            organization,
+            request,
+        )
+    assert executor.context is None
+
+
+def test_live_execution_rejects_stale_worker_lease(db: Session) -> None:
+    request, organization, executor = _live_request(db)
+    request.execution_lease_id = uuid.uuid4()
+    db.commit()
+
+    with pytest.raises(ConflictError, match="another execution lease"):
+        _execute(
+            RemediationService(
+                db,
+                settings=_live_settings(),
+                live_executor_factory=lambda _settings: executor,
+            ),
+            organization,
+            request,
+        )
+    assert executor.context is None
+
+
+def test_live_execution_persists_sanitized_evidence(db: Session) -> None:
+    request, organization, executor = _live_request(db)
+    result = _execute(
+        RemediationService(
+            db,
+            settings=_live_settings(),
+            live_executor_factory=lambda _settings: executor,
+        ),
+        organization,
+        request,
+    )
+    db.commit()
+
+    assert result.status == RemediationStatus.SUCCEEDED
+    assert executor.context is not None
+    assert executor.context.account.organization_id == organization.id
+    assert result.before_state_json == {"exact": "original"}
+    assert result.precondition_evidence_json == {"matched": True}
+    assert result.verification_result_json == {"verified": True}
+    assert result.aws_request_ids_json == {
+        "put_public_access_block": "synthetic-request-id"
+    }
 
 
 def test_execution_records_worker_lease_and_remains_dry_run(db: Session) -> None:

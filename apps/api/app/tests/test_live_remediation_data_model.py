@@ -198,7 +198,7 @@ def test_credential_shaped_execution_evidence_is_rejected(
         setattr(request, field, value)
 
 
-def test_live_aws_storage_value_does_not_enable_execution(db: Session) -> None:
+def test_live_aws_storage_value_does_not_bypass_live_feature_gate(db: Session) -> None:
     user, organization, account = _tenant(db)
     finding, _asset = _finding(db, organization, account, user)
     db.commit()
@@ -213,7 +213,7 @@ def test_live_aws_storage_value_does_not_enable_execution(db: Session) -> None:
 
     assert request.execution_mode == RemediationExecutionMode.LIVE_AWS
     assert request.dry_run is True
-    with pytest.raises(ConflictError, match="Only mock_automation"):
+    with pytest.raises(ConflictError, match="Live AWS remediation is disabled"):
         service.execute(
             organization.id,
             request.id,

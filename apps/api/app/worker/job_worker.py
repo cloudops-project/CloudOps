@@ -21,6 +21,7 @@ from app.models.enums import (
     NotificationStatus,
     PlatformJobStatus,
     PlatformJobType,
+    RemediationExecutionMode,
     RemediationStatus,
     ScanRunStatus,
 )
@@ -410,7 +411,21 @@ class JobWorker:
         if request.status != RemediationStatus.SUCCEEDED:
             raise ConflictError(
                 "remediation_terminal_failure",
-                "The simulated remediation did not succeed.",
+                "The remediation did not succeed.",
+            )
+        if request.execution_mode == RemediationExecutionMode.LIVE_AWS:
+            PlatformJobService(db).enqueue(
+                organization_id=job.organization_id,
+                job_type=PlatformJobType.DISCOVERY,
+                reference_id=request.aws_account_id,
+                idempotency_key=f"remediation-rediscovery:{request.id}",
+                payload={
+                    "aws_account_id": str(request.aws_account_id),
+                    "actor_user_id": str(actor.id),
+                },
+                correlation_id=job.correlation_id,
+                parent_job_id=job.id,
+                actor_user_id=actor.id,
             )
         return str(request.id)
 
