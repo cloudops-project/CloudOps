@@ -529,6 +529,8 @@ class RemediationService:
             request.target_resource_arn != asset.arn
             or request.target_region != asset.region
             or request.request_snapshot_json.get("asset_id") != str(asset.id)
+            or request.request_snapshot_json.get("asset_evidence_hash")
+            != hashlib.sha256(canonical_json(asset.metadata_json).encode()).hexdigest()
         ):
             raise ConflictError(
                 "remediation_target_mismatch",

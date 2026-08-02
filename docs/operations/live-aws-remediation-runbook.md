@@ -28,9 +28,18 @@ approve, or execute remediation. Automatic rollback execution is not implemented
 9. Configure the separate remediation role and External ID, then grant sandbox approval with actor,
    timestamp, organization ownership, and audit evidence.
 
-CloudOps currently has no public endpoint for remediation-role configuration or sandbox approval.
-Do not edit the database ad hoc. A separately reviewed privileged administration workflow is a
-blocking prerequisite for an end-to-end live test.
+CloudOps provides owner-only administration routes under `/api/v1/aws/accounts/{account_id}`:
+
+- `PUT /remediation-trust` configures a same-account IAM role and returns a server-generated
+  remediation External ID once.
+- `POST /remediation-trust/rotate` rotates that External ID and revokes sandbox approval.
+- `DELETE /remediation-trust` clears trust and approval atomically.
+- `POST /sandbox-approval` and `DELETE /sandbox-approval` grant or revoke approval with a mandatory
+  audited reason.
+
+These routes only change tenant-scoped database governance state. They do not contact AWS, enable
+feature flags, enqueue work, or replace AWS-side trust-policy review. Never edit the database ad
+hoc.
 
 ## Discovery and approval
 
@@ -39,10 +48,13 @@ blocking prerequisite for an end-to-end live test.
 2. Confirm the finding targets only the Terraform-owned, tagged lab resource.
 3. Create a preview. Review action version, exact target, immutable snapshot hash, preconditions,
    postconditions, rollback-state requirements, and `dry_run` status.
-4. Convert to a server-owned `live_aws`, non-dry-run request only through the future privileged
-   workflow. A normal client must not set executor or evidence fields.
-5. An authorized organization owner approves the exact immutable snapshot. AI and analysts cannot
-   approve it.
+4. After the normal request has been approved, an owner calls
+   `POST /api/v1/remediations/{request_id}/prepare-live`. The server derives the action, target,
+   finding evidence, and asset-evidence hash, assigns `live_aws`/`aws`/non-dry-run state, and returns
+   the request to `pending_approval`. Client-supplied executor, target, operation, or evidence fields
+   are rejected.
+5. A separate actor with the existing remediation-approval capability approves the newly prepared
+   immutable snapshot. AI cannot prepare or approve it. Preparing does not enqueue or execute it.
 
 ## Harness gates
 
@@ -112,6 +124,5 @@ confirm account, region, state ownership, mandatory tags, and a delete-only allo
 sanitized evidence before cleanup. Do not weaken bucket `prevent_destroy` until a human confirms the
 bucket is empty and explicitly approves final cleanup.
 
-Remaining production limitations include the missing privileged approval/configuration workflow,
-no live AWS validation, no automatic rollback executor, no customer-account authorization, and no
-production deployment evidence.
+Remaining production limitations include no live AWS validation, no automatic rollback executor,
+no customer-account authorization, and no production deployment evidence.

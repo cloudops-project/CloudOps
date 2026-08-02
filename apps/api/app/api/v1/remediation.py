@@ -12,6 +12,7 @@ from app.models import RemediationRequest
 from app.models.enums import PlatformJobType, RemediationStatus
 from app.schemas.platform_job import PlatformJobResponse
 from app.schemas.remediation import (
+    PrepareLiveRemediationRequest,
     RemediationRejectRequest,
     RemediationRequestListResponse,
     RemediationRequestResponse,
@@ -20,6 +21,7 @@ from app.security.rbac import Capability
 from app.services.organizations import OrganizationService
 from app.services.platform_jobs import PlatformJobService
 from app.services.remediation import RemediationService
+from app.services.remediation_admin import RemediationAdminService
 
 router = APIRouter()
 _execution_rate_limit = UserRateLimiter("remediation_execution", limit=10, window_seconds=60)
@@ -172,3 +174,19 @@ def execute_remediation(
     )
     db.commit()
     return PlatformJobResponse.model_validate(job)
+
+
+@router.post(
+    "/remediations/{request_id}/prepare-live",
+    response_model=RemediationRequestResponse,
+)
+def prepare_live_remediation(
+    request_id: uuid.UUID,
+    _payload: PrepareLiveRemediationRequest,
+    user: CurrentUser,
+    db: DbSession,
+    organization_id: Annotated[uuid.UUID, Query()],
+) -> RemediationRequest:
+    return RemediationAdminService(db).prepare_live_request(
+        organization_id, request_id, user
+    )

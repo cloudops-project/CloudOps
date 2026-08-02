@@ -17,7 +17,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
-from app.exceptions.errors import AppError
+from app.exceptions.errors import AppError, ConflictError
 from app.models import (
     Asset,
     AuditEvent,
@@ -54,6 +54,7 @@ from app.services.discovery import DiscoveryOrchestrator, NormalizedAsset
 from app.services.evaluations import EvaluationService
 from app.services.invitations import InvitationService
 from app.services.organizations import OrganizationService
+from app.services.remediation_admin import RemediationAdminService
 
 POSTGRES_TEST_DATABASE_URL = os.getenv("POSTGRES_TEST_DATABASE_URL")
 if POSTGRES_TEST_DATABASE_URL:
@@ -1573,4 +1574,85 @@ def test_stage4_actual_service_path_serializes_same_finding_creation(
                 )
             )
             == 2
+        )
+
+
+def test_concurrent_sandbox_approval_serializes_to_one_audited_transition(
+    postgres_sessions: sessionmaker[Session],
+) -> None:
+    with postgres_sessions.begin() as db:
+        owner = _user(f"remediation-admin-{uuid.uuid4()}@example.com")
+        db.add(owner)
+        db.flush()
+        organization = Organization(
+            name="Remediation administration concurrency",
+            slug=f"remediation-admin-{uuid.uuid4()}",
+            created_by_user_id=owner.id,
+        )
+        db.add(organization)
+        db.flush()
+        db.add(
+            OrganizationMembership(
+                organization_id=organization.id,
+                user_id=owner.id,
+                role=OrganizationRole.OWNER,
+                status=MembershipStatus.ACTIVE,
+                joined_at=now_utc(),
+            )
+        )
+        aws_account_id = str(uuid.uuid4().int % 1_000_000_000_000).zfill(12)
+        account = AWSAccount(
+            organization_id=organization.id,
+            name="Remediation sandbox",
+            account_id=aws_account_id,
+            role_arn=None,
+            external_id=f"cloudops-{uuid.uuid4()}",
+            remediation_role_arn=(
+                f"arn:aws:iam::{aws_account_id}:role/CloudOpsSandboxRemediationRole"
+            ),
+            remediation_external_id=f"cloudops-remediation-{uuid.uuid4()}",
+            status=AWSAccountStatus.CONNECTED,
+            connection_status=AWSAccountStatus.CONNECTED,
+            created_by_user_id=owner.id,
+        )
+        db.add(account)
+        db.flush()
+        ids = owner.id, account.id
+
+    owner_id, account_id = ids
+
+    def approve(reason: str) -> AWSAccount:
+        with postgres_sessions() as db:
+            owner = db.get(User, owner_id)
+            assert owner is not None
+            return RemediationAdminService(db).grant_sandbox_approval(
+                account_id, owner, reason
+            )
+
+    results = _run_concurrently(
+        lambda: approve("Concurrent approval A"),
+        lambda: approve("Concurrent approval B"),
+    )
+    assert sum(isinstance(result, AWSAccount) for result in results) == 1
+    assert sum(
+        isinstance(result, ConflictError)
+        and result.code == "sandbox_already_approved"
+        for result in results
+    ) == 1
+    with postgres_sessions() as db:
+        persisted_account = db.get(AWSAccount, account_id)
+        assert persisted_account is not None
+        assert persisted_account.sandbox_approved is True
+        assert persisted_account.sandbox_approved_at is not None
+        assert persisted_account.sandbox_approved_by_user_id == owner_id
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(
+                    AuditEvent.resource_id == account_id,
+                    AuditEvent.event_type == "aws.account.sandbox_approved",
+                )
+            )
+            == 1
         )

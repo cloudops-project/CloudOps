@@ -8,3 +8,4 @@ fd8c94fed9285ef2ac74666afb33aa06d426b54b:apps/api/app/tests/test_security.py:gen
 1f1264d3cc90dc40f3c324d3194a0cbff553a252:apps/api/app/tests/test_stage7_black_box.py:aws-access-token:515
 eee93551405c8bf8df9e658a3bd4b566ca95504a:apps/api/app/tests/test_ai_assistant.py:jwt:133
 878a32f209d217c02f6dbe6fffe78b858024c1c4:apps/api/app/tests/test_stage5_postgres.py:generic-api-key:404
+85ae5ac71a5c15baf4bb39473294a67c28bc7e21:apps/api/app/tests/test_remediation_admin.py:generic-api-key:481

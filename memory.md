@@ -6,14 +6,14 @@
 ## Session state
 
 - Date: 2026-08-02 (Asia/Kolkata)
-- Worktree: `D:\learn\cdac\CloudOps-live-remediation-runbooks`
-- Baseline branch and HEAD: `origin/main` at `3bb09d69e8b402cd877c6d0faff68a66ca6702db`
-- Current branch: `feat/live-remediation-runbooks`
+- Worktree: `D:\learn\cdac\CloudOps-remediation-admin-workflow`
+- Baseline branch and HEAD: `origin/main` at `d162949a560d9e87a5cc7a231197bb3e6f611a0d`
+- Current branch: `feat/remediation-admin-workflow`
 - Current Alembic head: `0019_live_remediation_data_model`
-- PR #25 (data model), PR #26 (governed executor), and PR #27 (controlled sandbox Terraform) are
-  merged into `main`.
-- Current Phase D runbook, harness, tests, and documentation reconciliation are implemented locally
-  but are not yet committed, pushed, or reviewed by CI.
+- PR #25 (data model), PR #26 (governed executor), PR #27 (controlled sandbox Terraform), and PR
+  #28 (runbook and opt-in harness) are merged into `main`.
+- Owner-only remediation trust, sandbox approval, and live-request preparation changes are
+  implemented locally but are not yet committed, pushed, or reviewed by CI.
 - Merge, deployment, live AWS, live Bedrock, live SES and live Jira authorization: none
 - Product name: CloudOps; CloudFix remains the repository/legacy identifier
 
@@ -86,8 +86,8 @@ infrastructure (VPC/ALB/ECS/ECR/RDS) is not deployed, and the expected `cloudops
   UI-generated current-origin link.
 - Demo inventory, users and provider behavior are synthetic.
 - The live AWS executor and controlled sandbox Terraform have no live AWS validation evidence.
-- No public privileged workflow currently configures remediation trust or grants/revokes sandbox
-  approval. A separately reviewed administration workflow is required before a live exercise.
+- Owner-only database administration for remediation trust, sandbox approval, and live-request
+  preparation is implemented on `feat/remediation-admin-workflow`; it performs no AWS operation.
 - Automatic rollback execution is not implemented; the executor captures exact rollback state for
   a separately approved manual procedure.
 - No live AWS account, customer account, Bedrock, SES, Jira Cloud, staging deployment, production
@@ -97,11 +97,10 @@ infrastructure (VPC/ALB/ECS/ECR/RDS) is not deployed, and the expected `cloudops
 
 ## Next operational milestone
 
-Validate and review the Phase D runbook and default-refusing harness, create a focused commit, push
-`feat/live-remediation-runbooks`, open a draft pull request, and require every remote check. After
-merge, stop before any AWS action. The next separately reviewed implementation gap is privileged
-remediation-trust and sandbox-approval administration; the next operational action is a human-
-reviewed Terraform plan only after exact account, region, cost, and authorization are supplied.
+Validate and review `feat/remediation-admin-workflow`, require every remote check, and merge only
+through the protected pull-request process. After merge, stop before any AWS action. The next
+operational action is a human-reviewed Terraform plan only after exact account, region, cost, and
+authorization are supplied.
 
 ### Next-environment handoff prerequisites
 
