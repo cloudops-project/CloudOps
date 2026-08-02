@@ -64,7 +64,7 @@ Demo-only values. These are **not** production defaults and must never be reused
 ### Demo sequence
 
 1. **Login** — sign in as the owner at <http://localhost:5173>.
-2. **AWS account** — the connected synthetic account `123456789012` is visible.
+2. **AWS account** — the documentation-safe synthetic account `111122223333` is visible.
 3. **Assets** — five synthetic assets: EC2 instance, security group, S3 bucket,
    CloudTrail trail, IAM user.
 4. **Findings** — deterministic findings including CRITICAL open-SSH and public-S3.
@@ -723,7 +723,8 @@ No panic path:
   implemented.
 - Invitation email delivery is local-demo/development-only through Mailpit.
 - Remediation execution is simulated; no AWS resources are modified.
-- The scheduler worker is a one-shot tick foundation, not a distributed queue or daemon.
+- The scheduler and job workers use PostgreSQL-backed durable jobs with leases, heartbeats,
+  retries, idempotency, and dead-letter handling. Redis/Celery are not required.
 - Password reset, email verification delivery, MFA, SSO, production deployment/IaC, and external
   production hardening remain future work.
 - Compliance export is not implemented; audit CSV export is implemented.

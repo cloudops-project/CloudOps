@@ -182,7 +182,7 @@ Manual, using separate browsers or private windows:
 ## Demo presentation sequence
 
 1. **Login** — <http://localhost:5173> (or the tunnel URL) as the owner.
-2. **AWS account** — the connected synthetic account `123456789012` is visible.
+2. **AWS account** — the documentation-safe synthetic account `111122223333` is visible.
 3. **Assets** — five synthetic assets: EC2 instance, security group, S3 bucket, CloudTrail trail,
    IAM user.
 4. **Findings** — deterministic findings, including CRITICAL open-SSH and public-S3.
