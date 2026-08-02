@@ -34,7 +34,7 @@ class AWSAccountUpdate(ApiModel):
 
 
 class AWSRemediationRoleConfiguration(ApiModel):
-    """Validated future configuration input; not exposed by an API route."""
+    """Account-aware remediation role validation shared by the admin service."""
 
     account_id: str = Field(pattern=r"^[0-9]{12}$")
     remediation_role_arn: str = Field(min_length=20, max_length=2048)
@@ -48,6 +48,27 @@ class AWSRemediationRoleConfiguration(ApiModel):
             raise ValueError("AWS remediation role ARN must belong to the configured account")
         self.remediation_role_arn = self.remediation_role_arn.strip()
         return self
+
+
+class RemediationTrustConfigureRequest(ApiModel):
+    remediation_role_arn: str = Field(min_length=20, max_length=2048)
+
+
+class RemediationAdministrationReason(ApiModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class RemediationAdministrationStatus(ApiModel):
+    account_id: uuid.UUID
+    remediation_trust_configured: bool
+    remediation_role_arn_masked: str | None
+    sandbox_approved: bool
+    sandbox_approved_at: datetime | None
+    sandbox_approved_by_user_id: uuid.UUID | None
+
+
+class RemediationTrustOneTimeResponse(RemediationAdministrationStatus):
+    remediation_external_id: str | None = Field(default=None, min_length=32, max_length=128)
 
 
 class AWSAccountResponse(ApiModel):

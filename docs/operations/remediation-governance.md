@@ -19,6 +19,12 @@ Execution is disabled by default. For synthetic operation, set `REMEDIATION_EXEC
 
 The API returns a durable job. The worker reauthorizes the actor, validates tenant ownership, checks the allowlist/version/snapshot/finding evidence, and binds the job lease. Mock requests invoke the deterministic mock executor. A `live_aws` request additionally requires both feature flags, inactive emergency stop, complete sandbox approval, separate remediation trust, exact target/snapshot, required tags, verified caller account, and unchanged AWS preconditions.
 
+Only an organization owner may configure or rotate the separate remediation trust, clear it, or
+grant/revoke sandbox approval. External IDs are generated server-side and shown only once. An owner
+may prepare an already-approved immutable request for live execution; preparation derives the
+allowlisted action and target from tenant-owned records, binds finding and asset evidence, resets
+the request to pending approval, and never enqueues work.
+
 ## Emergency disablement
 
 1. Set `REMEDIATION_EMERGENCY_STOP=true`.

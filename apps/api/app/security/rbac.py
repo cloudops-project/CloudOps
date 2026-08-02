@@ -36,6 +36,7 @@ class Capability(StrEnum):
     REMEDIATION_APPROVE = "remediation.approve"
     REMEDIATION_REJECT = "remediation.reject"
     REMEDIATION_EXECUTE = "remediation.execute"
+    REMEDIATION_ADMIN = "remediation.admin"
     SCHEDULE_READ = "schedule.read"
     SCHEDULE_MANAGE = "schedule.manage"
     JOBS_READ = "jobs.read"

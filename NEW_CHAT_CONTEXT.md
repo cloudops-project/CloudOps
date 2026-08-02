@@ -52,18 +52,17 @@ See [memory.md](memory.md) for exact session evidence and limitations.
   current-origin link displayed by the invitation UI.
 - The controlled AWS sandbox Terraform and default-refusing live test harness are implemented but
   have not been applied or run against AWS.
-- No privileged public workflow currently configures remediation trust or grants sandbox approval;
-  do not work around this with ad hoc database edits.
+- Owner-only routes configure/rotate/clear remediation trust, grant/revoke sandbox approval, and
+  prepare a server-owned live request without contacting AWS or enabling execution flags.
 - No live AWS/customer access, Bedrock invocation, SES delivery, staging/production deployment,
   backup restore, canary, rollback rehearsal, or formal UAT has been performed.
 
 ## Current next task
 
-The live-remediation data model (PR #25), governed two-action executor (PR #26), and controlled AWS
-sandbox Terraform (PR #27) are merged into `main`. The current work adds the operator runbook and
-an impossible-to-trigger-accidentally harness; no live authorization exists. After this work is
-reviewed and merged, the next action is a human-reviewed sandbox plan and the missing privileged
-trust/approval administration workflow—not an automatic deployment.
+The live-remediation data model (PR #25), governed two-action executor (PR #26), controlled AWS
+sandbox Terraform (PR #27), and opt-in runbook/harness (PR #28) are merged into `main`. The current
+feature adds privileged database-only administration and live-request preparation. After review,
+the next action is a human-reviewed sandbox plan—not an automatic deployment.
 
 ## Safety
 

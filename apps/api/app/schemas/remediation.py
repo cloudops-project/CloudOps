@@ -60,3 +60,7 @@ class RemediationRequestListResponse(ApiModel):
 
 class RemediationRejectRequest(ApiModel):
     reason: str = Field(min_length=3, max_length=1000)
+
+
+class PrepareLiveRemediationRequest(ApiModel):
+    """An intentionally empty body; every execution field is server-owned."""

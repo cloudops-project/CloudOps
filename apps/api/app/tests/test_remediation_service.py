@@ -341,7 +341,13 @@ def _live_request(
     request.request_snapshot_json = {
         **request.request_snapshot_json,
         "execution_mode": RemediationExecutionMode.LIVE_AWS.value,
+        "executor_key": "aws",
         "dry_run": False,
+        "target_region": asset.region,
+        "target_resource_arn": asset.arn,
+        "asset_evidence_hash": hashlib.sha256(
+            canonical_json(asset.metadata_json).encode()
+        ).hexdigest(),
     }
     request.request_snapshot_hash = hashlib.sha256(
         canonical_json(request.request_snapshot_json).encode()
