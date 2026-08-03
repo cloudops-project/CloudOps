@@ -74,3 +74,70 @@ def test_secret_bootstrap_drops_to_fixed_non_root_uid() -> None:
     assert 'exec su-exec cloudops "$@"' in api_entrypoint
     assert 'user: "0:0"' in COMPOSE
     assert "DAC_OVERRIDE" in service_block("cloudflared", None)
+
+
+def _cloudflared_capabilities() -> tuple[list[str], list[str]]:
+    """Parse the cloudflared cap_drop and cap_add lists from the compose file."""
+    block = service_block("cloudflared", None).split("\nvolumes:", 1)[0]
+    dropped: list[str] = []
+    added: list[str] = []
+    target: list[str] | None = None
+    for raw_line in block.splitlines():
+        line = raw_line.strip()
+        if line == "cap_drop:":
+            target = dropped
+            continue
+        if line == "cap_add:":
+            target = added
+            continue
+        if line.startswith("- ") and target is not None:
+            target.append(line[2:].strip())
+            continue
+        if line and not line.startswith("#") and not line.startswith("- "):
+            target = None
+    return dropped, added
+
+
+def test_cloudflared_drops_all_capabilities() -> None:
+    dropped, _ = _cloudflared_capabilities()
+    assert dropped == ["ALL"]
+
+
+def test_cloudflared_adds_exactly_the_su_exec_transition_capabilities() -> None:
+    """su-exec needs SETGID/SETUID for setgroups(2)/setgid(2)/setuid(2) and
+    DAC_OVERRIDE to read the 0600 tunnel-token secret. Nothing else may be
+    granted: a broader list reintroduces privilege this service must not hold."""
+    _, added = _cloudflared_capabilities()
+    assert sorted(added) == ["DAC_OVERRIDE", "SETGID", "SETUID"]
+
+
+def test_cloudflared_rejects_broader_privilege() -> None:
+    _, added = _cloudflared_capabilities()
+    forbidden = {
+        "ALL",
+        "SYS_ADMIN",
+        "NET_ADMIN",
+        "NET_RAW",
+        "SYS_PTRACE",
+        "SYS_MODULE",
+        "DAC_READ_SEARCH",
+        "SETPCAP",
+        "CHOWN",
+        "FOWNER",
+    }
+    assert not forbidden.intersection(added)
+
+
+def test_cloudflared_is_not_privileged_and_keeps_hardening() -> None:
+    block = service_block("cloudflared", None).split("\nvolumes:", 1)[0]
+    assert "privileged: true" not in block
+    assert "privileged:" not in block
+    assert "no-new-privileges:true" in block
+    assert "read_only: true" in block
+
+
+def test_cloudflared_token_remains_a_docker_secret_after_capability_change() -> None:
+    block = service_block("cloudflared", None).split("\nvolumes:", 1)[0]
+    assert "      - cloudflare_tunnel_token" in block
+    assert "CLOUDFLARE_TUNNEL_TOKEN" not in block
+    assert "TUNNEL_TOKEN" not in block

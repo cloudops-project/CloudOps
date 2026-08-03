@@ -230,8 +230,16 @@ services:
     read_only: true
     cap_drop:
       - ALL
+    # DAC_OVERRIDE lets the root-stage entrypoint read the 0600 tunnel-token
+    # secret. SETGID and SETUID are the exact capabilities su-exec needs for
+    # setgroups(2)/setgid(2)/setuid(2) when dropping to the non-root cloudops
+    # user; without them the connector fails with "su-exec: setgroups:
+    # Operation not permitted". No other capability is granted, cap_drop
+    # remains ALL, and the final cloudflared process stays non-root.
     cap_add:
       - DAC_OVERRIDE
+      - SETGID
+      - SETUID
 
 volumes:
   cloudops_postgres:

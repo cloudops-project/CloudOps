@@ -31,6 +31,40 @@ flowchart LR
 - Synthetic discovery, forwarded demo trust, and live AWS remediation are
   disabled in organization mode.
 
+### Required outbound network access
+
+The connector dials the Cloudflare edge outbound; no public inbound
+application port is required on the host.
+
+| Direction | Protocol | Port | Purpose |
+| --- | --- | --- | --- |
+| Outbound | UDP | 7844 | Cloudflare Tunnel QUIC transport (preferred) |
+| Outbound | TCP | 7844 | Cloudflare Tunnel HTTP/2 fallback |
+| Outbound | TCP | 443 | Registration, updates, and provider APIs |
+
+When UDP 7844 is blocked, `cloudflared` reports
+`failed to dial to edge with quic: timeout: no recent network activity`
+and retries until the transport is reachable. Opening TCP 7844 alone
+permits the HTTP/2 fallback but not QUIC.
+
+The connector reaches the application only through the internal Docker
+service `web:8081`; ports 80, 443, 8000, 8080, and 8081 stay unpublished.
+
+### cloudflared Linux capabilities
+
+The service keeps `cap_drop: ALL`, `no-new-privileges:true`, and
+`read_only: true`, and adds exactly three capabilities:
+
+- `DAC_OVERRIDE` - the root-stage entrypoint reads the 0600 Docker secret
+  holding the tunnel token.
+- `SETGID` and `SETUID` - `su-exec` calls `setgroups(2)`, `setgid(2)`, and
+  `setuid(2)` to drop from root to the non-root `cloudops` user (UID 10001).
+  Without them the container fails with
+  `su-exec: setgroups: Operation not permitted` and restarts continuously.
+
+The final `cloudflared` process runs non-root. Privileged mode is not used,
+and no other capability is granted.
+
 ## Supported hosts and prerequisites
 
 Supported targets are a Linux Docker host, cloud/on-premises VM, or Windows
@@ -144,7 +178,11 @@ copying unredacted Docker configuration into support channels.
   health checks, lifecycle commands, local backup/restore, and CI gates.
 - Locally verified: recorded in `memory.md` only after the validation run.
 - CI verified: pending the pull-request workflow result.
-- Live Cloudflare validated: pending a real named-tunnel opt-in test.
+- Live Cloudflare validated: pending a real named-tunnel opt-in test. The
+  capability and outbound-7844 corrections are source changes only; they do
+  not by themselves prove the connector registers or that public HTTPS
+  serves traffic. Public HTTPS must still be verified operationally after a
+  separately reviewed Terraform plan and an authorized apply.
 - Clean-machine validated: pending a separate supported-host acceptance run.
 - Operators remain responsible for host patching, Docker security, monitoring,
   off-host backups, Cloudflare policy/DNS lifecycle, and provider identity.

@@ -45,6 +45,74 @@ def test_test_resources_have_mandatory_safety_properties() -> None:
     assert 'associate_public_ip_address = false' in MAIN
 
 
+def _hosting_security_group() -> str:
+    """Return only the aws_security_group.hosting block."""
+    start = MAIN.index('resource "aws_security_group" "hosting"')
+    end = MAIN.index('resource "', start + 1)
+    return MAIN[start:end]
+
+
+def test_cloudflare_tunnel_quic_egress_exists() -> None:
+    block = _hosting_security_group()
+    assert 'description = "Cloudflare Tunnel QUIC"' in block
+    quic = block[block.index('"Cloudflare Tunnel QUIC"') :]
+    quic = quic[: quic.index("}")]
+    assert 'protocol    = "udp"' in quic
+    assert "from_port   = 7844" in quic
+    assert "to_port     = 7844" in quic
+    assert 'cidr_blocks = ["0.0.0.0/0"]' in quic
+
+
+def test_cloudflare_tunnel_http2_fallback_egress_exists() -> None:
+    block = _hosting_security_group()
+    assert 'description = "Cloudflare Tunnel HTTP/2 fallback"' in block
+    fallback = block[block.index('"Cloudflare Tunnel HTTP/2 fallback"') :]
+    fallback = fallback[: fallback.index("}")]
+    assert 'protocol    = "tcp"' in fallback
+    assert "from_port   = 7844" in fallback
+    assert "to_port     = 7844" in fallback
+    assert 'cidr_blocks = ["0.0.0.0/0"]' in fallback
+
+
+def test_existing_https_and_dns_egress_remain() -> None:
+    block = _hosting_security_group()
+    assert 'description = "Outbound HTTPS for SSM, packages, and Cloudflare"' in block
+    assert 'description = "DNS over UDP through the VPC resolver"' in block
+    assert 'description = "DNS over TCP through the VPC resolver"' in block
+    assert block.count("from_port   = 53") == 2
+    assert block.count('cidr_blocks = ["10.50.0.2/32"]') == 2
+    assert "from_port   = 443" in block
+
+
+def test_hosting_group_has_no_all_port_or_all_protocol_egress() -> None:
+    block = _hosting_security_group()
+    assert 'protocol    = "-1"' not in block
+    assert "from_port   = 0" not in block
+    assert "to_port     = 0" not in block
+    assert "to_port     = 65535" not in block
+
+
+def test_no_public_application_ingress_was_added() -> None:
+    block = _hosting_security_group()
+    ingress = block[block.index("ingress {") :]
+    ingress = ingress[: ingress.index("}")]
+    assert "cidr_blocks = [var.administrator_cidr]" in ingress
+    assert 'cidr_blocks = ["0.0.0.0/0"]' not in ingress
+    assert block.count("ingress {") == 1
+    for port in ("80", "443", "8000", "8080", "8081", "7844"):
+        assert f"from_port   = {port}" not in ingress
+
+
+def test_intentional_public_ingress_group_is_unchanged() -> None:
+    start = MAIN.index('resource "aws_security_group" "intentional_public_ingress"')
+    block = MAIN[start:]
+    block = block[: block.index("\nresource \"")] if '\nresource "' in block else block
+    assert 'description = "INTENTIONAL-TEST: CloudOps SSH public-ingress finding"' in block
+    assert "from_port   = 22" in block
+    assert 'cidr_blocks = ["0.0.0.0/0"]' in block
+    assert "7844" not in block
+
+
 def test_operator_mutations_fail_closed() -> None:
     assert 'DESTROY_CONFIRMATION = "DESTROY-CLOUDOPS-AWS-SANDBOX"' in OPERATOR
     assert 'root_identity_forbidden' in OPERATOR
