@@ -53,7 +53,18 @@ PostgreSQL, scheduler heartbeat, job-worker heartbeat, queue processing, logs, a
 smoke test. Verify the default credential chain resolves the instance profile and the platform role
 can assume only the exact discovery/remediation roles, with no direct S3/EC2 mutation.
 
-## 6. Post-deployment
+## 6. Cloudflare Tunnel egress
+
+`aws_security_group.hosting` allows outbound UDP 7844 (QUIC) and TCP 7844
+(HTTP/2 fallback) to `0.0.0.0/0`, alongside the existing outbound TCP 443
+and VPC-resolver DNS rules. No inbound application port is added: the host
+keeps SSH-only ingress from the approved administrator CIDR, and the
+connector reaches the stack through the internal `web:8081` service.
+
+Live AWS remediation remains disabled. Applying these rules requires a
+separately reviewed plan and explicit apply authorization.
+
+## 7. Post-deployment
 
 Use synthetic users/data for smoke tests. Configure a named Cloudflare Tunnel only under separate
 authorization and route only to internal web. Preserve evidence outside source control. Do not

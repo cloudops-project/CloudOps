@@ -87,6 +87,22 @@ resource "aws_security_group" "hosting" {
   }
 
   egress {
+    description = "Cloudflare Tunnel QUIC"
+    protocol    = "udp"
+    from_port   = 7844
+    to_port     = 7844
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Cloudflare Tunnel HTTP/2 fallback"
+    protocol    = "tcp"
+    from_port   = 7844
+    to_port     = 7844
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
     description = "DNS over UDP through the VPC resolver"
     protocol    = "udp"
     from_port   = 53
