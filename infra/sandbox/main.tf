@@ -303,16 +303,15 @@ resource "aws_instance" "hosting" {
     ignore_changes = [ami]
   }
   #checkov:skip=CKV_AWS_88:The explicit no-NAT design requires an ephemeral public address; only approved-CIDR SSH is open and application ports remain closed.
-  ami                         = data.aws_ssm_parameter.ubuntu_2404_amd64.value
-  instance_type               = var.hosting_instance_type
-  subnet_id                   = aws_subnet.hosting.id
-  associate_public_ip_address = true
-  vpc_security_group_ids      = [aws_security_group.hosting.id]
-  iam_instance_profile        = aws_iam_instance_profile.platform.name
-  key_name                    = var.hosting_key_name
-  disable_api_termination     = var.enable_termination_protection
-  monitoring                  = true
-  ebs_optimized               = true
+  ami                     = data.aws_ssm_parameter.ubuntu_2404_amd64.value
+  instance_type           = var.hosting_instance_type
+  subnet_id               = aws_subnet.hosting.id
+  vpc_security_group_ids  = [aws_security_group.hosting.id]
+  iam_instance_profile    = aws_iam_instance_profile.platform.name
+  key_name                = var.hosting_key_name
+  disable_api_termination = var.enable_termination_protection
+  monitoring              = true
+  ebs_optimized           = true
 
   metadata_options {
     http_endpoint               = "enabled"
