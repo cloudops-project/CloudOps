@@ -295,6 +295,13 @@ resource "aws_iam_role_policy" "remediation" {
 }
 
 resource "aws_instance" "hosting" {
+
+  lifecycle {
+    # A newly published Canonical AMI must not silently replace the persistent
+    # CloudOps host during unrelated infrastructure changes. Host replacement
+    # requires a separate migration plan and explicit approval.
+    ignore_changes = [ami]
+  }
   #checkov:skip=CKV_AWS_88:The explicit no-NAT design requires an ephemeral public address; only approved-CIDR SSH is open and application ports remain closed.
   ami                         = data.aws_ssm_parameter.ubuntu_2404_amd64.value
   instance_type               = var.hosting_instance_type
