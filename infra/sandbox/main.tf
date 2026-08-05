@@ -4,6 +4,8 @@ data "aws_ssm_parameter" "ubuntu_2404_amd64" {
 
 data "aws_partition" "current" {}
 
+data "aws_caller_identity" "current" {}
+
 locals {
   mandatory_tags = {
     CloudOpsLab              = "true"
@@ -234,6 +236,26 @@ resource "aws_iam_role_policy" "platform_assume_roles" {
   name   = "AssumeCloudOpsSandboxRoles"
   role   = aws_iam_role.platform.id
   policy = data.aws_iam_policy_document.platform_assume_roles.json
+}
+
+# Organization invitation email. Exactly one action against exactly one
+# verified SES identity: no ses:*, no ses:SendRawEmail, no Resource "*",
+# and no identity administration or verification permission.
+data "aws_iam_policy_document" "platform_ses" {
+  statement {
+    sid     = "SendCloudOpsInvitationEmail"
+    effect  = "Allow"
+    actions = ["ses:SendEmail"]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/mistlab.in"
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "platform_ses" {
+  name   = "SendCloudOpsInvitationEmail"
+  role   = aws_iam_role.platform.id
+  policy = data.aws_iam_policy_document.platform_ses.json
 }
 
 data "aws_iam_policy_document" "remediation" {

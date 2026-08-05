@@ -161,9 +161,7 @@ def test_refresh_and_logout_reject_mismatched_origin(client: TestClient) -> None
     )
     # A same-origin request (matching CORS_ALLOWED_ORIGINS) is unaffected.
     assert (
-        client.post(
-            "/api/v1/auth/refresh", headers={"origin": "http://localhost:5173"}
-        ).status_code
+        client.post("/api/v1/auth/refresh", headers={"origin": "http://localhost:5173"}).status_code
         == 200
     )
 
@@ -440,9 +438,12 @@ def test_development_smtp_invitation_sends_mailpit_link(
         assert raw
         assert len(sent) == 1
         assert sent[0]["recipients"] == ["engineer-demo@example.com"]
-        assert sent[0]["subject"] == "CloudOps demo invitation"
-        assert f"/invitations/accept?token={raw}" in str(sent[0]["text_body"])
-        assert "LOCAL DEMO ONLY" in str(sent[0]["text_body"])
+        assert sent[0]["subject"] == "[LOCAL DEMO ONLY] CloudOps organization invitation"
+        text_body = str(sent[0]["text_body"])
+        assert "LOCAL DEMO ONLY — NEVER USE IN PRODUCTION." in text_body
+        assert f"http://localhost:5173/invitations/accept?token={raw}" in text_body
+        assert "SMTP Invitations" in text_body
+        assert "cloud_engineer" in text_body
     finally:
         configured.app_env = original_env
         configured.notification_provider = original_provider

@@ -40,6 +40,11 @@ override_data {
   values = { json = "{}" }
 }
 
+override_data {
+  target = data.aws_iam_policy_document.platform_ses
+  values = { json = "{}" }
+}
+
 variables {
   expected_aws_account_id = "111122223333"
   administrator_cidr      = "192.0.2.10/32"

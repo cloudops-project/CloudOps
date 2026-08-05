@@ -120,7 +120,15 @@ def _seed_0018_rows(
 
 def test_live_remediation_migration_has_one_head_and_no_provider_dependency() -> None:
     config = _config(sa.engine.make_url("postgresql://unused:unused@localhost/unused"))
-    assert ScriptDirectory.from_config(config).get_heads() == ["0019_live_remediation_data_model"]
+    script_dir = ScriptDirectory.from_config(config)
+    # 0020_invitation_delivery_state is the repository's current single head;
+    # it is chained directly onto 0019 as its down_revision, so the migration
+    # graph still has exactly one head and 0019 remains the direct parent.
+    assert script_dir.get_heads() == ["0020_invitation_delivery_state"]
+    assert (
+        script_dir.get_revision("0020_invitation_delivery_state").down_revision
+        == "0019_live_remediation_data_model"
+    )
     migration_path = (
         Path(__file__).parents[2] / "alembic" / "versions" / "0019_live_remediation_data_model.py"
     )
@@ -262,9 +270,7 @@ def test_upgrade_from_0018_preserves_rows_and_enforces_foundation() -> None:
             command.downgrade(config, "0018_jira_integration")
         with engine.begin() as connection:
             connection.execute(
-                text(
-                    "DELETE FROM remediation_requests WHERE id = :remediation_id"
-                ),
+                text("DELETE FROM remediation_requests WHERE id = :remediation_id"),
                 {"remediation_id": live_remediation_id},
             )
         command.downgrade(config, "0018_jira_integration")

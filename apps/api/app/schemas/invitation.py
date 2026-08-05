@@ -28,4 +28,11 @@ class InvitationResponse(ApiModel):
     accepted_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    # Sanitized delivery evidence. Never a token, token hash, acceptance URL,
+    # provider exception or AWS detail.
+    last_delivery_status: str | None = None
+    last_delivery_error_code: str | None = None
+    last_delivery_attempt_at: datetime | None = None
+    last_delivered_at: datetime | None = None
+    delivery_generation: int = 0
     development_token: str | None = None
