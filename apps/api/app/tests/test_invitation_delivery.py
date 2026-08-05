@@ -14,9 +14,11 @@ The invariants under test are the ones that are expensive to get wrong:
 from __future__ import annotations
 
 import os
+import re
 import uuid
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
+from datetime import timedelta
 
 import pytest
 from pydantic import SecretStr
@@ -800,3 +802,108 @@ def test_ses_invitation_has_no_local_demo_marker(
     assert call.subject == "CloudOps organization invitation"
     assert "LOCAL DEMO ONLY" not in call.subject
     assert "LOCAL DEMO ONLY" not in call.text_body
+
+
+# ---------------------------------------------------------------------------
+# 15-16. Acceptance invalidates any in-flight send
+# ---------------------------------------------------------------------------
+
+
+def _token_from_body(text_body: str) -> str:
+    match = re.search(r"[?&]token=([^\s&]+)", text_body)
+    assert match is not None, text_body
+    return match.group(1)
+
+
+def test_accept_during_in_flight_send_discards_stale_result(
+    db: Session,
+    service: InvitationService,
+    owner: User,
+    organization_id: uuid.UUID,
+    invitee: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Acceptance racing an in-flight send must win, exactly like cancel().
+
+    The provider callback fires after Transaction A (the ``create()``
+    commit) has released its lock but before Transaction B re-locks to apply
+    the result. The callback reads the real acceptance token out of the
+    email body the provider actually received (not a shortcut return value)
+    and calls the real ``service.accept()`` there, then the provider reports
+    a late failure. ``accept()`` must have bumped ``delivery_generation`` so
+    that late failure is discarded rather than overwriting the now-accepted
+    invitation's delivery evidence.
+    """
+    membership_id: dict[str, object] = {}
+
+    def accept_during_provider_call() -> None:
+        token = _token_from_body(recorder.calls[-1].text_body)
+        member = service.accept(token, invitee)
+        membership_id["id"] = member.id
+
+    recorder = RecordingProvider(
+        outcome=NotificationDeliveryOutcome.FAILURE,
+        error_code="late_provider_failure",
+        on_deliver=accept_during_provider_call,
+    )
+    _install(monkeypatch, recorder)
+
+    invitation, _ = service.create(organization_id, owner, invitee.email, OrganizationRole.VIEWER)
+
+    assert len(recorder.calls) == 1  # the provider genuinely ran once
+    assert membership_id.get("id") is not None  # accept() genuinely succeeded mid-send
+
+    db.expire_all()
+    after = db.get(OrganizationInvitation, invitation.id)
+    assert after is not None
+    assert after.status == InvitationStatus.ACCEPTED
+    assert after.delivery_generation > 0
+    assert after.last_delivery_status != DELIVERY_FAILED
+    assert after.last_delivery_error_code != "late_provider_failure"
+
+    membership = db.scalar(
+        select(OrganizationMembership).where(
+            OrganizationMembership.organization_id == organization_id,
+            OrganizationMembership.user_id == invitee.id,
+        )
+    )
+    assert membership is not None
+
+    assert "invitation.delivery_result_discarded" in _audit_types(db, invitation.id)
+    blob = _audit_metadata_blob(db, invitation.id)
+    assert "stale_delivery_generation" in blob
+    token = _token_from_body(recorder.calls[0].text_body)
+    assert token not in blob
+    assert "/invitations/accept" not in blob
+
+
+def test_accept_time_expiry_invalidates_generation(
+    db: Session,
+    service: InvitationService,
+    owner: User,
+    organization_id: uuid.UUID,
+    invitee: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An expired invitation discovered at accept-time must also fence off
+    any in-flight send, the same way a live cancel or acceptance does."""
+    recorder = RecordingProvider()
+    _install(monkeypatch, recorder)
+    invitation, raw = service.create(organization_id, owner, invitee.email, OrganizationRole.VIEWER)
+    assert raw is not None
+    before_generation = invitation.delivery_generation
+
+    db.expire_all()
+    row = db.get(OrganizationInvitation, invitation.id)
+    assert row is not None
+    row.expires_at = now_utc() - timedelta(minutes=1)
+    db.commit()
+
+    with pytest.raises(ConflictError):
+        service.accept(raw, invitee)
+
+    db.expire_all()
+    after = db.get(OrganizationInvitation, invitation.id)
+    assert after is not None
+    assert after.status == InvitationStatus.EXPIRED
+    assert after.delivery_generation == before_generation + 1

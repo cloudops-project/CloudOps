@@ -404,6 +404,10 @@ class InvitationService:
             raise ConflictError("invitation_unavailable", "Invitation is no longer available.")
         if is_expired(invitation.expires_at):
             invitation.status = InvitationStatus.EXPIRED
+            # Invalidate any in-flight send the same way cancel() does: bump
+            # the generation so a slow provider result cannot later update an
+            # invitation that is no longer pending.
+            invitation.delivery_generation += 1
             self.db.commit()
             raise ConflictError("invitation_expired", "Invitation has expired.")
         if invitation.normalized_email != user.normalized_email:
@@ -432,6 +436,10 @@ class InvitationService:
             self.db.add(member)
         invitation.status = InvitationStatus.ACCEPTED
         invitation.accepted_at = now_utc()
+        # Invalidate any in-flight send the same way cancel() does: bump the
+        # generation so a slow provider result cannot later overwrite this
+        # invitation's delivery evidence with a stale success or failure.
+        invitation.delivery_generation += 1
         self.db.flush()
         record_audit(
             self.db,
@@ -440,6 +448,7 @@ class InvitationService:
             organization_id=invitation.organization_id,
             actor_user_id=user.id,
             resource_id=invitation.id,
+            metadata={"delivery_generation": invitation.delivery_generation},
         )
         self.db.commit()
         self.db.refresh(member)
