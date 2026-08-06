@@ -291,7 +291,7 @@ def test_clean_upgrade_to_head_succeeds() -> None:
         with engine.connect() as connection:
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("0019_live_remediation_data_model")
+            ).scalar_one() == ("0020_invitation_delivery_state")
         command.check(config)
         engine.dispose()
 

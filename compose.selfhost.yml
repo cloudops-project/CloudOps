@@ -82,7 +82,7 @@ services:
       - -ec
       - >-
         python -m alembic upgrade head &&
-        python -m alembic current | grep -q 0019_live_remediation_data_model
+        python -m alembic current | grep -q 0020_invitation_delivery_state
     restart: "no"
 
   api:

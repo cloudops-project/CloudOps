@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
@@ -34,6 +35,15 @@ class OrganizationInvitation(TimestampMixin, Base):
             sqlite_where=text("status = 'pending'"),
         ),
         Index("ix_invitation_org_status", "organization_id", "status"),
+        CheckConstraint(
+            "last_delivery_status IS NULL OR last_delivery_status IN "
+            "('pending', 'sending', 'delivered', 'failed')",
+            name="ck_invitation_delivery_status",
+        ),
+        CheckConstraint(
+            "delivery_generation >= 0",
+            name="ck_invitation_delivery_generation_nonnegative",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)

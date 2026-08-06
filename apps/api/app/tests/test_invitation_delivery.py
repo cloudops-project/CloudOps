@@ -23,10 +23,11 @@ from datetime import timedelta
 import pytest
 from pydantic import SecretStr
 from sqlalchemy import create_engine, select, text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import URL, Engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
+from alembic import command
 from app.core.config import Settings, get_settings
 from app.exceptions.errors import ConflictError, ForbiddenError, NotFoundError
 from app.models import (
@@ -58,13 +59,21 @@ from app.services.notification_provider import (
     NotificationDeliveryOutcome,
     NotificationDeliveryResult,
 )
+from app.tests.test_zzz_stage5_migration import _config, _database
 
 # ---------------------------------------------------------------------------
-# PostgreSQL fixture infrastructure, reusing the pattern established in
-# app/tests/test_postgres_concurrency.py: a module-level env lookup, a
-# disposable-database name guard that raises rather than silently degrading
-# to SQLite, and module-scoped engine/sessionmaker/settings fixtures backed
-# by a real PostgreSQL connection with migrations already applied.
+# PostgreSQL fixture infrastructure.
+#
+# This suite owns its own disposable database rather than connecting to
+# whatever POSTGRES_TEST_DATABASE_URL already points at. CI runs
+# `pytest app/tests -ra` before its later standalone Alembic steps, so the
+# base cloudops_test database is empty at collection time; asserting that
+# migrated tables already exist there (the earlier approach) failed on a
+# clean CI database. Instead this reuses the same _database()/_config()
+# helpers app/tests/test_zzz_stage5_migration.py already uses to create a
+# uniquely named cloudops_e2e_* database, run `alembic upgrade head` inside
+# it, and drop it again on teardown -- never SQLite, never
+# Base.metadata.create_all.
 # ---------------------------------------------------------------------------
 
 POSTGRES_TEST_DATABASE_URL = os.getenv("POSTGRES_TEST_DATABASE_URL")
@@ -83,9 +92,17 @@ if POSTGRES_TEST_DATABASE_URL and not (
 
 
 @pytest.fixture(scope="module")
-def postgres_engine() -> Generator[Engine, None, None]:
+def postgres_database_url() -> Generator[URL, None, None]:
     assert POSTGRES_TEST_DATABASE_URL is not None
-    engine = create_engine(POSTGRES_TEST_DATABASE_URL, pool_pre_ping=True)
+    with _database("invitation_delivery") as url:
+        config = _config(url)
+        command.upgrade(config, "head")
+        yield url
+
+
+@pytest.fixture(scope="module")
+def postgres_engine(postgres_database_url: URL) -> Generator[Engine, None, None]:
+    engine = create_engine(postgres_database_url, pool_pre_ping=True)
     with engine.connect() as connection:
         tables = set(
             connection.execute(
@@ -93,7 +110,8 @@ def postgres_engine() -> Generator[Engine, None, None]:
             ).scalars()
         )
     assert {"users", "organizations", "organization_invitations"} <= tables, (
-        "Run `alembic upgrade head` against the disposable database first"
+        "alembic upgrade head did not create the expected tables in the "
+        "disposable invitation-delivery test database"
     )
     yield engine
     engine.dispose()
@@ -105,11 +123,10 @@ def postgres_sessions(postgres_engine: Engine) -> sessionmaker[Session]:
 
 
 @pytest.fixture(scope="module")
-def postgres_settings() -> Settings:
-    assert POSTGRES_TEST_DATABASE_URL is not None
+def postgres_settings(postgres_database_url: URL) -> Settings:
     return Settings(
         app_env="testing",
-        database_url=SecretStr(POSTGRES_TEST_DATABASE_URL),
+        database_url=SecretStr(postgres_database_url.render_as_string(hide_password=False)),
         jwt_secret_key=SecretStr("postgres-invitation-delivery-test-secret-at-least-32-characters"),
     )
 
