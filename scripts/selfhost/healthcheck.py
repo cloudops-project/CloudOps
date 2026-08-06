@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from scripts.selfhost.errors import SelfHostError
 
-EXPECTED_MIGRATION_HEAD = "0019_live_remediation_data_model"
+EXPECTED_MIGRATION_HEAD = "0020_invitation_delivery_state"
 
 
 @dataclass(frozen=True, slots=True)
