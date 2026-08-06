@@ -149,6 +149,25 @@ def invitations(
     ]
 
 
+@router.post(
+    "/{organization_id}/invitations/{invitation_id}/resend",
+    response_model=InvitationResponse,
+    response_model_exclude_none=True,
+)
+def resend_invitation(
+    organization_id: uuid.UUID,
+    invitation_id: uuid.UUID,
+    user: CurrentUser,
+    db: DbSession,
+    settings: AppSettings,
+) -> InvitationResponse:
+    invitation, raw = InvitationService(db, settings).resend(organization_id, invitation_id, user)
+    development_token = raw if settings.app_env in {"development", "testing"} else None
+    return InvitationResponse.model_validate(invitation).model_copy(
+        update={"development_token": development_token}
+    )
+
+
 @router.delete(
     "/{organization_id}/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT
 )

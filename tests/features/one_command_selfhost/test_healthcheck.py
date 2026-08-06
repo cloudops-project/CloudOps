@@ -52,10 +52,10 @@ def test_wrong_migration_head_is_rejected() -> None:
 
 
 def test_current_migration_head_is_accepted() -> None:
-    result = verify_migration("0019_live_remediation_data_model (head)")
+    result = verify_migration("0020_invitation_delivery_state (head)")
 
     assert result == HealthResult(
-        "migration", "healthy", "0019_live_remediation_data_model"
+        "migration", "healthy", "0020_invitation_delivery_state"
     )
 
 

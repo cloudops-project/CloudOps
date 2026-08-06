@@ -27,7 +27,6 @@ from app.models import (
     EvaluationJob,
     Finding,
     Organization,
-    OrganizationInvitation,
     OrganizationMembership,
     RefreshTokenSession,
     User,
@@ -131,16 +130,6 @@ def _seed_stage4(db: Session) -> dict[str, Any]:
             ),
         ]
     )
-    invitation = OrganizationInvitation(
-        organization_id=organization.id,
-        email="pending-migration@example.com",
-        normalized_email="pending-migration@example.com",
-        role=OrganizationRole.VIEWER,
-        token_hash=uuid.uuid4().hex,
-        status=InvitationStatus.PENDING,
-        invited_by_user_id=owner.id,
-        expires_at=now,
-    )
     refresh = RefreshTokenSession(
         user_id=owner.id,
         family_id=uuid.uuid4(),
@@ -148,12 +137,32 @@ def _seed_stage4(db: Session) -> dict[str, Any]:
         issued_at=now,
         expires_at=now,
     )
-    db.add_all([invitation, refresh])
+    db.add(refresh)
     db.flush()
     historical_metadata = sa.MetaData()
-    aws_accounts = sa.Table(
-        "aws_accounts", historical_metadata, autoload_with=db.get_bind()
+    # At this revision (0006_stage4_verification_repairs), the current ORM
+    # invitation model's 0020 delivery columns (last_delivery_status,
+    # delivery_generation, etc.) do not exist yet, so the row must be built
+    # from the reflected historical table rather than the current ORM model.
+    organization_invitations = sa.Table(
+        "organization_invitations", historical_metadata, autoload_with=db.get_bind()
     )
+    invitation_id = uuid.uuid4()
+    db.execute(
+        organization_invitations.insert(),
+        {
+            "id": invitation_id,
+            "organization_id": organization.id,
+            "email": "pending-migration@example.com",
+            "normalized_email": "pending-migration@example.com",
+            "role": OrganizationRole.VIEWER.value,
+            "token_hash": uuid.uuid4().hex,
+            "status": InvitationStatus.PENDING.value,
+            "invited_by_user_id": owner.id,
+            "expires_at": now,
+        },
+    )
+    aws_accounts = sa.Table("aws_accounts", historical_metadata, autoload_with=db.get_bind())
     account_id = uuid.uuid4()
     external_id = f"cloudops-migration-{uuid.uuid4()}"
     db.execute(

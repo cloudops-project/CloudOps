@@ -129,6 +129,25 @@ class Repository:
             .with_for_update()
         )
 
+    def invitation_for_update(
+        self, organization_id: uuid.UUID, invitation_id: uuid.UUID
+    ) -> OrganizationInvitation | None:
+        """Lock one tenant-scoped invitation for resend or cancel.
+
+        Filtering on organization_id inside the query means a cross-tenant
+        identifier returns None rather than another organization's row, so the
+        caller raises a non-disclosing not-found. FOR UPDATE serializes
+        concurrent resend/cancel on the same invitation.
+        """
+        return self.db.scalar(
+            select(OrganizationInvitation)
+            .where(
+                OrganizationInvitation.id == invitation_id,
+                OrganizationInvitation.organization_id == organization_id,
+            )
+            .with_for_update()
+        )
+
     def pending_invitation(
         self, organization_id: uuid.UUID, normalized_email: str
     ) -> OrganizationInvitation | None:

@@ -3,7 +3,18 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, UniqueConstraint, Uuid, text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    Uuid,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -24,6 +35,15 @@ class OrganizationInvitation(TimestampMixin, Base):
             sqlite_where=text("status = 'pending'"),
         ),
         Index("ix_invitation_org_status", "organization_id", "status"),
+        CheckConstraint(
+            "last_delivery_status IS NULL OR last_delivery_status IN "
+            "('pending', 'sending', 'delivered', 'failed')",
+            name="ck_invitation_delivery_status",
+        ),
+        CheckConstraint(
+            "delivery_generation >= 0",
+            name="ck_invitation_delivery_generation_nonnegative",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -62,3 +82,15 @@ class OrganizationInvitation(TimestampMixin, Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Sanitized delivery evidence only. Never a token, token hash, acceptance
+    # URL, email body, or raw provider exception.
+    last_delivery_status: Mapped[str | None] = mapped_column(String(32))
+    last_delivery_error_code: Mapped[str | None] = mapped_column(String(64))
+    last_delivery_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: Incremented on every resend and on cancel. A provider result is applied
+    #: only if this still matches the value captured before the provider call,
+    #: so a slow send cannot overwrite newer state.
+    delivery_generation: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
